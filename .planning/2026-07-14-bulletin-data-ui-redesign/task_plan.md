@@ -4,7 +4,7 @@
 Replace the Albert-centered catalog path with an authoritative NYU Shanghai Bulletin ingestion design, repair confirmed application risks, and redesign the planner as a polished one-column semester workflow with onboarding and an academic visual identity.
 
 ## Current Phase
-Phase 4
+Phase 5
 
 ## Phases
 
@@ -38,7 +38,7 @@ Phase 4
 ### Phase 5: Execute the approved backend plan
 - [ ] Follow test-first cycles for scraper/parser, normalization, persistence, APIs, and confirmed bug fixes
 - [ ] Verify fixtures, unit/integration tests, lint, types, and production build
-- **Status:** pending
+- **Status:** in_progress
 
 ### Phase 6: Execute the approved frontend plan
 - [ ] Follow test-first cycles for onboarding state, quote selection, layout behavior, and UI integration

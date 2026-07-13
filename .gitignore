@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Local embedded Postgres (PGlite) dev data
 .pglite
+
+# Subagent-driven development scratch artifacts
+.superpowers/
