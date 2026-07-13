@@ -1,0 +1,255 @@
+[
+  {
+    "id": "core",
+    "name": "NYUSH Core Curriculum",
+    "shortName": "Core",
+    "type": "core",
+    "color": "#10b981",
+    "categories": [
+      {
+        "id": "core-writing",
+        "name": "Writing (WAI + Perspectives on the Humanities)",
+        "rule": { "kind": "allOf", "courses": ["WRIT-SHU 101", "WRIT-SHU 201"] }
+      },
+      {
+        "id": "core-gps",
+        "name": "Global Perspectives on Society",
+        "rule": { "kind": "allOf", "courses": ["SCA-SHU 101"] }
+      },
+      {
+        "id": "core-lang",
+        "name": "Chinese Language",
+        "rule": {
+          "kind": "chooseN",
+          "n": 2,
+          "courses": ["CHIN-SHU 101", "CHIN-SHU 102", "CHIN-SHU 201"]
+        }
+      },
+      {
+        "id": "core-math",
+        "name": "Mathematics",
+        "rule": {
+          "kind": "chooseN",
+          "n": 1,
+          "courses": ["MATH-SHU 131", "MATH-SHU 140", "MATH-SHU 235", "CSCI-SHU 2314"]
+        }
+      },
+      {
+        "id": "core-science",
+        "name": "Science",
+        "rule": {
+          "kind": "chooseN",
+          "n": 1,
+          "courses": ["SCIEN-SHU 101", "ENVST-SHU 201"]
+        }
+      },
+      {
+        "id": "core-persp",
+        "name": "Humanities / Social Science Perspectives",
+        "rule": {
+          "kind": "chooseN",
+          "n": 1,
+          "courses": ["PHIL-SHU 105", "SOCS-SHU 150", "ARTH-SHU 150"]
+        }
+      }
+    ]
+  },
+  {
+    "id": "cs",
+    "name": "Computer Science",
+    "shortName": "CS",
+    "type": "major",
+    "color": "#8b5cf6",
+    "doubleCountLimit": 2,
+    "categories": [
+      {
+        "id": "cs-found",
+        "name": "Foundational Courses",
+        "rule": {
+          "kind": "allOf",
+          "courses": [
+            "CSCI-SHU 101",
+            "CSCI-SHU 210",
+            "CSCI-SHU 2314",
+            "CSCI-SHU 220",
+            "CENG-SHU 202",
+            "CSCI-SHU 215"
+          ]
+        }
+      },
+      {
+        "id": "cs-math",
+        "name": "Math Requirements",
+        "rule": { "kind": "allOf", "courses": ["MATH-SHU 131", "MATH-SHU 140"] }
+      },
+      {
+        "id": "cs-elect",
+        "name": "Major Electives",
+        "rule": {
+          "kind": "chooseN",
+          "n": 3,
+          "courses": [
+            "CSCI-SHU 213",
+            "CSCI-SHU 254",
+            "CSCI-SHU 308",
+            "CSCI-SHU 360",
+            "CSCI-SHU 376",
+            "CSCI-SHU 380",
+            "CSCI-SHU 410",
+            "CSCI-SHU 235",
+            "INTM-SHU 152",
+            "INTM-SHU 260",
+            "INTM-SHU 305",
+            "CENG-SHU 240"
+          ]
+        }
+      },
+      {
+        "id": "cs-capstone",
+        "name": "Senior Capstone",
+        "isCapstone": true,
+        "rule": { "kind": "allOf", "courses": ["CSCI-SHU 420"] }
+      }
+    ]
+  },
+  {
+    "id": "ima",
+    "name": "Interactive Media Arts",
+    "shortName": "IMA",
+    "type": "major",
+    "color": "#f59e0b",
+    "doubleCountLimit": 2,
+    "categories": [
+      {
+        "id": "ima-found",
+        "name": "Foundations",
+        "rule": {
+          "kind": "allOf",
+          "courses": ["INTM-SHU 101", "INTM-SHU 120", "INTM-SHU 240"]
+        }
+      },
+      {
+        "id": "ima-elect",
+        "name": "IMA Electives",
+        "rule": {
+          "kind": "creditsFrom",
+          "minCredits": 16,
+          "courses": [
+            "INTM-SHU 152",
+            "INTM-SHU 201",
+            "INTM-SHU 205",
+            "INTM-SHU 210",
+            "INTM-SHU 220",
+            "INTM-SHU 260",
+            "INTM-SHU 265",
+            "INTM-SHU 270",
+            "INTM-SHU 305",
+            "INTM-SHU 310",
+            "CSCI-SHU 235",
+            "CENG-SHU 240"
+          ]
+        }
+      },
+      {
+        "id": "ima-capstone",
+        "name": "Capstone Studio",
+        "isCapstone": true,
+        "rule": { "kind": "allOf", "courses": ["INTM-SHU 450"] }
+      }
+    ]
+  },
+  {
+    "id": "ds",
+    "name": "Data Science",
+    "shortName": "DS",
+    "type": "major",
+    "color": "#0891b2",
+    "doubleCountLimit": 2,
+    "categories": [
+      {
+        "id": "ds-found",
+        "name": "Foundational Courses",
+        "rule": {
+          "kind": "allOf",
+          "courses": ["DATS-SHU 101", "CSCI-SHU 101", "CSCI-SHU 210"]
+        }
+      },
+      {
+        "id": "ds-math",
+        "name": "Math & Statistics",
+        "rule": {
+          "kind": "allOf",
+          "courses": ["MATH-SHU 131", "MATH-SHU 140", "MATH-SHU 235"]
+        }
+      },
+      {
+        "id": "ds-core",
+        "name": "Data Science Core",
+        "rule": {
+          "kind": "allOf",
+          "courses": ["CSCI-SHU 360", "DATS-SHU 301"]
+        }
+      },
+      {
+        "id": "ds-elect",
+        "name": "Data Science Electives",
+        "rule": {
+          "kind": "chooseN",
+          "n": 3,
+          "courses": [
+            "CSCI-SHU 213",
+            "CSCI-SHU 235",
+            "CSCI-SHU 308",
+            "CSCI-SHU 376",
+            "DATS-SHU 310",
+            "INTM-SHU 305"
+          ]
+        }
+      },
+      {
+        "id": "ds-capstone",
+        "name": "Senior Capstone",
+        "isCapstone": true,
+        "rule": { "kind": "allOf", "courses": ["DATS-SHU 401"] }
+      }
+    ]
+  },
+  {
+    "id": "ima-minor",
+    "name": "Interactive Media Arts (Minor)",
+    "shortName": "IMA min",
+    "type": "minor",
+    "color": "#fb923c",
+    "categories": [
+      {
+        "id": "imam-found",
+        "name": "Foundation",
+        "rule": { "kind": "allOf", "courses": ["INTM-SHU 101"] }
+      },
+      {
+        "id": "imam-elect",
+        "name": "IMA Minor Electives",
+        "rule": {
+          "kind": "chooseN",
+          "n": 4,
+          "courses": [
+            "INTM-SHU 120",
+            "INTM-SHU 240",
+            "INTM-SHU 152",
+            "INTM-SHU 201",
+            "INTM-SHU 205",
+            "INTM-SHU 210",
+            "INTM-SHU 220",
+            "INTM-SHU 260",
+            "INTM-SHU 265",
+            "INTM-SHU 270",
+            "INTM-SHU 305",
+            "INTM-SHU 310",
+            "CSCI-SHU 235",
+            "CENG-SHU 240"
+          ]
+        }
+      }
+    ]
+  }
+]

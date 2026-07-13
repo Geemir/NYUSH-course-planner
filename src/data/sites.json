@@ -1,0 +1,9 @@
+[
+  { "id": "shanghai", "name": "NYU Shanghai", "label": "NYUSH", "isHome": true },
+  { "id": "newyork", "name": "NYU New York", "label": "NYUNY" },
+  { "id": "abudhabi", "name": "NYU Abu Dhabi", "label": "NYUAD" },
+  { "id": "london", "name": "NYU London", "label": "London" },
+  { "id": "berlin", "name": "NYU Berlin", "label": "Berlin" },
+  { "id": "paris", "name": "NYU Paris", "label": "Paris" },
+  { "id": "prague", "name": "NYU Prague", "label": "Prague" }
+]
