@@ -131,6 +131,56 @@ function documentHash(document: unknown): string {
   return createHash("sha256").update(JSON.stringify(document)).digest("hex");
 }
 
+function resealCandidate(input: CatalogCandidate): void {
+  const compare = (left: string, right: string) =>
+    left < right ? -1 : left > right ? 1 : 0;
+  input.documents.sort((left, right) => {
+    const leftRecord = left as { sourceUrl?: string; kind?: string };
+    const rightRecord = right as { sourceUrl?: string; kind?: string };
+    return (
+      compare(leftRecord.sourceUrl ?? "", rightRecord.sourceUrl ?? "") ||
+      compare(leftRecord.kind ?? "", rightRecord.kind ?? "") ||
+      compare(documentHash(left), documentHash(right))
+    );
+  });
+  input.sourceHash = documentHash(input.documents);
+  input.snapshotId = `bulletin-${input.sourceHash.slice(0, 24)}`;
+  [...input.courses, ...input.programs].forEach((entity) => {
+    const provenance = entity.provenance;
+    if (!provenance) return;
+    const document = input.documents.find(
+      (value) =>
+        (value as { sourceUrl?: string }).sourceUrl === provenance.sourceUrl,
+    );
+    if (document) provenance.sourceHash = documentHash(document);
+    provenance.snapshotId = input.snapshotId;
+  });
+}
+
+function repointProvenance(
+  input: CatalogCandidate,
+  fromUrl: string,
+  toUrl: string,
+): void {
+  [...input.courses, ...input.programs].forEach((entity) => {
+    if (entity.provenance?.sourceUrl === fromUrl) {
+      entity.provenance.sourceUrl = toUrl;
+    }
+  });
+}
+
+function expectOnlyInvalidSourceDocument(input: CatalogCandidate): void {
+  resealCandidate(input);
+  const report = validateCatalogCandidate(input);
+  expect(report.errors.map((error) => error.code)).toEqual([
+    "invalid-source-document",
+  ]);
+  expect(report.summary).toMatchObject({
+    snapshotId: input.snapshotId,
+    sourceHash: input.sourceHash,
+  });
+}
+
 describe("validateCatalogCandidate", () => {
   it("reports safe deterministic counts, hashes, and warning-only ambiguity", () => {
     const input = candidate();
@@ -165,12 +215,7 @@ describe("validateCatalogCandidate", () => {
     if (kind === "program")
       input.programs.push(structuredClone(input.programs[0]));
     if (kind === "source") {
-      const duplicateSourceId = structuredClone(input.documents[0]) as {
-        sourceUrl: string;
-      };
-      duplicateSourceId.sourceUrl =
-        "https://bulletins.nyu.edu/undergraduate/shanghai/courses/duplicate-url/";
-      input.documents.push(duplicateSourceId);
+      input.documents.push(structuredClone(input.documents[0]));
     }
 
     expect(codes(validateCatalogCandidate(input))).toContain(expectedCode);
@@ -428,20 +473,9 @@ describe("validateCatalogCandidate", () => {
 
   it("rejects wrong-kind same-URL/hash course provenance", () => {
     const input = candidate();
-    const subjectIndex = input.documents.findIndex(
-      (document) =>
-        (document as { sourceUrl?: string }).sourceUrl === SUBJECT_URL,
-    );
-    const replacement: BulletinProgramDocument = {
-      ...structuredClone(programDocument),
-      slug: "math-shu",
-      title: subjectDocument.title,
-      sourceUrl: SUBJECT_URL,
-    };
-    input.documents[subjectIndex] = replacement;
-    input.courses.forEach((course) => {
-      course.provenance!.sourceHash = documentHash(replacement);
-    });
+    const program = programIn(input);
+    input.courses[0].provenance!.sourceUrl = PROGRAM_URL;
+    input.courses[0].provenance!.sourceHash = documentHash(program);
 
     expect(codes(validateCatalogCandidate(input))).toContain(
       "provenance-source-mismatch",
@@ -450,18 +484,9 @@ describe("validateCatalogCandidate", () => {
 
   it("rejects wrong-kind program provenance and still runs row coverage", () => {
     const input = candidate();
-    const programIndex = input.documents.findIndex(
-      (document) =>
-        (document as { sourceUrl?: string }).sourceUrl === PROGRAM_URL,
-    );
-    const replacement: BulletinSourceDocument = {
-      ...structuredClone(subjectDocument),
-      slug: "mathematics-bs",
-      title: programDocument.title,
-      sourceUrl: PROGRAM_URL,
-    };
-    input.documents[programIndex] = replacement;
-    input.programs[0].provenance.sourceHash = documentHash(replacement);
+    const subject = subjectIn(input);
+    input.programs[0].provenance.sourceUrl = SUBJECT_URL;
+    input.programs[0].provenance.sourceHash = documentHash(subject);
 
     const report = validateCatalogCandidate(input);
     expect(codes(report)).toContain("provenance-source-mismatch");
@@ -470,13 +495,90 @@ describe("validateCatalogCandidate", () => {
 
   it("requires program provenance to match its source identity", () => {
     const input = candidate();
-    const document = programIn(input);
-    document.slug = "different-program";
-    input.programs[0].provenance.sourceHash = documentHash(document);
+    input.programs[0].id = "different-program";
 
     expect(codes(validateCatalogCandidate(input))).toContain(
       "provenance-source-mismatch",
     );
+  });
+
+  it("rejects duplicate subject course codes", () => {
+    const input = candidate();
+    const subject = subjectIn(input);
+    subject.courses.push({
+      ...structuredClone(subject.courses[0]),
+      title: "Different title",
+    });
+
+    expectOnlyInvalidSourceDocument(input);
+  });
+
+  it("rejects case-insensitive duplicate normalized subject titles", () => {
+    const input = candidate();
+    const subject = subjectIn(input);
+    subject.courses.push({
+      ...structuredClone(subject.courses[0]),
+      code: "MATH-SHU 999",
+      title: "  aLGeBrA  ",
+    });
+
+    expectOnlyInvalidSourceDocument(input);
+  });
+
+  it("rejects duplicate program requirement-table IDs", () => {
+    const input = candidate();
+    const program = programIn(input);
+    program.requirementTables.push({
+      ...structuredClone(program.requirementTables[0]),
+      rows: [],
+    });
+
+    expectOnlyInvalidSourceDocument(input);
+  });
+
+  it.each([
+    [
+      "wrong host",
+      "https://example.com/undergraduate/shanghai/courses/math-shu/",
+      undefined,
+    ],
+    [
+      "wrong path",
+      "https://bulletins.nyu.edu/undergraduate/shanghai/programs/math-shu/",
+      undefined,
+    ],
+    ["mismatched slug", SUBJECT_URL, "different-subject"],
+    ["query string", `${SUBJECT_URL}?view=all`, undefined],
+    [
+      "noncanonical origin spelling",
+      "HTTPS://BULLETINS.NYU.EDU:443/undergraduate/shanghai/courses/math-shu/",
+      undefined,
+    ],
+  ] as const)(
+    "rejects a subject source with %s despite consistent hashes",
+    (_label, nextUrl, nextSlug) => {
+      const input = candidate();
+      const subject = subjectIn(input);
+      const previousUrl = subject.sourceUrl;
+      subject.sourceUrl = nextUrl;
+      if (nextSlug) subject.slug = nextSlug;
+      repointProvenance(input, previousUrl, nextUrl);
+
+      expectOnlyInvalidSourceDocument(input);
+    },
+  );
+
+  it("rejects a noncanonical Core source path", () => {
+    const input = candidate();
+    const program = programIn(input);
+    const previousUrl = program.sourceUrl;
+    program.kind = "core";
+    program.slug = "core-curriculum";
+    program.sourceUrl =
+      "https://bulletins.nyu.edu/undergraduate/shanghai/programs/core-curriculum/";
+    repointProvenance(input, previousUrl, program.sourceUrl);
+
+    expectOnlyInvalidSourceDocument(input);
   });
 });
 

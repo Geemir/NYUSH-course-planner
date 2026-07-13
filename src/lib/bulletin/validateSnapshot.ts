@@ -84,6 +84,49 @@ function isOptionalString(value: unknown): boolean {
   return value === undefined || typeof value === "string";
 }
 
+function hasUniqueValues(values: readonly string[]): boolean {
+  return new Set(values).size === values.length;
+}
+
+function normalizedTitle(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase("en-US");
+}
+
+function hasCanonicalSourceIdentity(
+  kind: "subject" | "program" | "core",
+  slugValue: string,
+  sourceUrl: string,
+): boolean {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slugValue)) return false;
+  let url: URL;
+  try {
+    url = new URL(sourceUrl);
+  } catch {
+    return false;
+  }
+  const expectedPath =
+    kind === "subject"
+      ? `/undergraduate/shanghai/courses/${slugValue}/`
+      : kind === "program"
+        ? `/undergraduate/shanghai/programs/${slugValue}/`
+        : "/undergraduate/shanghai/core-curriculum/";
+  return (
+    url.protocol === "https:" &&
+    url.hostname === "bulletins.nyu.edu" &&
+    url.port === "" &&
+    url.username === "" &&
+    url.password === "" &&
+    url.search === "" &&
+    url.hash === "" &&
+    url.pathname === expectedPath &&
+    sourceUrl === `https://bulletins.nyu.edu${expectedPath}`
+  );
+}
+
 function isSourceRow(value: unknown, expectedIndex: number): boolean {
   if (!isRecord(value)) return false;
   const allowedRoles = new Set([
@@ -184,27 +227,46 @@ function isSamplePlan(value: unknown): boolean {
 
 function isBulletinDocument(value: unknown): value is BulletinDocument {
   if (!isRecord(value)) return false;
-  const commonFields =
+  if (
     typeof value.slug === "string" &&
     value.slug.trim() !== "" &&
     typeof value.title === "string" &&
     typeof value.sourceUrl === "string" &&
-    value.sourceUrl.trim() !== "";
-  if (!commonFields) return false;
+    value.sourceUrl.trim() !== ""
+  ) {
+    // The kind-specific contracts below validate the remaining fields.
+  } else {
+    return false;
+  }
   if (value.kind === "subject") {
     return (
+      hasCanonicalSourceIdentity(value.kind, value.slug, value.sourceUrl) &&
       Array.isArray(value.courses) &&
       value.courses.length > 0 &&
-      value.courses.every(isSubjectCourse)
+      value.courses.every(isSubjectCourse) &&
+      hasUniqueValues(
+        value.courses.map((course) => (course as Record<string, unknown>).code as string),
+      ) &&
+      hasUniqueValues(
+        value.courses.map((course) =>
+          normalizedTitle((course as Record<string, unknown>).title as string),
+        ),
+      )
     );
   }
   if (value.kind !== "program" && value.kind !== "core") return false;
   return (
     (value.kind !== "core" || value.slug === "core-curriculum") &&
+    hasCanonicalSourceIdentity(value.kind, value.slug, value.sourceUrl) &&
     Array.isArray(value.sections) &&
     value.sections.every(isSourceSection) &&
     Array.isArray(value.requirementTables) &&
     value.requirementTables.every(isRequirementTable) &&
+    hasUniqueValues(
+      value.requirementTables.map(
+        (table) => (table as Record<string, unknown>).id as string,
+      ),
+    ) &&
     Array.isArray(value.policies) &&
     value.policies.every(isSourcePolicy) &&
     Array.isArray(value.footnotes) &&
@@ -526,6 +588,26 @@ function addDuplicateDiagnostics(
   duplicates(values).forEach((entityId) => errors.push({ code, entityId }));
 }
 
+function validationSummary(
+  candidate: CatalogCandidate,
+): SnapshotValidationSummary {
+  return {
+    snapshotId: candidate.snapshotId,
+    sourceHash: candidate.sourceHash,
+    documentCount: candidate.documents.length,
+    courseCount: candidate.courses.length,
+    programCount: candidate.programs.length,
+    sourceRowCount: candidate.programs.reduce(
+      (count, program) => count + program.sourceRows.length,
+      0,
+    ),
+    requirementRowCount: candidate.programs.reduce(
+      (count, program) => count + program.requirementRows.length,
+      0,
+    ),
+  };
+}
+
 export function validateCatalogCandidate(
   candidate: CatalogCandidate,
 ): SnapshotValidationReport {
@@ -546,6 +628,13 @@ export function validateCatalogCandidate(
       });
     }
   });
+  if (errors.length > 0) {
+    return {
+      summary: validationSummary(candidate),
+      errors: sortDiagnostics(errors),
+      warnings: [],
+    };
+  }
 
   addDuplicateDiagnostics(
     errors,
@@ -774,21 +863,7 @@ export function validateCatalogCandidate(
   });
 
   return {
-    summary: {
-      snapshotId: candidate.snapshotId,
-      sourceHash: candidate.sourceHash,
-      documentCount: candidate.documents.length,
-      courseCount: candidate.courses.length,
-      programCount: candidate.programs.length,
-      sourceRowCount: candidate.programs.reduce(
-        (count, program) => count + program.sourceRows.length,
-        0,
-      ),
-      requirementRowCount: candidate.programs.reduce(
-        (count, program) => count + program.requirementRows.length,
-        0,
-      ),
-    },
+    summary: validationSummary(candidate),
     errors: sortDiagnostics(errors),
     warnings: sortDiagnostics(warnings),
   };
