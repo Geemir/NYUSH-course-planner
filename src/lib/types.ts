@@ -181,7 +181,7 @@ export const CourseSchema = z.object({
   /** Official course code, e.g. "CSCI-SHU 210" — used as the primary key. */
   id: z.string().min(1),
   title: z.string().min(1),
-  credits: z.number().positive(),
+  credits: z.number().nonnegative(),
   minCredits: z.number().nonnegative().optional(),
   maxCredits: z.number().nonnegative().optional(),
   creditsText: z.string().optional(),
@@ -224,6 +224,91 @@ export type Course = Omit<ParsedCourse, "attributes" | "offeringKnown"> & {
   attributes?: string[];
   offeringKnown?: boolean;
 };
+
+// ---------------------------------------------------------------------------
+// Bulletin catalog candidates
+// ---------------------------------------------------------------------------
+
+export const CatalogRequirementRowSchema = z.object({
+  sourceUrl: z.string().url(),
+  tableId: z.string().min(1),
+  sourceIndex: z.number().int().nonnegative(),
+  sourceText: z.string().min(1),
+  categoryId: z.string().min(1),
+  nodePath: z.array(z.number().int().nonnegative()),
+  node: RequirementNodeSchema,
+});
+export type CatalogRequirementRow = z.infer<
+  typeof CatalogRequirementRowSchema
+>;
+
+export const CatalogSourceRowSchema = z.discriminatedUnion("representation", [
+  z.object({
+    representation: z.literal("categoryBoundary"),
+    sourceUrl: z.string().url(),
+    tableId: z.string().min(1),
+    sourceIndex: z.number().int().nonnegative(),
+    sourceText: z.string().min(1),
+    categoryId: z.string().min(1),
+  }),
+  z.object({
+    representation: z.literal("requirementNode"),
+    sourceUrl: z.string().url(),
+    tableId: z.string().min(1),
+    sourceIndex: z.number().int().nonnegative(),
+    sourceText: z.string().min(1),
+    categoryId: z.string().min(1),
+    nodePath: z.array(z.number().int().nonnegative()),
+  }),
+  z.object({
+    representation: z.literal("publishedTotal"),
+    sourceUrl: z.string().url(),
+    tableId: z.string().min(1),
+    sourceIndex: z.number().int().nonnegative(),
+    sourceText: z.string().min(1),
+    creditsText: z.string().min(1).optional(),
+  }),
+]);
+export type CatalogSourceRow = z.infer<typeof CatalogSourceRowSchema>;
+
+export const CatalogCategorySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  requirement: RequirementNodeSchema,
+  sourceUrl: z.string().url(),
+  sourceTableId: z.string().min(1),
+  sourceRowIndexes: z.array(z.number().int().nonnegative()).min(1),
+});
+export type CatalogCategory = z.infer<typeof CatalogCategorySchema>;
+
+export const CatalogProgramSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  shortName: z.string().min(1),
+  type: z.enum(["major", "core", "minor"]),
+  categories: z.array(CatalogCategorySchema),
+  requirementRows: z.array(CatalogRequirementRowSchema),
+  sourceRows: z.array(CatalogSourceRowSchema),
+  provenance: CatalogProvenanceSchema,
+});
+export type CatalogProgram = z.infer<typeof CatalogProgramSchema>;
+
+export const CatalogCandidateSchema = z.object({
+  snapshotId: z.string().min(1),
+  sourceHash: z.string().min(1),
+  documents: z.array(z.unknown()),
+  courses: z.array(CourseSchema),
+  programs: z.array(CatalogProgramSchema),
+  externalCourseIds: z.array(z.string().min(1)),
+});
+export interface CatalogCandidate {
+  snapshotId: string;
+  sourceHash: string;
+  documents: unknown[];
+  courses: Course[];
+  programs: CatalogProgram[];
+  externalCourseIds: string[];
+}
 
 /** True when `course` stands in for `targetId` (itself or an equivalent). */
 export function courseCovers(course: Course, targetId: string): boolean {
