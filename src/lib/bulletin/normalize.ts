@@ -275,13 +275,7 @@ function isPureCourseReference(
   }
   if (displayText === "") return true;
   const knownTitle = courseTitles.get(courseId);
-  if (knownTitle) return displayText === knownTitle;
-
-  const titleConnector = /^(?:a|an|and|as|at|by|for|from|in|into|of|on|or|the|to|via)$/;
-  const titleWord = /^[A-Z0-9][\p{L}\p{N}'’&+./:()-]*$/u;
-  return displayText
-    .split(/\s+/)
-    .every((token) => titleWord.test(token) || titleConnector.test(token));
+  return knownTitle !== undefined && displayText === knownTitle;
 }
 
 function explicitRowNode(

@@ -98,7 +98,7 @@ const programDocument: BulletinProgramDocument = {
         row(
           "course",
           15,
-          "CSCI-UA 101 Introduction to Computer Science",
+          "CSCI-UA 101",
           ["CSCI-UA 101"],
           "4",
         ),
@@ -358,6 +358,40 @@ describe("normalizeBulletin", () => {
       label: "Preparation",
       sourceText: "MATH-SHU 121 Permission of Instructor",
     });
+  });
+
+  it("manualizes unverified external display text", () => {
+    const externalDisplays = [
+      "CSCI-UA 101 Permission of Instructor",
+      "CSCI-UA 101 Introduction to Computer Science",
+    ];
+
+    for (const sourceText of externalDisplays) {
+      const externalProgram: BulletinProgramDocument = {
+        ...programDocument,
+        requirementTables: [
+          {
+            id: "external-display",
+            sectionId: "requirements",
+            rows: [
+              row("areaHeader", 0, "External Study"),
+              row("course", 1, sourceText, ["CSCI-UA 101"], "4"),
+            ],
+          },
+        ],
+      };
+
+      const requirement = normalizeBulletin(discovery, [
+        subjectDocument,
+        externalProgram,
+      ]).programs[0].categories[0].requirement;
+
+      expect(requirement).toEqual({
+        kind: "manualConfirmation",
+        label: "External Study",
+        sourceText,
+      });
+    }
   });
 
   it("does not turn an unsupported selector into an all-courses rule", () => {
