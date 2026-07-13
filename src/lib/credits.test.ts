@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { placementCredits } from "@/lib/credits";
 import {
+  CourseSchema,
   FulfillmentFactsSchema,
   RequirementNodeSchema,
   RuleSchema,
 } from "@/lib/types";
-import type { Course, Placement } from "@/lib/types";
+import type { Course, Placement, RequirementNode } from "@/lib/types";
 
 const course: Course = {
   id: "TEST-SHU 997",
@@ -47,23 +48,44 @@ describe("placementCredits", () => {
 });
 
 describe("bulletin domain schemas", () => {
-  it("parses recursive requirement nodes", () => {
-    const requirement = {
-      kind: "all" as const,
-      children: [
-        { kind: "course" as const, courseId: "CSCI-SHU 101" },
-        {
-          kind: "choose" as const,
-          count: 1,
-          children: [
-            { kind: "attribute" as const, attribute: "Algorithmic Thinking" },
-            { kind: "waiver" as const, waiverId: "placement", label: "Placement exam" },
-          ],
-        },
-      ],
-    };
+  const courseNode: RequirementNode = {
+    kind: "course",
+    courseId: "CSCI-SHU 101",
+  };
+  const requirementNodes: RequirementNode[] = [
+    courseNode,
+    { kind: "all", children: [courseNode] },
+    { kind: "any", children: [courseNode] },
+    { kind: "choose", count: 1, children: [courseNode] },
+    { kind: "credits", minimum: 4, children: [courseNode] },
+    { kind: "attribute", attribute: "Algorithmic Thinking" },
+    {
+      kind: "exclusion",
+      excludedCourseIds: ["CSCI-SHU 997"],
+      child: courseNode,
+    },
+    { kind: "waiver", waiverId: "placement", label: "Placement exam" },
+    {
+      kind: "manualConfirmation",
+      label: "Advisor approval",
+      sourceText: "Approval from the program director is required.",
+    },
+  ];
 
+  it.each(requirementNodes)("parses the $kind requirement variant", (requirement) => {
     expect(RequirementNodeSchema.parse(requirement)).toEqual(requirement);
+  });
+
+  it("rejects an empty offering list when offering is known", () => {
+    expect(
+      CourseSchema.safeParse({ ...course, offeringKnown: true, offered: [] }).success,
+    ).toBe(false);
+  });
+
+  it("accepts an empty offering list when offering is unknown", () => {
+    expect(
+      CourseSchema.parse({ ...course, offeringKnown: false, offered: [] }),
+    ).toMatchObject({ offeringKnown: false, offered: [] });
   });
 
   it("keeps all legacy rule kinds parseable", () => {
