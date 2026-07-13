@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { normalizeBulletin } from "@/lib/bulletin/normalize";
 import type { BulletinSourceDocument } from "@/lib/bulletin/parseCoursePage";
@@ -112,6 +113,22 @@ function candidate(): CatalogCandidate {
 
 function codes(report: ReturnType<typeof validateCatalogCandidate>) {
   return report.errors.map((diagnostic) => diagnostic.code);
+}
+
+function subjectIn(input: CatalogCandidate): BulletinSourceDocument {
+  return input.documents.find(
+    (document) => (document as { kind?: string }).kind === "subject",
+  ) as BulletinSourceDocument;
+}
+
+function programIn(input: CatalogCandidate): BulletinProgramDocument {
+  return input.documents.find(
+    (document) => (document as { kind?: string }).kind === "program",
+  ) as BulletinProgramDocument;
+}
+
+function documentHash(document: unknown): string {
+  return createHash("sha256").update(JSON.stringify(document)).digest("hex");
 }
 
 describe("validateCatalogCandidate", () => {
@@ -305,6 +322,161 @@ describe("validateCatalogCandidate", () => {
       "invalid-source-document",
     );
     expect(() => assertPublishable(report)).toThrow(BulletinValidationError);
+  });
+
+  it("blocks malformed nested subject-course fields", () => {
+    const input = candidate();
+    (subjectIn(input).courses[0] as unknown as { linkedCourseIds: unknown })
+      .linkedCourseIds = [42];
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "invalid-source-document",
+    );
+  });
+
+  it("blocks malformed nested program rows", () => {
+    const input = candidate();
+    (programIn(input).requirementTables[0].rows[0] as unknown as { role: string })
+      .role = "unsupported";
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "invalid-source-document",
+    );
+  });
+
+  it("blocks malformed nested program sections", () => {
+    const input = candidate();
+    programIn(input).sections.push({
+      id: "requirements",
+      heading: "Requirements",
+      text: "Requirements",
+      prose: [42],
+      tableIds: [],
+    } as unknown as BulletinProgramDocument["sections"][number]);
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "invalid-source-document",
+    );
+  });
+
+  it("compares category-boundary representation fields exactly", () => {
+    const input = candidate();
+    const boundary = input.programs[0].sourceRows.find(
+      (sourceRow) => sourceRow.representation === "categoryBoundary",
+    )!;
+    boundary.categoryId = "different-category";
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "source-row-coverage",
+    );
+  });
+
+  it("compares published-total representation fields exactly", () => {
+    const input = candidate();
+    const total = input.programs[0].sourceRows.find(
+      (sourceRow) => sourceRow.representation === "publishedTotal",
+    )!;
+    total.creditsText = "999";
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "source-row-coverage",
+    );
+  });
+
+  it("blocks duplicate requirement-node AST paths", () => {
+    const input = candidate();
+    const program = input.programs[0];
+    const firstRequirement = program.requirementRows[0];
+    const secondRequirement = program.requirementRows[1];
+    firstRequirement.nodePath = [...secondRequirement.nodePath];
+    firstRequirement.node = structuredClone(secondRequirement.node);
+    const firstSourceRow = program.sourceRows.find(
+      (sourceRow) =>
+        sourceRow.representation === "requirementNode" &&
+        sourceRow.sourceIndex === firstRequirement.sourceIndex,
+    );
+    if (firstSourceRow?.representation === "requirementNode") {
+      firstSourceRow.nodePath = [...secondRequirement.nodePath];
+    }
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "source-row-coverage",
+    );
+  });
+
+  it("compares category source metadata with the parsed row group", () => {
+    const input = candidate();
+    input.programs[0].categories[0].sourceTableId = "different-table";
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "source-row-coverage",
+    );
+  });
+
+  it("requires course provenance to resolve to a containing subject", () => {
+    const input = candidate();
+    const subject = subjectIn(input);
+    subject.courses = subject.courses.filter(
+      (course) => course.code !== input.courses[0].id,
+    );
+    input.courses[0].provenance!.sourceHash = documentHash(subject);
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "provenance-source-mismatch",
+    );
+  });
+
+  it("rejects wrong-kind same-URL/hash course provenance", () => {
+    const input = candidate();
+    const subjectIndex = input.documents.findIndex(
+      (document) =>
+        (document as { sourceUrl?: string }).sourceUrl === SUBJECT_URL,
+    );
+    const replacement: BulletinProgramDocument = {
+      ...structuredClone(programDocument),
+      slug: "math-shu",
+      title: subjectDocument.title,
+      sourceUrl: SUBJECT_URL,
+    };
+    input.documents[subjectIndex] = replacement;
+    input.courses.forEach((course) => {
+      course.provenance!.sourceHash = documentHash(replacement);
+    });
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "provenance-source-mismatch",
+    );
+  });
+
+  it("rejects wrong-kind program provenance and still runs row coverage", () => {
+    const input = candidate();
+    const programIndex = input.documents.findIndex(
+      (document) =>
+        (document as { sourceUrl?: string }).sourceUrl === PROGRAM_URL,
+    );
+    const replacement: BulletinSourceDocument = {
+      ...structuredClone(subjectDocument),
+      slug: "mathematics-bs",
+      title: programDocument.title,
+      sourceUrl: PROGRAM_URL,
+    };
+    input.documents[programIndex] = replacement;
+    input.programs[0].provenance.sourceHash = documentHash(replacement);
+
+    const report = validateCatalogCandidate(input);
+    expect(codes(report)).toContain("provenance-source-mismatch");
+    expect(codes(report)).toContain("source-row-coverage");
+  });
+
+  it("requires program provenance to match its source identity", () => {
+    const input = candidate();
+    const document = programIn(input);
+    document.slug = "different-program";
+    input.programs[0].provenance.sourceHash = documentHash(document);
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "provenance-source-mismatch",
+    );
   });
 });
 

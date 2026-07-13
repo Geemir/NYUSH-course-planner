@@ -2,11 +2,13 @@ import { createHash } from "node:crypto";
 import type { BulletinSourceDocument } from "@/lib/bulletin/parseCoursePage";
 import type {
   BulletinProgramDocument,
+  SourceTableRow,
   SourceTableRowRole,
 } from "@/lib/bulletin/parseProgramPage";
 import type {
   CatalogCandidate,
   CatalogProgram,
+  CatalogSourceRow,
   Course,
   RequirementNode,
 } from "@/lib/types";
@@ -23,6 +25,7 @@ export type SnapshotValidationCode =
   | "missing-fetched-page"
   | "missing-title"
   | "provenance-hash-mismatch"
+  | "provenance-source-mismatch"
   | "snapshot-id-mismatch"
   | "source-hash-mismatch"
   | "source-row-coverage"
@@ -73,30 +76,140 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+function isSourceRow(value: unknown, expectedIndex: number): boolean {
+  if (!isRecord(value)) return false;
+  const allowedRoles = new Set([
+    "areaHeader",
+    "areaSubheader",
+    "course",
+    "comment",
+    "total",
+  ]);
+  return (
+    typeof value.role === "string" &&
+    allowedRoles.has(value.role) &&
+    value.sourceIndex === expectedIndex &&
+    typeof value.text === "string" &&
+    isOptionalString(value.creditsText) &&
+    isStringArray(value.linkedCourseCodes) &&
+    isStringArray(value.sourceAnchors) &&
+    isStringArray(value.footnoteMarkers)
+  );
+}
+
+function isSourceRows(value: unknown): boolean {
+  return Array.isArray(value) && value.every(isSourceRow);
+}
+
+function isSubjectCourse(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.code === "string" &&
+    value.code.trim() !== "" &&
+    typeof value.title === "string" &&
+    value.title.trim() !== "" &&
+    isOptionalString(value.creditsText) &&
+    isOptionalString(value.description) &&
+    isOptionalString(value.offeringText) &&
+    isOptionalString(value.prerequisiteText) &&
+    isStringArray(value.linkedCourseIds) &&
+    isStringArray(value.attributes) &&
+    isStringArray(value.detailTexts)
+  );
+}
+
+function isSourceSection(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.heading === "string" &&
+    typeof value.text === "string" &&
+    isStringArray(value.prose) &&
+    isStringArray(value.tableIds)
+  );
+}
+
+function isSourcePolicy(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.heading === "string" &&
+    typeof value.text === "string"
+  );
+}
+
+function isSourceFootnote(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.marker === "string" &&
+    typeof value.text === "string"
+  );
+}
+
+function isRequirementTable(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    value.id.trim() !== "" &&
+    typeof value.sectionId === "string" &&
+    isOptionalString(value.caption) &&
+    isSourceRows(value.rows)
+  );
+}
+
+function isSamplePlan(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.sectionId === "string" &&
+    typeof value.heading === "string" &&
+    Array.isArray(value.terms) &&
+    value.terms.every(
+      (term) =>
+        isRecord(term) &&
+        typeof term.id === "string" &&
+        typeof term.heading === "string" &&
+        isSourceRows(term.rows),
+    )
+  );
+}
+
 function isBulletinDocument(value: unknown): value is BulletinDocument {
   if (!isRecord(value)) return false;
   const commonFields =
     typeof value.slug === "string" &&
+    value.slug.trim() !== "" &&
     typeof value.title === "string" &&
-    typeof value.sourceUrl === "string";
+    typeof value.sourceUrl === "string" &&
+    value.sourceUrl.trim() !== "";
   if (!commonFields) return false;
-  if (value.kind === "subject") return Array.isArray(value.courses);
+  if (value.kind === "subject") {
+    return (
+      Array.isArray(value.courses) &&
+      value.courses.length > 0 &&
+      value.courses.every(isSubjectCourse)
+    );
+  }
   if (value.kind !== "program" && value.kind !== "core") return false;
   return (
+    (value.kind !== "core" || value.slug === "core-curriculum") &&
+    Array.isArray(value.sections) &&
+    value.sections.every(isSourceSection) &&
     Array.isArray(value.requirementTables) &&
-    value.requirementTables.every(
-      (table) =>
-        isRecord(table) &&
-        typeof table.id === "string" &&
-        Array.isArray(table.rows) &&
-        table.rows.every(
-          (row) =>
-            isRecord(row) &&
-            typeof row.role === "string" &&
-            typeof row.sourceIndex === "number" &&
-            typeof row.text === "string",
-        ),
-    )
+    value.requirementTables.every(isRequirementTable) &&
+    Array.isArray(value.policies) &&
+    value.policies.every(isSourcePolicy) &&
+    Array.isArray(value.footnotes) &&
+    value.footnotes.every(isSourceFootnote) &&
+    (value.samplePlan === undefined || isSamplePlan(value.samplePlan))
   );
 }
 
@@ -157,6 +270,125 @@ function rowKey(sourceUrlValue: string, tableId: string, sourceIndex: number) {
   return `${sourceUrlValue}\u0000${tableId}\u0000${sourceIndex}`;
 }
 
+function slug(value: string): string {
+  const result = value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return result || "requirements";
+}
+
+function uniqueCategoryId(name: string, used: Map<string, number>): string {
+  const base = slug(name);
+  const sequence = (used.get(base) ?? 0) + 1;
+  used.set(base, sequence);
+  return sequence === 1 ? base : `${base}-${sequence}`;
+}
+
+function sourceRowGroups(rows: SourceTableRow[]): SourceTableRow[][] {
+  const groups: SourceTableRow[][] = [];
+  for (const row of rows) {
+    if (row.role === "areaHeader" || groups.length === 0) groups.push([]);
+    groups.at(-1)!.push(row);
+  }
+  return groups;
+}
+
+function semanticRowPaths(rows: SourceTableRow[]): Map<number, number[]> {
+  const groups: SourceTableRow[][] = [];
+  for (const row of rows) {
+    if (row.role === "areaSubheader" || groups.length === 0) groups.push([]);
+    groups.at(-1)!.push(row);
+  }
+  const paths = new Map<number, number[]>();
+  groups.forEach((group, groupIndex) => {
+    const directive =
+      group.length > 1 &&
+      group[0].role === "areaSubheader" &&
+      (/^select one:?$/i.test(group[0].text) ||
+        /^complete \d+(?:\.\d+)? credits from:?$/i.test(group[0].text));
+    group.forEach((row, rowIndex) => {
+      const localPath = directive
+        ? rowIndex === 0
+          ? []
+          : [rowIndex - 1]
+        : group.length === 1
+          ? []
+          : [rowIndex];
+      paths.set(
+        row.sourceIndex,
+        groups.length === 1 ? localPath : [groupIndex, ...localPath],
+      );
+    });
+  });
+  return paths;
+}
+
+interface ExpectedCategorySource {
+  id: string;
+  name: string;
+  sourceUrl: string;
+  sourceTableId: string;
+  sourceRowIndexes: number[];
+}
+
+function expectedCoverage(document: BulletinProgramDocument): {
+  sourceRows: CatalogSourceRow[];
+  categories: ExpectedCategorySource[];
+} {
+  const sourceRows: CatalogSourceRow[] = [];
+  const categories: ExpectedCategorySource[] = [];
+  const usedCategoryIds = new Map<string, number>();
+  for (const table of document.requirementTables) {
+    for (const group of sourceRowGroups(table.rows)) {
+      const header = group.find((row) => row.role === "areaHeader");
+      const categoryName = header?.text ?? table.caption ?? table.id;
+      const categoryId = uniqueCategoryId(categoryName, usedCategoryIds);
+      const semanticRows = group.filter(
+        (row) => row.role !== "areaHeader" && row.role !== "total",
+      );
+      const nodePaths = semanticRowPaths(semanticRows);
+      if (semanticRows.length > 0) {
+        categories.push({
+          id: categoryId,
+          name: categoryName,
+          sourceUrl: document.sourceUrl,
+          sourceTableId: table.id,
+          sourceRowIndexes: group.map((row) => row.sourceIndex),
+        });
+      }
+      group.forEach((row) => {
+        const common = {
+          sourceUrl: document.sourceUrl,
+          tableId: table.id,
+          sourceIndex: row.sourceIndex,
+          sourceText: row.text,
+        };
+        const representation = expectedRepresentation(row.role);
+        if (representation === "categoryBoundary") {
+          sourceRows.push({ representation, ...common, categoryId });
+        } else if (representation === "publishedTotal") {
+          sourceRows.push({
+            representation,
+            ...common,
+            ...(row.creditsText ? { creditsText: row.creditsText } : {}),
+          });
+        } else {
+          sourceRows.push({
+            representation,
+            ...common,
+            categoryId,
+            nodePath: nodePaths.get(row.sourceIndex) ?? [],
+          });
+        }
+      });
+    }
+  }
+  return { sourceRows, categories };
+}
+
 function nodeAtPath(
   requirement: RequirementNode,
   path: readonly number[],
@@ -182,39 +414,46 @@ function hasExactSourceRowCoverage(
   program: CatalogProgram,
   document: BulletinProgramDocument,
 ): boolean {
-  const expectedRows = document.requirementTables.flatMap((table) =>
-    table.rows.map((row) => ({
-      key: rowKey(document.sourceUrl, table.id, row.sourceIndex),
-      sourceText: row.text,
-      representation: expectedRepresentation(row.role),
-    })),
-  );
-  const actualRows = program.sourceRows.map((row) => ({
-    key: rowKey(row.sourceUrl, row.tableId, row.sourceIndex),
-    sourceText: row.sourceText,
-    representation: row.representation,
-  }));
-  if (expectedRows.length !== actualRows.length) return false;
-
+  const expected = expectedCoverage(document);
+  if (expected.sourceRows.length !== program.sourceRows.length) return false;
   const expectedByKey = new Map(
-    expectedRows.map((row) => [row.key, row] as const),
+    expected.sourceRows.map((row) => [
+      rowKey(row.sourceUrl, row.tableId, row.sourceIndex),
+      row,
+    ] as const),
   );
-  if (expectedByKey.size !== expectedRows.length) return false;
-  const actualByKey = new Map(actualRows.map((row) => [row.key, row] as const));
-  if (actualByKey.size !== actualRows.length) return false;
-
-  for (const expected of expectedRows) {
-    const actual = actualByKey.get(expected.key);
-    if (
-      !actual ||
-      actual.sourceText !== expected.sourceText ||
-      actual.representation !== expected.representation
-    ) {
-      return false;
-    }
+  const actualByKey = new Map(
+    program.sourceRows.map((row) => [
+      rowKey(row.sourceUrl, row.tableId, row.sourceIndex),
+      row,
+    ] as const),
+  );
+  if (
+    expectedByKey.size !== expected.sourceRows.length ||
+    actualByKey.size !== program.sourceRows.length
+  ) {
+    return false;
+  }
+  if (
+    [...expectedByKey].some(
+      ([key, row]) => JSON.stringify(actualByKey.get(key)) !== JSON.stringify(row),
+    )
+  ) {
+    return false;
   }
 
-  const expectedRequirements = expectedRows.filter(
+  const actualCategories = program.categories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    sourceUrl: category.sourceUrl,
+    sourceTableId: category.sourceTableId,
+    sourceRowIndexes: category.sourceRowIndexes,
+  }));
+  if (JSON.stringify(actualCategories) !== JSON.stringify(expected.categories)) {
+    return false;
+  }
+
+  const expectedRequirements = expected.sourceRows.filter(
     (row) => row.representation === "requirementNode",
   );
   if (program.requirementRows.length !== expectedRequirements.length) return false;
@@ -225,15 +464,13 @@ function hasExactSourceRowCoverage(
     ] as const),
   );
   if (requirementsByKey.size !== program.requirementRows.length) return false;
-  const sourceRowsByKey = new Map(
-    program.sourceRows.map((row) => [
-      rowKey(row.sourceUrl, row.tableId, row.sourceIndex),
-      row,
-    ] as const),
+  const requirementPaths = program.requirementRows.map(
+    (row) => `${row.categoryId}\u0000${JSON.stringify(row.nodePath)}`,
   );
+  if (new Set(requirementPaths).size !== requirementPaths.length) return false;
   return expectedRequirements.every((expected) => {
-    const requirement = requirementsByKey.get(expected.key);
-    const sourceRow = sourceRowsByKey.get(expected.key);
+    const key = rowKey(expected.sourceUrl, expected.tableId, expected.sourceIndex);
+    const requirement = requirementsByKey.get(key);
     const category = program.categories.find(
       (candidate) => candidate.id === requirement?.categoryId,
     );
@@ -242,9 +479,11 @@ function hasExactSourceRowCoverage(
       : undefined;
     return (
       requirement?.sourceText === expected.sourceText &&
-      sourceRow?.representation === "requirementNode" &&
-      sourceRow.categoryId === requirement.categoryId &&
-      JSON.stringify(sourceRow.nodePath) === JSON.stringify(requirement.nodePath) &&
+      requirement.sourceUrl === expected.sourceUrl &&
+      requirement.tableId === expected.tableId &&
+      requirement.sourceIndex === expected.sourceIndex &&
+      requirement.categoryId === expected.categoryId &&
+      JSON.stringify(requirement.nodePath) === JSON.stringify(expected.nodePath) &&
       JSON.stringify(representedNode) === JSON.stringify(requirement.node)
     );
   });
@@ -372,9 +611,12 @@ export function validateCatalogCandidate(
     }
   });
 
-  const documentByUrl = new Map(
-    documents.map((document) => [document.sourceUrl, document] as const),
-  );
+  const documentsByUrl = new Map<string, BulletinDocument[]>();
+  documents.forEach((document) => {
+    const values = documentsByUrl.get(document.sourceUrl) ?? [];
+    values.push(document);
+    documentsByUrl.set(document.sourceUrl, values);
+  });
   const expectedHash = hash(canonicalDocuments(candidate.documents));
   if (candidate.sourceHash !== expectedHash) {
     errors.push({ code: "source-hash-mismatch" });
@@ -385,10 +627,12 @@ export function validateCatalogCandidate(
   [...candidate.courses, ...candidate.programs].forEach((entity) => {
     const provenance = entity.provenance;
     if (!provenance) return;
-    const document = documentByUrl.get(provenance.sourceUrl);
+    const matchingDocuments = documentsByUrl.get(provenance.sourceUrl) ?? [];
     if (
-      document &&
-      (provenance.sourceHash !== hash(document) ||
+      matchingDocuments.length > 0 &&
+      (!matchingDocuments.some(
+        (document) => provenance.sourceHash === hash(document),
+      ) ||
         provenance.snapshotId !== candidate.snapshotId)
     ) {
       errors.push({
@@ -399,11 +643,58 @@ export function validateCatalogCandidate(
     }
   });
 
-  const programsByUrl = new Map<string, CatalogProgram[]>();
+  candidate.courses.forEach((course) => {
+    const matchingDocuments = course.provenance
+      ? (documentsByUrl.get(course.provenance.sourceUrl) ?? [])
+      : [];
+    if (
+      !matchingDocuments.some(
+        (document) =>
+          document.kind === "subject" &&
+          document.courses.some(
+            (sourceCourse) =>
+              sourceCourse.code === course.id && sourceCourse.title === course.title,
+          ),
+      )
+    ) {
+      errors.push({
+        code: "provenance-source-mismatch",
+        sourceUrl: course.provenance?.sourceUrl,
+        entityId: course.id,
+      });
+    }
+  });
+
+  function programDocumentMatches(
+    program: CatalogProgram,
+    document: BulletinDocument,
+  ): document is BulletinProgramDocument {
+    const kindAndSlugMatch =
+      program.type === "core"
+        ? document.kind === "core" &&
+          document.slug === "core-curriculum" &&
+          program.id === "core"
+        : document.kind === "program" && document.slug === program.id;
+    return kindAndSlugMatch && document.title === program.name;
+  }
+
+  const coverageErrorUrls = new Set<string>();
   candidate.programs.forEach((program) => {
-    const values = programsByUrl.get(program.provenance.sourceUrl) ?? [];
-    values.push(program);
-    programsByUrl.set(program.provenance.sourceUrl, values);
+    const matchingDocuments = (
+      documentsByUrl.get(program.provenance.sourceUrl) ?? []
+    ).filter((document) => programDocumentMatches(program, document));
+    if (matchingDocuments.length !== 1) {
+      errors.push({
+        code: "provenance-source-mismatch",
+        sourceUrl: program.provenance.sourceUrl,
+        entityId: program.id,
+      });
+      coverageErrorUrls.add(program.provenance.sourceUrl);
+      return;
+    }
+    if (!hasExactSourceRowCoverage(program, matchingDocuments[0])) {
+      coverageErrorUrls.add(program.provenance.sourceUrl);
+    }
   });
   documents
     .filter(
@@ -411,17 +702,18 @@ export function validateCatalogCandidate(
         document.kind === "program" || document.kind === "core",
     )
     .forEach((document) => {
-      const matching = programsByUrl.get(document.sourceUrl) ?? [];
-      if (
-        matching.length !== 1 ||
-        !hasExactSourceRowCoverage(matching[0], document)
-      ) {
-        errors.push({
-          code: "source-row-coverage",
-          sourceUrl: document.sourceUrl,
-        });
+      const matchingPrograms = candidate.programs.filter(
+        (program) =>
+          program.provenance.sourceUrl === document.sourceUrl &&
+          programDocumentMatches(program, document),
+      );
+      if (matchingPrograms.length !== 1) {
+        coverageErrorUrls.add(document.sourceUrl);
       }
     });
+  [...coverageErrorUrls].sort(compareText).forEach((url) =>
+    errors.push({ code: "source-row-coverage", sourceUrl: url }),
+  );
 
   const localCourseIds = new Set(candidate.courses.map((course) => course.id));
   const allSourceReferences = new Set([
