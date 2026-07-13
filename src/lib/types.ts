@@ -80,6 +80,57 @@ export const RuleSchema = z.discriminatedUnion("kind", [
 ]);
 export type Rule = z.infer<typeof RuleSchema>;
 
+export type RequirementNode =
+  | { kind: "course"; courseId: string }
+  | { kind: "all"; children: RequirementNode[] }
+  | { kind: "any"; children: RequirementNode[] }
+  | { kind: "choose"; count: number; children: RequirementNode[] }
+  | { kind: "credits"; minimum: number; children: RequirementNode[] }
+  | { kind: "attribute"; attribute: string }
+  | { kind: "exclusion"; excludedCourseIds: string[]; child: RequirementNode }
+  | { kind: "waiver"; waiverId: string; label: string }
+  | { kind: "manualConfirmation"; label: string; sourceText: string };
+
+export const RequirementNodeSchema: z.ZodType<RequirementNode> = z.lazy(() =>
+  z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("course"), courseId: z.string().min(1) }),
+    z.object({
+      kind: z.literal("all"),
+      children: z.array(RequirementNodeSchema).min(1),
+    }),
+    z.object({
+      kind: z.literal("any"),
+      children: z.array(RequirementNodeSchema).min(1),
+    }),
+    z.object({
+      kind: z.literal("choose"),
+      count: z.number().int().positive(),
+      children: z.array(RequirementNodeSchema).min(1),
+    }),
+    z.object({
+      kind: z.literal("credits"),
+      minimum: z.number().positive(),
+      children: z.array(RequirementNodeSchema).min(1),
+    }),
+    z.object({ kind: z.literal("attribute"), attribute: z.string().min(1) }),
+    z.object({
+      kind: z.literal("exclusion"),
+      excludedCourseIds: z.array(z.string()),
+      child: RequirementNodeSchema,
+    }),
+    z.object({
+      kind: z.literal("waiver"),
+      waiverId: z.string().min(1),
+      label: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("manualConfirmation"),
+      label: z.string().min(1),
+      sourceText: z.string().min(1),
+    }),
+  ]),
+);
+
 export const CategorySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -119,11 +170,21 @@ export const FulfillmentSchema = z.object({
 });
 export type Fulfillment = z.infer<typeof FulfillmentSchema>;
 
+export const CatalogProvenanceSchema = z.object({
+  sourceUrl: z.string().url(),
+  snapshotId: z.string().min(1),
+  sourceHash: z.string().min(1),
+});
+export type CatalogProvenance = z.infer<typeof CatalogProvenanceSchema>;
+
 export const CourseSchema = z.object({
   /** Official course code, e.g. "CSCI-SHU 210" — used as the primary key. */
   id: z.string().min(1),
   title: z.string().min(1),
   credits: z.number().positive(),
+  minCredits: z.number().nonnegative().optional(),
+  maxCredits: z.number().nonnegative().optional(),
+  creditsText: z.string().optional(),
   department: z.string(),
   /** Optional catalog description (populated by the AI importer). */
   description: z.string().optional(),
@@ -133,8 +194,11 @@ export const CourseSchema = z.object({
    * [["CSCI-SHU 101", "CSCI-SHU 11"]] = "Intro to CS or Intro to Programming".
    */
   prereqs: z.array(z.array(z.string()).min(1)).optional().default([]),
+  prerequisiteText: z.string().optional(),
   /** Terms in which the course is typically offered. */
-  offered: z.array(z.enum(TERMS)).min(1),
+  offered: z.array(z.enum(TERMS)),
+  offeringText: z.string().optional(),
+  offeringKnown: z.boolean().optional().default(true),
   /** Site ids (see sites.json) where the course can be taken. */
   sites: z.array(z.string()).min(1),
   /**
@@ -148,9 +212,18 @@ export const CourseSchema = z.object({
    * chooseN/creditsFrom pools, and prerequisites that ask for them.
    */
   equivalentTo: z.array(z.string()).optional().default([]),
+  attributes: z.array(z.string()).optional().default([]),
+  provenance: CatalogProvenanceSchema.optional(),
   tags: z.array(z.string()).optional().default([]),
+}).refine((course) => !course.offeringKnown || course.offered.length > 0, {
+  message: "Known course offerings must include at least one term",
+  path: ["offered"],
 });
-export type Course = z.infer<typeof CourseSchema>;
+type ParsedCourse = z.infer<typeof CourseSchema>;
+export type Course = Omit<ParsedCourse, "attributes" | "offeringKnown"> & {
+  attributes?: string[];
+  offeringKnown?: boolean;
+};
 
 /** True when `course` stands in for `targetId` (itself or an equivalent). */
 export function courseCovers(course: Course, targetId: string): boolean {
@@ -247,9 +320,24 @@ export interface Placement {
   courseId: string;
   semesterId: SemesterId;
   allocation: Allocation;
+  /** Student-selected credits for a variable-credit course. */
+  selectedCredits?: number;
   /** Optional self-reported expected grade — drives grade-conditional rules. */
   expectedGrade?: Grade;
 }
+
+export const FulfillmentFactSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(["waiver", "exam", "manualConfirmation"]),
+  requirementId: z.string().min(1),
+  label: z.string().min(1),
+});
+export type FulfillmentFact = z.infer<typeof FulfillmentFactSchema>;
+
+export const FulfillmentFactsSchema = z
+  .array(FulfillmentFactSchema)
+  .optional()
+  .default([]);
 
 export interface PlanSnapshot {
   version: 1;
@@ -259,6 +347,8 @@ export interface PlanSnapshot {
   activePrograms: string[];
   /** Courses added by the user (AI importer); merged over the static catalog. */
   customCourses: Course[];
+  /** Non-course requirement evidence; absent legacy snapshots import as empty. */
+  fulfillmentFacts?: FulfillmentFact[];
   /** Warning ids the user acknowledged and hid. */
   dismissedWarnings: string[];
   /** Calendar year of the student's first fall semester (e.g. 2025). */
