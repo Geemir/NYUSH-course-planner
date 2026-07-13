@@ -121,6 +121,32 @@ describe("discoverBulletinSources", () => {
     ).rejects.toThrow("could not be verified in the Bulletin sitemap");
   });
 
+  it("rejects a query-bearing sitemap entry for a canonical source", async () => {
+    const noncanonicalSitemap = SITEMAP.replace(
+      "/undergraduate/shanghai/courses/math-shu/</loc>",
+      "/undergraduate/shanghai/courses/math-shu/?preview=1</loc>",
+    );
+
+    await expect(
+      discoverBulletinSources(
+        fixtureFetcher(new Map([[SITEMAP_URL, noncanonicalSitemap]])),
+      ),
+    ).rejects.toThrow("could not be verified in the Bulletin sitemap");
+  });
+
+  it("rejects a sitemap entry missing the canonical trailing slash", async () => {
+    const noncanonicalSitemap = SITEMAP.replace(
+      "/undergraduate/shanghai/courses/math-shu/</loc>",
+      "/undergraduate/shanghai/courses/math-shu</loc>",
+    );
+
+    await expect(
+      discoverBulletinSources(
+        fixtureFetcher(new Map([[SITEMAP_URL, noncanonicalSitemap]])),
+      ),
+    ).rejects.toThrow("could not be verified in the Bulletin sitemap");
+  });
+
   it("wraps fetch failures without exposing upstream details", async () => {
     const fetcher = vi.fn(async () => {
       throw new Error("secret upstream token");
@@ -189,5 +215,35 @@ describe("createBulletinFetch", () => {
     expect(request).toHaveBeenCalledTimes(3);
     expect(error.message).toBe("Unable to fetch an allowed NYU Bulletin page.");
     expect(error.message).not.toContain("upstream secret");
+  });
+
+  it("snapshots validated options before the caller can mutate them", async () => {
+    const request = vi.fn(async () => new Response("unavailable", { status: 503 }));
+    const timeout = vi.spyOn(globalThis, "setTimeout");
+    vi.stubGlobal("fetch", request);
+    const options = {
+      timeoutMs: 100,
+      retries: 1,
+      userAgent: "course-planner-original",
+    };
+    const fetcher = createBulletinFetch(options);
+    options.timeoutMs = 9_999;
+    options.retries = 0;
+    options.userAgent = "course-planner-mutated";
+
+    await expect(fetcher(PROGRAM_INDEX_URL)).rejects.toThrow(
+      "Unable to fetch an allowed NYU Bulletin page.",
+    );
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      PROGRAM_INDEX_URL,
+      expect.objectContaining({
+        headers: { "user-agent": "course-planner-original" },
+      }),
+    );
+    expect(timeout).toHaveBeenNthCalledWith(1, expect.any(Function), 100);
+    expect(timeout).toHaveBeenNthCalledWith(2, expect.any(Function), 100);
   });
 });

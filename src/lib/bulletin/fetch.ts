@@ -61,18 +61,19 @@ export function createBulletinFetch(options: {
   retries: number;
   userAgent: string;
 }): BulletinFetch {
-  validateOptions(options);
+  const { timeoutMs, retries, userAgent } = options;
+  validateOptions({ timeoutMs, retries, userAgent });
 
   return async (value) => {
     const url = allowedRequestUrl(value);
 
-    for (let attempt = 0; attempt <= options.retries; attempt += 1) {
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         const response = await fetch(url, {
-          headers: { "user-agent": options.userAgent },
+          headers: { "user-agent": userAgent },
           redirect: "error",
           signal: controller.signal,
         });
@@ -81,7 +82,7 @@ export function createBulletinFetch(options: {
         }
         return await response.text();
       } catch {
-        if (attempt === options.retries) {
+        if (attempt === retries) {
           throw new BulletinFetchError(
             "Unable to fetch an allowed NYU Bulletin page.",
           );

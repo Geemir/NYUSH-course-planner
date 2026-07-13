@@ -148,14 +148,14 @@ function sitemapUrls(xml: string): Set<string> {
     if (
       url.protocol !== "https:" ||
       url.hostname !== new URL(BULLETIN_ORIGIN).hostname ||
+      url.port !== "" ||
+      url.username !== "" ||
+      url.password !== "" ||
       !url.pathname.startsWith(BULLETIN_SHANGHAI_PATH)
     ) {
       return;
     }
-    url.search = "";
-    url.hash = "";
-    url.pathname = `${url.pathname.replace(/\/+$/, "")}/`;
-    urls.add(url.toString());
+    urls.add(value);
   });
   return urls;
 }
