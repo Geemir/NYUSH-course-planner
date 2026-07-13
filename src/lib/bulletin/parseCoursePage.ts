@@ -29,7 +29,8 @@ export class BulletinParseError extends Error {
 }
 
 const SUBJECT_PATH = "/undergraduate/shanghai/courses/";
-const COURSE_ID = /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?\b/;
+const COURSE_ID = /^[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?$/;
+const LINKED_COURSE_ID = /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?\b/;
 const DETAIL_SELECTOR = ".courseblockextra";
 type LoadedPage = ReturnType<typeof cheerio.load>;
 type PageNode = Parameters<LoadedPage>[0];
@@ -94,8 +95,6 @@ function parseDetail(
 function courseTitle(
   $: LoadedPage,
   block: PageNode,
-  code: string,
-  creditsText?: string,
 ): string {
   const titleLine = $(block).find(".courseblocktitle").first();
   if (titleLine.length === 0) return "";
@@ -106,9 +105,7 @@ function courseTitle(
       ".courseblockcode, .coursecode, .courseblockhours, .courseblockcredits, .credits",
     )
     .remove();
-  let title = normalizedText(titleContent.text());
-  title = normalizedText(title.replace(code, ""));
-  if (creditsText) title = normalizedText(title.replace(creditsText, ""));
+  const title = normalizedText(titleContent.text());
   return title.replace(/^[\s.:;-]+/, "").trim();
 }
 
@@ -121,7 +118,7 @@ function parseCourse(
   const codeText = normalizedText(
     titleLine.find(".courseblockcode, .coursecode").first().text(),
   );
-  const code = codeText.match(COURSE_ID)?.[0] ?? "";
+  const code = COURSE_ID.test(codeText) ? codeText : "";
   if (code === "") {
     throw new BulletinParseError("A Bulletin course block is missing its code.");
   }
@@ -132,7 +129,7 @@ function parseCourse(
       .first()
       .text(),
   );
-  const title = courseTitle($, block, code, creditsText || undefined);
+  const title = courseTitle($, block);
   if (title === "") {
     throw new BulletinParseError(`Bulletin course ${code} is missing its title.`);
   }
@@ -161,7 +158,10 @@ function parseCourse(
     ? prerequisite.element
         .find("a")
         .toArray()
-        .flatMap((anchor) => normalizedText($(anchor).text()).match(COURSE_ID) ?? [])
+        .flatMap(
+          (anchor) =>
+            normalizedText($(anchor).text()).match(LINKED_COURSE_ID) ?? [],
+        )
         .filter((courseId, index, values) => values.indexOf(courseId) === index)
     : [];
   const attributes = attributeDetail

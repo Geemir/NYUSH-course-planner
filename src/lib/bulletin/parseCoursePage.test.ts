@@ -110,6 +110,39 @@ describe("parseCoursePage", () => {
     );
   });
 
+  it("rejects a course code selector with trailing malformed text", () => {
+    const malformedCode = COURSE_PAGE.replace(
+      "CSCI-SHU&nbsp;101",
+      "CSCI-SHU&nbsp;101 Honors",
+    );
+
+    expect(() => parseCoursePage(malformedCode, META)).toThrowError(
+      new BulletinParseError("A Bulletin course block is missing its code."),
+    );
+  });
+
+  it("preserves a legitimate course-code literal in the course title", () => {
+    const codeLikeTitle = COURSE_PAGE.replace(
+      "Introduction to Computer Science",
+      "Understanding CSCI-SHU 101",
+    );
+
+    expect(parseCoursePage(codeLikeTitle, META).courses[0].title).toBe(
+      "Understanding CSCI-SHU 101",
+    );
+  });
+
+  it("preserves a legitimate credits literal in the course title", () => {
+    const creditLikeTitle = COURSE_PAGE.replace(
+      "Introduction to Computer Science",
+      "Making 4 Credits Count",
+    );
+
+    expect(parseCoursePage(creditLikeTitle, META).courses[0].title).toBe(
+      "Making 4 Credits Count",
+    );
+  });
+
   it("rejects a course block with a missing title", () => {
     const missingTitle = COURSE_PAGE.replace(
       "Introduction to Computer Science",
