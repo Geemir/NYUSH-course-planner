@@ -142,18 +142,40 @@ describe("parseProgramPage", () => {
       "total",
     ]);
     expect(document.requirementTables[0].rows[3].creditsText).toBe("4-8");
-    expect(document.policies).toEqual([
-      expect.objectContaining({
-        id: "exam-waivers",
-        heading: "Exam Waivers",
-        text: expect.stringContaining("waive a proficiency requirement"),
-      }),
-    ]);
     expect(document.footnotes).toContainEqual({
       id: "core-note",
       marker: "*",
       text: "* Approved equivalents retain the Core designation.",
     });
+  });
+
+  it("preserves ordered CourseLeaf text containers with direct and list prose as policies", () => {
+    const document = parseProgramPage(CORE_PAGE, CORE_META);
+
+    expect(document.sections.map((section) => section.id)).toEqual([
+      "core-requirements",
+      "examwaiverstextcontainer",
+    ]);
+    expect(document.sections[1]).toEqual({
+      id: "examwaiverstextcontainer",
+      heading: "Policies and Exam Waivers",
+      text:
+        "Students must consult an advisor before using an exam waiver. Qualifying examination scores may waive a proficiency requirement. Waivers do not award credit.",
+      prose: [
+        "Students must consult an advisor before using an exam waiver.",
+        "Qualifying examination scores may waive a proficiency requirement.",
+        "Waivers do not award credit.",
+      ],
+      tableIds: [],
+    });
+    expect(document.policies).toEqual([
+      {
+        id: "examwaiverstextcontainer",
+        heading: "Policies and Exam Waivers",
+        text:
+          "Students must consult an advisor before using an exam waiver. Qualifying examination scores may waive a proficiency requirement. Waivers do not award credit.",
+      },
+    ]);
   });
 
   it("rejects metadata outside canonical Shanghai program and Core paths", () => {
@@ -196,6 +218,17 @@ describe("parseProgramPage", () => {
     );
 
     expect(() => parseProgramPage(missingRequirements, PROGRAM_META)).toThrow(
+      "did not contain degree requirements",
+    );
+  });
+
+  it("rejects BA or BS documents whose retained requirement table has no rows", () => {
+    const emptyRequirements = PROGRAM_PAGE.replace(
+      /(<table class="sc_courselist" id="computer-science-requirements">[\s\S]*?<tbody>)[\s\S]*?(<\/tbody>)/,
+      "$1$2",
+    );
+
+    expect(() => parseProgramPage(emptyRequirements, PROGRAM_META)).toThrow(
       "did not contain degree requirements",
     );
   });

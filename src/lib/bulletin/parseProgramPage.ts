@@ -95,6 +95,7 @@ const PROGRAM_PATH = `${SHANGHAI_PATH}programs/`;
 const CORE_PATH = `${SHANGHAI_PATH}core-curriculum/`;
 const COURSE_CODE = /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?\b/g;
 const REQUIREMENT_TABLE_SELECTOR = "table.sc_courselist, table.sc_plangrid";
+const SOURCE_CONTAINER_SELECTOR = "main section[id], main [id$='textcontainer']";
 type LoadedPage = ReturnType<typeof cheerio.load>;
 type PageNode = Parameters<LoadedPage>[0];
 type PageSelection = ReturnType<LoadedPage>;
@@ -295,26 +296,38 @@ function parseSamplePlanTerm(
   return { id, heading, rows };
 }
 
-function sectionParagraphs($: LoadedPage, section: PageSelection): string[] {
-  return section
-    .find("p")
-    .filter((_index, paragraph) =>
-      $(paragraph).parents("table, .footnotes").length === 0 &&
-      !$(paragraph).is(".footnote"),
+function sourceContainers($: LoadedPage): PageNode[] {
+  return $(SOURCE_CONTAINER_SELECTOR)
+    .filter((_index, container) =>
+      $(container).parents(SOURCE_CONTAINER_SELECTOR).length === 0,
     )
-    .toArray()
-    .map((paragraph) => visibleText($(paragraph)))
+    .toArray();
+}
+
+function sectionProse($: LoadedPage, section: PageSelection): string[] {
+  const boundary = "\u241e";
+  const content = section.clone();
+  content
+    .find("h1, h2, h3, h4, h5, h6, table, .footnotes, .footnote")
+    .remove();
+  content.find("br").replaceWith(" ");
+  content.find("p, li, dt, dd, blockquote").each((_index, element) => {
+    $(element).before(boundary).after(boundary);
+  });
+  return content
+    .text()
+    .split(boundary)
+    .map(normalizedText)
     .filter(Boolean);
 }
 
 function parseSections($: LoadedPage): SourceSection[] {
-  return $("main section[id]")
-    .toArray()
+  return sourceContainers($)
     .map((section) => {
       const selection = $(section);
       const id = normalizedText(selection.attr("id") ?? "");
       const heading = normalizedText(selection.find("h2, h3, h4").first().text());
-      const prose = sectionParagraphs($, selection);
+      const prose = sectionProse($, selection);
       const tableIds = selection
         .find(REQUIREMENT_TABLE_SELECTOR)
         .toArray()
@@ -408,15 +421,17 @@ export function parseProgramPage(
     }
   }
 
-  if (isDegreePage(sourceMeta) && requirementTables.length === 0) {
+  if (
+    isDegreePage(sourceMeta) &&
+    !requirementTables.some((table) => table.rows.length > 0)
+  ) {
     throw new BulletinProgramParseError(
       "The Shanghai BA/BS page did not contain degree requirements.",
     );
   }
 
   const sections = parseSections($);
-  const policies = $("main section[id]")
-    .toArray()
+  const policies = sourceContainers($)
     .filter((section) => {
       const selection = $(section);
       const headingText = normalizedText(
@@ -432,7 +447,7 @@ export function parseProgramPage(
       return {
         id: normalizedText(selection.attr("id") ?? ""),
         heading: normalizedText(selection.find("h2, h3, h4").first().text()),
-        text: normalizedText(sectionParagraphs($, selection).join(" ")),
+        text: normalizedText(sectionProse($, selection).join(" ")),
       };
     });
 
