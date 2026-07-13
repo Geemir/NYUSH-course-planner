@@ -195,6 +195,8 @@ export const CourseSchema = z.object({
    */
   prereqs: z.array(z.array(z.string()).min(1)).optional().default([]),
   prerequisiteText: z.string().optional(),
+  /** All parser-linked course references, including ambiguous prerequisites. */
+  sourceReferenceIds: z.array(z.string()).optional().default([]),
   /** Terms in which the course is typically offered. */
   offered: z.array(z.enum(TERMS)),
   offeringText: z.string().optional(),
@@ -220,9 +222,13 @@ export const CourseSchema = z.object({
   path: ["offered"],
 });
 type ParsedCourse = z.infer<typeof CourseSchema>;
-export type Course = Omit<ParsedCourse, "attributes" | "offeringKnown"> & {
+export type Course = Omit<
+  ParsedCourse,
+  "attributes" | "offeringKnown" | "sourceReferenceIds"
+> & {
   attributes?: string[];
   offeringKnown?: boolean;
+  sourceReferenceIds?: string[];
 };
 
 // ---------------------------------------------------------------------------
@@ -289,6 +295,7 @@ export const CatalogProgramSchema = z.object({
   categories: z.array(CatalogCategorySchema),
   requirementRows: z.array(CatalogRequirementRowSchema),
   sourceRows: z.array(CatalogSourceRowSchema),
+  sourceReferenceIds: z.array(z.string()),
   provenance: CatalogProvenanceSchema,
 });
 export type CatalogProgram = z.infer<typeof CatalogProgramSchema>;
@@ -299,7 +306,9 @@ export const CatalogCandidateSchema = z.object({
   documents: z.array(z.unknown()),
   courses: z.array(CourseSchema),
   programs: z.array(CatalogProgramSchema),
+  sourceReferenceIds: z.array(z.string().min(1)),
   externalCourseIds: z.array(z.string().min(1)),
+  unresolvedCourseIds: z.array(z.string().min(1)),
 });
 export interface CatalogCandidate {
   snapshotId: string;
@@ -307,7 +316,9 @@ export interface CatalogCandidate {
   documents: unknown[];
   courses: Course[];
   programs: CatalogProgram[];
+  sourceReferenceIds: string[];
   externalCourseIds: string[];
+  unresolvedCourseIds: string[];
 }
 
 /** True when `course` stands in for `targetId` (itself or an equivalent). */

@@ -40,11 +40,22 @@ function sourceHash(document: BulletinDocument): string {
   return hash(document);
 }
 
+function compareDocuments(left: BulletinDocument, right: BulletinDocument): number {
+  const byUrl = left.sourceUrl.localeCompare(right.sourceUrl);
+  if (byUrl !== 0) return byUrl;
+  const byKind = left.kind.localeCompare(right.kind);
+  if (byKind !== 0) return byKind;
+  return hash(left).localeCompare(hash(right));
+}
+
+function canonicalDocuments(
+  documents: readonly BulletinDocument[],
+): BulletinDocument[] {
+  return [...documents].sort(compareDocuments);
+}
+
 function candidateHash(documents: readonly BulletinDocument[]): string {
-  const canonicalDocuments = documents
-    .map((document) => ({ sourceUrl: document.sourceUrl, document }))
-    .sort((left, right) => left.sourceUrl.localeCompare(right.sourceUrl));
-  return hash(canonicalDocuments);
+  return hash(documents);
 }
 
 function slug(value: string): string {
@@ -172,6 +183,9 @@ function normalizeCourse(
     ...(course.prerequisiteText
       ? { prerequisiteText: course.prerequisiteText }
       : {}),
+    sourceReferenceIds: [...new Set(course.linkedCourseIds)].sort((left, right) =>
+      left.localeCompare(right),
+    ),
     ...offering,
     ...(course.offeringText ? { offeringText: course.offeringText } : {}),
     sites: ["shanghai"],
@@ -202,28 +216,72 @@ function explicitDirective(row: SourceTableRow): Directive | undefined {
     : undefined;
 }
 
-function sameCodes(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((code, index) => code === right[index]);
+function parseCourseCodeList(value: string): string[] | undefined {
+  const matches = [...value.matchAll(COURSE_CODE)];
+  if (matches.length === 0 || value.slice(0, matches[0].index).trim() !== "") {
+    return undefined;
+  }
+  for (let index = 1; index < matches.length; index += 1) {
+    const previous = matches[index - 1];
+    const current = matches[index];
+    const separator = value.slice(
+      (previous.index ?? 0) + previous[0].length,
+      current.index,
+    );
+    if (!/^\s*(?:,|,?\s+and)\s*$/i.test(separator)) return undefined;
+  }
+  const last = matches.at(-1)!;
+  if (!/^[\s.]*$/.test(value.slice((last.index ?? 0) + last[0].length))) {
+    return undefined;
+  }
+  return matches.map((match) => match[0]);
 }
 
 function explicitExclusion(row: SourceTableRow): RequirementNode | undefined {
   const match = row.text.match(
     /^courses with the "([^"]+)" attribute, excluding (.+)$/i,
   );
-  if (!match || row.linkedCourseCodes.length === 0) return undefined;
-  const listedCodes = [...match[2].matchAll(COURSE_CODE)].map((code) => code[0]);
-  const connectiveText = match[2]
-    .replace(COURSE_CODE, "")
-    .replace(/\band\b/gi, "")
-    .replace(/[\s,.]/g, "");
-  if (connectiveText !== "" || !sameCodes(listedCodes, row.linkedCourseCodes)) {
-    return undefined;
-  }
+  if (!match) return undefined;
+  const listedCodes = parseCourseCodeList(match[2]);
+  if (!listedCodes) return undefined;
   return {
     kind: "exclusion",
-    excludedCourseIds: [...row.linkedCourseCodes],
+    excludedCourseIds: listedCodes,
     child: { kind: "attribute", attribute: match[1] },
   };
+}
+
+function removeTrailingLiteral(value: string, literal: string): string | undefined {
+  if (!value.endsWith(literal)) return undefined;
+  return value.slice(0, -literal.length).trimEnd();
+}
+
+function isPureCourseReference(
+  row: SourceTableRow,
+  courseTitles: ReadonlyMap<string, string>,
+): boolean {
+  if (row.role !== "course" || row.linkedCourseCodes.length !== 1) return false;
+  const courseId = row.linkedCourseCodes[0];
+  if (row.text !== courseId && !row.text.startsWith(`${courseId} `)) return false;
+
+  let displayText = row.text.slice(courseId.length).trim();
+  if (row.creditsText) {
+    const withoutCredits = removeTrailingLiteral(displayText, row.creditsText);
+    if (withoutCredits !== undefined) displayText = withoutCredits;
+  }
+  for (const marker of [...row.footnoteMarkers].reverse()) {
+    const withoutMarker = removeTrailingLiteral(displayText, marker);
+    if (withoutMarker !== undefined) displayText = withoutMarker;
+  }
+  if (displayText === "") return true;
+  const knownTitle = courseTitles.get(courseId);
+  if (knownTitle) return displayText === knownTitle;
+
+  const titleConnector = /^(?:a|an|and|as|at|by|for|from|in|into|of|on|or|the|to|via)$/;
+  const titleWord = /^[A-Z0-9][\p{L}\p{N}'’&+./:()-]*$/u;
+  return displayText
+    .split(/\s+/)
+    .every((token) => titleWord.test(token) || titleConnector.test(token));
 }
 
 function explicitRowNode(
@@ -231,12 +289,9 @@ function explicitRowNode(
   programId: string,
   categoryId: string,
   categoryName: string,
+  courseTitles: ReadonlyMap<string, string>,
 ): RequirementNode {
-  if (
-    row.role === "course" &&
-    row.linkedCourseCodes.length === 1 &&
-    !/\bor\b/i.test(row.text)
-  ) {
+  if (isPureCourseReference(row, courseTitles)) {
     return { kind: "course", courseId: row.linkedCourseCodes[0] };
   }
 
@@ -309,10 +364,85 @@ function combineNodes(nodes: RequirementNode[]): RequirementNode {
   return nodes.length === 1 ? nodes[0] : { kind: "all", children: nodes };
 }
 
+function semanticRowGroups(rows: SourceTableRow[]): SourceTableRow[][] {
+  const groups: SourceTableRow[][] = [];
+  for (const row of rows) {
+    if (row.role === "areaSubheader" || groups.length === 0) groups.push([]);
+    groups.at(-1)!.push(row);
+  }
+  return groups;
+}
+
+interface NormalizedSemanticGroup {
+  requirement: RequirementNode;
+  rowNodes: Map<number, RequirementNode>;
+  rowPaths: Map<number, number[]>;
+}
+
+function normalizeSemanticGroup(
+  rows: SourceTableRow[],
+  programId: string,
+  categoryId: string,
+  categoryName: string,
+  courseTitles: ReadonlyMap<string, string>,
+): NormalizedSemanticGroup {
+  const directive = explicitDirective(rows[0]);
+  const unsupportedSelector =
+    !directive &&
+    rows[0].role === "areaSubheader" &&
+    /^(?:select|choose|complete)\b/i.test(rows[0].text);
+  const rowNodes = new Map<number, RequirementNode>();
+  const rowPaths = new Map<number, number[]>();
+
+  if (directive && rows.length > 1) {
+    const children = rows
+      .slice(1)
+      .map((row) =>
+        explicitRowNode(
+          row,
+          programId,
+          categoryId,
+          categoryName,
+          courseTitles,
+        ),
+      );
+    const requirement: RequirementNode =
+      directive.kind === "choose"
+        ? { kind: "choose", count: directive.count, children }
+        : { kind: "credits", minimum: directive.minimum, children };
+    rowNodes.set(rows[0].sourceIndex, requirement);
+    rowPaths.set(rows[0].sourceIndex, []);
+    rows.slice(1).forEach((row, index) => {
+      rowNodes.set(row.sourceIndex, children[index]);
+      rowPaths.set(row.sourceIndex, [index]);
+    });
+    return { requirement, rowNodes, rowPaths };
+  }
+
+  const nodes = rows.map((row) =>
+    unsupportedSelector
+      ? manualRowNode(row, categoryName)
+      : explicitRowNode(
+          row,
+          programId,
+          categoryId,
+          categoryName,
+          courseTitles,
+        ),
+  );
+  const requirement = combineNodes(nodes);
+  rows.forEach((row, index) => {
+    rowNodes.set(row.sourceIndex, nodes[index]);
+    rowPaths.set(row.sourceIndex, nodes.length === 1 ? [] : [index]);
+  });
+  return { requirement, rowNodes, rowPaths };
+}
+
 function normalizeProgram(
   document: BulletinProgramDocument,
   discovery: BulletinDiscovery,
   snapshotId: string,
+  courseTitles: ReadonlyMap<string, string>,
 ): CatalogProgram {
   const discovered = [...discovery.majors, ...discovery.minors].find(
     (source) => source.slug === document.slug && source.url === document.sourceUrl,
@@ -327,6 +457,7 @@ function normalizeProgram(
   const categories: CatalogCategory[] = [];
   const requirementRows: CatalogRequirementRow[] = [];
   const sourceRows: CatalogSourceRow[] = [];
+  const sourceReferenceIds = new Set<string>();
   const usedCategoryIds = new Map<string, number>();
 
   for (const table of document.requirementTables) {
@@ -337,43 +468,34 @@ function normalizeProgram(
         (row) => row.role !== "areaHeader" && row.role !== "total",
       );
 
-      const firstDirective = semanticRows[0]
-        ? explicitDirective(semanticRows[0])
-        : undefined;
-      const unsupportedSelector =
-        !firstDirective &&
-        semanticRows[0]?.role === "areaSubheader" &&
-        /^(?:select|choose|complete)\b/i.test(semanticRows[0].text);
       const rowNodes = new Map<number, RequirementNode>();
       const rowPaths = new Map<number, number[]>();
       let requirement: RequirementNode | undefined;
 
-      if (firstDirective && semanticRows.length > 1) {
-        const children = semanticRows
-          .slice(1)
-          .map((row) =>
-            explicitRowNode(row, programId, categoryId, categoryName),
-          );
-        requirement =
-          firstDirective.kind === "choose"
-            ? { kind: "choose", count: firstDirective.count, children }
-            : { kind: "credits", minimum: firstDirective.minimum, children };
-        rowNodes.set(semanticRows[0].sourceIndex, requirement);
-        rowPaths.set(semanticRows[0].sourceIndex, []);
-        semanticRows.slice(1).forEach((row, index) => {
-          rowNodes.set(row.sourceIndex, children[index]);
-          rowPaths.set(row.sourceIndex, [index]);
-        });
-      } else if (semanticRows.length > 0) {
-        const nodes = semanticRows.map((row) =>
-          unsupportedSelector
-            ? manualRowNode(row, categoryName)
-            : explicitRowNode(row, programId, categoryId, categoryName),
+      if (semanticRows.length > 0) {
+        const normalizedGroups = semanticRowGroups(semanticRows).map((rows) =>
+          normalizeSemanticGroup(
+            rows,
+            programId,
+            categoryId,
+            categoryName,
+            courseTitles,
+          ),
         );
-        requirement = combineNodes(nodes);
-        semanticRows.forEach((row, index) => {
-          rowNodes.set(row.sourceIndex, nodes[index]);
-          rowPaths.set(row.sourceIndex, nodes.length === 1 ? [] : [index]);
+        requirement = combineNodes(
+          normalizedGroups.map((normalized) => normalized.requirement),
+        );
+        normalizedGroups.forEach((normalized, groupIndex) => {
+          normalized.rowNodes.forEach((node, sourceIndex) => {
+            rowNodes.set(sourceIndex, node);
+            const localPath = normalized.rowPaths.get(sourceIndex)!;
+            rowPaths.set(
+              sourceIndex,
+              normalizedGroups.length === 1
+                ? localPath
+                : [groupIndex, ...localPath],
+            );
+          });
         });
       }
 
@@ -389,6 +511,15 @@ function normalizeProgram(
       }
 
       for (const row of group.rows) {
+        row.linkedCourseCodes.forEach((courseId) =>
+          sourceReferenceIds.add(courseId),
+        );
+        const exclusion = explicitExclusion(row);
+        if (exclusion?.kind === "exclusion") {
+          exclusion.excludedCourseIds.forEach((courseId) =>
+            sourceReferenceIds.add(courseId),
+          );
+        }
         if (row.role === "areaHeader") {
           sourceRows.push({
             representation: "categoryBoundary",
@@ -441,6 +572,9 @@ function normalizeProgram(
     categories,
     requirementRows,
     sourceRows,
+    sourceReferenceIds: [...sourceReferenceIds].sort((left, right) =>
+      left.localeCompare(right),
+    ),
     provenance: {
       sourceUrl: document.sourceUrl,
       snapshotId,
@@ -471,28 +605,6 @@ function courseMatchesNode(course: Course, node: RequirementNode): boolean {
   }
 }
 
-function referencedCourseIds(node: RequirementNode, target: Set<string>): void {
-  switch (node.kind) {
-    case "course":
-      target.add(node.courseId);
-      return;
-    case "exclusion":
-      node.excludedCourseIds.forEach((id) => target.add(id));
-      referencedCourseIds(node.child, target);
-      return;
-    case "all":
-    case "any":
-    case "choose":
-    case "credits":
-      node.children.forEach((child) => referencedCourseIds(child, target));
-      return;
-    case "attribute":
-    case "waiver":
-    case "manualConfirmation":
-      return;
-  }
-}
-
 function isExternalNyuCourseId(courseId: string): boolean {
   return !courseId.split(/\s+/, 1)[0].endsWith("-SHU");
 }
@@ -501,9 +613,10 @@ export function normalizeBulletin(
   discovery: BulletinDiscovery,
   documents: readonly BulletinDocument[],
 ): CatalogCandidate {
-  const sourceHashValue = candidateHash(documents);
+  const orderedDocuments = canonicalDocuments(documents);
+  const sourceHashValue = candidateHash(orderedDocuments);
   const snapshotId = `bulletin-${sourceHashValue.slice(0, 24)}`;
-  const courses = documents
+  const courses = orderedDocuments
     .filter((document): document is BulletinSourceDocument =>
       document.kind === "subject",
     )
@@ -513,11 +626,16 @@ export function normalizeBulletin(
       ),
     )
     .sort((left, right) => left.id.localeCompare(right.id));
-  const programs = documents
+  const courseTitles = new Map(
+    courses.map((course) => [course.id, course.title] as const),
+  );
+  const programs = orderedDocuments
     .filter((document): document is BulletinProgramDocument =>
       document.kind === "program" || document.kind === "core",
     )
-    .map((document) => normalizeProgram(document, discovery, snapshotId))
+    .map((document) =>
+      normalizeProgram(document, discovery, snapshotId, courseTitles),
+    )
     .sort((left, right) => left.id.localeCompare(right.id));
 
   for (const course of courses) {
@@ -538,26 +656,33 @@ export function normalizeBulletin(
   }
 
   const localCourseIds = new Set(courses.map((course) => course.id));
-  const referencedIds = new Set<string>();
+  const sourceReferenceIds = new Set<string>();
   programs.forEach((program) =>
-    program.categories.forEach((category) =>
-      referencedCourseIds(category.requirement, referencedIds),
+    program.sourceReferenceIds.forEach((courseId) =>
+      sourceReferenceIds.add(courseId),
     ),
   );
   courses.forEach((course) =>
-    course.prereqs.forEach((group) =>
-      group.forEach((courseId) => referencedIds.add(courseId)),
+    (course.sourceReferenceIds ?? []).forEach((courseId) =>
+      sourceReferenceIds.add(courseId),
     ),
+  );
+  const sortedSourceReferenceIds = [...sourceReferenceIds].sort((left, right) =>
+    left.localeCompare(right),
   );
 
   return {
     snapshotId,
     sourceHash: sourceHashValue,
-    documents: [...documents],
+    documents: orderedDocuments,
     courses,
     programs,
-    externalCourseIds: [...referencedIds]
+    sourceReferenceIds: sortedSourceReferenceIds,
+    externalCourseIds: sortedSourceReferenceIds
       .filter((id) => !localCourseIds.has(id) && isExternalNyuCourseId(id))
+      .sort((left, right) => left.localeCompare(right)),
+    unresolvedCourseIds: sortedSourceReferenceIds
+      .filter((id) => !localCourseIds.has(id) && !isExternalNyuCourseId(id))
       .sort((left, right) => left.localeCompare(right)),
   };
 }

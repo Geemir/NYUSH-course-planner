@@ -89,7 +89,6 @@ const programDocument: BulletinProgramDocument = {
           "comment",
           11,
           'Courses with the "Data Science Elective" attribute, excluding CSCI-SHU 101.',
-          ["CSCI-SHU 101"],
         ),
 
         row("areaHeader", 12, "Placement"),
@@ -263,6 +262,104 @@ describe("normalizeBulletin", () => {
     });
   });
 
+  it("manualizes course rows containing additional policy clauses", () => {
+    const policyRows = [
+      "MATH-SHU 121 Calculus and permission of instructor",
+      "MATH-SHU 121 Calculus with advisor approval",
+      "MATH-SHU 121 Calculus placement examination",
+    ];
+
+    for (const sourceText of policyRows) {
+      const policyProgram: BulletinProgramDocument = {
+        ...programDocument,
+        requirementTables: [
+          {
+            id: "policy-course",
+            sectionId: "requirements",
+            rows: [
+              row("areaHeader", 0, "Preparation"),
+              row("course", 1, sourceText, ["MATH-SHU 121"], "4"),
+            ],
+          },
+        ],
+      };
+
+      const requirement = normalizeBulletin(discovery, [
+        subjectDocument,
+        policyProgram,
+      ]).programs[0].categories[0].requirement;
+
+      expect(requirement).toEqual({
+        kind: "manualConfirmation",
+        label: "Preparation",
+        sourceText,
+      });
+    }
+  });
+
+  it("accepts a pure official course display with footnote decoration", () => {
+    const decoratedCourse = {
+      ...row(
+        "course",
+        1,
+        "MATH-SHU 121 Calculus 1 4",
+        ["MATH-SHU 121"],
+        "4",
+      ),
+      footnoteMarkers: ["1"],
+    };
+    const decoratedProgram: BulletinProgramDocument = {
+      ...programDocument,
+      requirementTables: [
+        {
+          id: "decorated-course",
+          sectionId: "requirements",
+          rows: [row("areaHeader", 0, "Preparation"), decoratedCourse],
+        },
+      ],
+    };
+
+    const requirement = normalizeBulletin(discovery, [
+      subjectDocument,
+      decoratedProgram,
+    ]).programs[0].categories[0].requirement;
+
+    expect(requirement).toEqual({ kind: "course", courseId: "MATH-SHU 121" });
+  });
+
+  it("does not accept title-shaped policy text for a known local course", () => {
+    const policyProgram: BulletinProgramDocument = {
+      ...programDocument,
+      requirementTables: [
+        {
+          id: "title-shaped-policy",
+          sectionId: "requirements",
+          rows: [
+            row("areaHeader", 0, "Preparation"),
+            row(
+              "course",
+              1,
+              "MATH-SHU 121 Permission of Instructor",
+              ["MATH-SHU 121"],
+              "4",
+            ),
+          ],
+        },
+      ],
+    };
+
+    const requirement = normalizeBulletin(discovery, [
+      subjectDocument,
+      policyProgram,
+    ]).programs[0].categories[0].requirement;
+
+    expect(requirement).toEqual({
+      kind: "manualConfirmation",
+      label: "Preparation",
+      sourceText: "MATH-SHU 121 Permission of Instructor",
+    });
+  });
+
   it("does not turn an unsupported selector into an all-courses rule", () => {
     const unsupportedSelector: BulletinProgramDocument = {
       ...programDocument,
@@ -302,6 +399,52 @@ describe("normalizeBulletin", () => {
           kind: "manualConfirmation",
           label: "Advanced Work",
           sourceText: "MATH-SHU 238 Statistics",
+        },
+      ],
+    });
+  });
+
+  it("stops a directive pool at the next area subheader", () => {
+    const boundedDirective: BulletinProgramDocument = {
+      ...programDocument,
+      requirementTables: [
+        {
+          id: "bounded-directive",
+          sectionId: "requirements",
+          rows: [
+            row("areaHeader", 0, "Advanced Work"),
+            row("areaSubheader", 1, "Select one"),
+            row("course", 2, "MATH-SHU 235 Probability", ["MATH-SHU 235"], "4"),
+            row("areaSubheader", 3, "Additional Requirement"),
+            row("course", 4, "MATH-SHU 121 Calculus", ["MATH-SHU 121"], "4"),
+          ],
+        },
+      ],
+    };
+
+    const requirement = normalizeBulletin(discovery, [
+      subjectDocument,
+      boundedDirective,
+    ]).programs[0].categories[0].requirement;
+
+    expect(requirement).toEqual({
+      kind: "all",
+      children: [
+        {
+          kind: "choose",
+          count: 1,
+          children: [{ kind: "course", courseId: "MATH-SHU 235" }],
+        },
+        {
+          kind: "all",
+          children: [
+            {
+              kind: "manualConfirmation",
+              label: "Advanced Work",
+              sourceText: "Additional Requirement",
+            },
+            { kind: "course", courseId: "MATH-SHU 121" },
+          ],
         },
       ],
     });
@@ -496,6 +639,77 @@ describe("normalizeBulletin", () => {
     expect(candidate.externalCourseIds).toEqual(["CSCI-UA 101", "MATH-UA 101"]);
   });
 
+  it("preserves references from manual requirement rows", () => {
+    const manualReference: BulletinProgramDocument = {
+      ...programDocument,
+      requirementTables: [
+        {
+          id: "manual-reference",
+          sectionId: "requirements",
+          rows: [
+            row("areaHeader", 0, "Permission"),
+            row(
+              "course",
+              1,
+              "MATH-UA 999 or permission of instructor",
+              ["MATH-UA 999"],
+              "4",
+            ),
+          ],
+        },
+      ],
+    };
+
+    const candidate = normalizeBulletin(discovery, [
+      subjectDocument,
+      manualReference,
+    ]);
+
+    expect(candidate.programs[0].categories[0].requirement.kind).toBe(
+      "manualConfirmation",
+    );
+    expect(candidate.programs[0].sourceReferenceIds).toEqual(["MATH-UA 999"]);
+    expect(candidate.sourceReferenceIds).toContain("MATH-UA 999");
+    expect(candidate.externalCourseIds).toEqual(["MATH-UA 999"]);
+  });
+
+  it("preserves ambiguous prerequisite references independently of grouping", () => {
+    const ambiguousReferences: BulletinSourceDocument = {
+      ...subjectDocument,
+      courses: subjectDocument.courses.map((course) =>
+        course.code === "CSCI-SHU 205"
+          ? {
+              ...course,
+              prerequisiteText:
+                "MATH-SHU 999 or placement examination and MATH-UA 999",
+              linkedCourseIds: ["MATH-SHU 999", "MATH-UA 999"],
+            }
+          : course,
+      ),
+    };
+
+    const candidate = normalizeBulletin(discovery, [
+      ambiguousReferences,
+      programDocument,
+    ]);
+    const course = candidate.courses.find(
+      (normalized) => normalized.id === "CSCI-SHU 205",
+    );
+
+    expect(course?.prereqs).toEqual([]);
+    expect(course?.sourceReferenceIds).toEqual([
+      "MATH-SHU 999",
+      "MATH-UA 999",
+    ]);
+    expect(candidate.sourceReferenceIds).toEqual(
+      expect.arrayContaining(["MATH-SHU 999", "MATH-UA 999"]),
+    );
+    expect(candidate.unresolvedCourseIds).toEqual(["MATH-SHU 999"]);
+    expect(candidate.externalCourseIds).toEqual(
+      expect.arrayContaining(["CSCI-UA 101", "MATH-UA 999"]),
+    );
+  });
+
   it("builds deterministic fulfillments from direct and attribute nodes", () => {
     const courses = new Map(normalize().courses.map((course) => [course.id, course]));
 
@@ -514,7 +728,10 @@ describe("normalizeBulletin", () => {
 
   it("attaches deterministic provenance and passes the candidate schema", () => {
     const first = normalize();
-    const second = normalize();
+    const second = normalizeBulletin(discovery, [
+      programDocument,
+      subjectDocument,
+    ]);
 
     expect(second).toEqual(first);
     expect(first.courses[0].provenance).toMatchObject({
