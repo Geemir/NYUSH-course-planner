@@ -170,6 +170,7 @@ export async function ensureRulesSeeded(db: Db): Promise<void> {
     .select({ count: sql<number>`count(*)::int` })
     .from(schema.rules);
   if (count > 0) return;
+  if (SEED_RULES.length === 0) return;
   await db
     .insert(schema.rules)
     .values(

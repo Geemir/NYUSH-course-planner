@@ -134,6 +134,23 @@ describe("CatalogResponseSchema", () => {
     ).toBe("bulletin");
   });
 
+  it("keeps a fresh rules table empty when the official fallback has no rules", async () => {
+    const bulletin = bulletinResponse();
+    expect(bulletin.rules).toEqual([]);
+    vi.resetModules();
+    vi.doMock("@/data/catalog-fallback.json", () => ({ default: bulletin }));
+    const repository = await import("@/lib/repository");
+    const client = new PGlite();
+    const database: Db = drizzle(client, { schema });
+    await migrate(database, { migrationsFolder: "./drizzle" });
+
+    await expect(repository.getRulesByStatus(database, "active")).resolves.toEqual(
+      [],
+    );
+    expect(await database.select().from(schema.rules)).toEqual([]);
+    await client.close();
+  });
+
   it("keeps official Bulletin and bootstrap legacy program shapes distinct", () => {
     const bulletin = bulletinResponse();
     expect(CatalogResponseSchema.parse(bulletin)).toMatchObject(bulletin);
