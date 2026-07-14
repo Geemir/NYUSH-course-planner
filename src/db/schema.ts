@@ -6,9 +6,17 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
-import type { Course, PlanSnapshot, SpecialRule } from "@/lib/types";
+import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
+import type {
+  CatalogProgram,
+  Course,
+  PlanSnapshot,
+  SpecialRule,
+} from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Auth.js (NextAuth) core tables — standard adapter schema.
@@ -76,19 +84,27 @@ export const verificationTokens = pgTable(
 // existing planIO helpers serialize straight into the column.
 // ---------------------------------------------------------------------------
 
-export const plans = pgTable("plan", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  userId: text("userId")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull().default("My 4-Year Plan"),
-  isActive: boolean("isActive").notNull().default(true),
-  snapshot: jsonb("snapshot").$type<PlanSnapshot>().notNull(),
-  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
-  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
-});
+export const plans = pgTable(
+  "plan",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default("My 4-Year Plan"),
+    isActive: boolean("isActive").notNull().default(true),
+    snapshot: jsonb("snapshot").$type<PlanSnapshot>().notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (plan) => [
+    uniqueIndex("plan_one_active_per_user")
+      .on(plan.userId)
+      .where(sql`${plan.isActive} = true`),
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // Shared course catalog. The full Course object lives in `data` (JSONB,
@@ -130,7 +146,91 @@ export const rules = pgTable("rule", {
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ---------------------------------------------------------------------------
+// Immutable, versioned Bulletin catalogs. Child rows are snapshot-scoped so
+// repeated official IDs remain available in every historical publication.
+// ---------------------------------------------------------------------------
+
+export const catalogSnapshot = pgTable(
+  "catalogSnapshot",
+  {
+    id: text("id").primaryKey(),
+    sourceHash: text("sourceHash").notNull(),
+    status: text("status", {
+      enum: ["building", "active", "retired", "failed"],
+    })
+      .notNull()
+      .default("building"),
+    validationReport: jsonb("validationReport")
+      .$type<SnapshotValidationReport>()
+      .notNull(),
+    documentCount: integer("documentCount").notNull(),
+    courseCount: integer("courseCount").notNull(),
+    programCount: integer("programCount").notNull(),
+    sourceReferenceIds: jsonb("sourceReferenceIds")
+      .$type<string[]>()
+      .notNull(),
+    externalCourseIds: jsonb("externalCourseIds").$type<string[]>().notNull(),
+    unresolvedCourseIds: jsonb("unresolvedCourseIds")
+      .$type<string[]>()
+      .notNull(),
+    failureSummary: text("failureSummary"),
+    startedAt: timestamp("startedAt", { mode: "date" })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completedAt", { mode: "date" }),
+  },
+  (snapshot) => [
+    uniqueIndex("catalog_snapshot_one_active")
+      .on(snapshot.status)
+      .where(sql`${snapshot.status} = 'active'`),
+  ],
+);
+
+export const catalogSourceDocument = pgTable(
+  "catalogSourceDocument",
+  {
+    snapshotId: text("snapshotId")
+      .notNull()
+      .references(() => catalogSnapshot.id, { onDelete: "cascade" }),
+    sourceUrl: text("sourceUrl").notNull(),
+    data: jsonb("data").$type<unknown>().notNull(),
+  },
+  (document) => [
+    primaryKey({ columns: [document.snapshotId, document.sourceUrl] }),
+  ],
+);
+
+export const catalogCourse = pgTable(
+  "catalogCourse",
+  {
+    snapshotId: text("snapshotId")
+      .notNull()
+      .references(() => catalogSnapshot.id, { onDelete: "cascade" }),
+    courseId: text("courseId").notNull(),
+    data: jsonb("data").$type<Course>().notNull(),
+  },
+  (course) => [
+    primaryKey({ columns: [course.snapshotId, course.courseId] }),
+  ],
+);
+
+export const catalogProgram = pgTable(
+  "catalogProgram",
+  {
+    snapshotId: text("snapshotId")
+      .notNull()
+      .references(() => catalogSnapshot.id, { onDelete: "cascade" }),
+    programId: text("programId").notNull(),
+    data: jsonb("data").$type<CatalogProgram>().notNull(),
+  },
+  (program) => [
+    primaryKey({ columns: [program.snapshotId, program.programId] }),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type PlanRow = typeof plans.$inferSelect;
 export type CourseRow = typeof courses.$inferSelect;
 export type RuleRow = typeof rules.$inferSelect;
+export type CatalogSnapshotRow = typeof catalogSnapshot.$inferSelect;
