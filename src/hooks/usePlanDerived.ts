@@ -8,6 +8,7 @@ import { HOME_SITE, PROGRAMS, PROGRAMS_BY_ID, SITES } from "@/lib/data";
 import { analyzeFeasibility } from "@/lib/feasibility";
 import { computeProgress } from "@/lib/progress";
 import { buildRuleContext } from "@/lib/rules";
+import { placementCredits } from "@/lib/credits";
 import {
   Placement,
   PlanWarning,
@@ -28,6 +29,7 @@ export function usePlanDerived() {
   const studyAway = usePlannerStore((s) => s.studyAway);
   const completedSemesters = usePlannerStore((s) => s.completedSemesters);
   const activePrograms = usePlannerStore((s) => s.activePrograms);
+  const fulfillmentFacts = usePlannerStore((s) => s.fulfillmentFacts);
   const dismissedIds = usePlannerStore((s) => s.dismissedWarnings);
   const { coursesById, customIds } = useCourseData();
   const { rules: specialRules } = useCatalog();
@@ -56,6 +58,7 @@ export function usePlanDerived() {
       coursesById,
       programs: activeProgramObjs,
       effective: allocation.effective,
+      fulfillmentFacts,
       rules: ruleCtx,
     });
 
@@ -104,7 +107,9 @@ export function usePlanDerived() {
       creditsBySemester.set(
         p.semesterId,
         (creditsBySemester.get(p.semesterId) ?? 0) +
-          (coursesById.get(p.courseId)?.credits ?? 0),
+          (coursesById.has(p.courseId)
+            ? placementCredits(p, coursesById.get(p.courseId)!)
+            : 0),
       );
     }
 
@@ -147,5 +152,5 @@ export function usePlanDerived() {
       specialRules,
       feasibility,
     };
-  }, [placements, studyAway, completedSemesters, activePrograms, dismissedIds, coursesById, customIds, specialRules]);
+  }, [placements, studyAway, completedSemesters, activePrograms, fulfillmentFacts, dismissedIds, coursesById, customIds, specialRules]);
 }

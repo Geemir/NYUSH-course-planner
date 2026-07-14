@@ -3,7 +3,9 @@ import { resolveAllocations } from "@/lib/allocation";
 import { analyzeFeasibility } from "@/lib/feasibility";
 import { computeProgress } from "@/lib/progress";
 import {
+  CatalogProgram,
   Course,
+  FulfillmentFact,
   Placement,
   Program,
   SemesterId,
@@ -47,11 +49,12 @@ function fulfill(ids: string[], categoryId = "p-all"): Course[] {
 }
 
 function analyze(
-  programInput: Program | Program[],
+  programInput: Program | CatalogProgram | Array<Program | CatalogProgram>,
   courses: Course[],
   placements: Placement[] = [],
   completed: SemesterId[] = [],
   studyAway: Partial<Record<SemesterId, string>> = {},
+  fulfillmentFacts: FulfillmentFact[] = [],
 ) {
   const programs = Array.isArray(programInput) ? programInput : [programInput];
   const coursesById = new Map(courses.map((c) => [c.id, c]));
@@ -68,6 +71,7 @@ function analyze(
     coursesById,
     programs,
     effective,
+    fulfillmentFacts,
   });
   return analyzeFeasibility({
     programs,
@@ -83,6 +87,103 @@ function analyze(
 const ALL8: SemesterId[] = ["Y1F", "Y1S", "Y2F", "Y2S", "Y3F", "Y3S", "Y4F", "Y4S"];
 
 describe("feasibility analyzer", () => {
+  it("reports ambiguous Bulletin choices without inventing a course", () => {
+    const program = {
+      id: "p",
+      name: "P",
+      shortName: "P",
+      type: "major",
+      categories: [
+        {
+          id: "choice",
+          name: "Choice",
+          requirement: {
+            kind: "any",
+            children: [
+              { kind: "course", courseId: "c0" },
+              { kind: "course", courseId: "c1" },
+            ],
+          },
+          sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/programs/p/",
+          sourceTableId: "requirements",
+          sourceRowIndexes: [0],
+        },
+      ],
+      requirementRows: [],
+      sourceRows: [],
+      sourceReferenceIds: ["c0", "c1"],
+      provenance: {
+        sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/programs/p/",
+        snapshotId: "snapshot",
+        sourceHash: "hash",
+      },
+    } as CatalogProgram;
+
+    const result = analyze(program, [course("c0"), course("c1")]);
+    expect(result.suggestion).toEqual([]);
+    expect(result.unplaceable).toEqual([]);
+    expect(result.requirementGaps).toEqual([
+      expect.objectContaining({ kind: "ambiguous", candidateCourseIds: ["c0", "c1"] }),
+    ]);
+  });
+
+  it("reports manual gaps separately and completes them only from explicit facts", () => {
+    const program = {
+      id: "p",
+      name: "P",
+      shortName: "P",
+      type: "major",
+      categories: [
+        {
+          id: "manual",
+          name: "Manual",
+          requirement: {
+            kind: "manualConfirmation",
+            label: "Director approval",
+            sourceText: "The director must approve this plan.",
+          },
+          sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/programs/p/",
+          sourceTableId: "requirements",
+          sourceRowIndexes: [0],
+        },
+      ],
+      requirementRows: [],
+      sourceRows: [],
+      sourceReferenceIds: [],
+      provenance: {
+        sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/programs/p/",
+        snapshotId: "snapshot",
+        sourceHash: "hash",
+      },
+    } as CatalogProgram;
+
+    const pending = analyze(program, []);
+    expect(pending.suggestion).toEqual([]);
+    expect(pending.requirementGaps).toEqual([
+      expect.objectContaining({ kind: "manual", label: "Director approval" }),
+    ]);
+
+    const confirmed = analyze(program, [], [], [], {}, [
+      {
+        id: "fact",
+        kind: "manualConfirmation",
+        requirementId: "The director must approve this plan.",
+        label: "Approved",
+      },
+    ]);
+    expect(confirmed.status).toBe("complete");
+    expect(confirmed.requirementGaps).toEqual([]);
+  });
+
+  it("does not reject an unknown offering pattern as not offered", () => {
+    const unknown = course("c0", { offered: [], offeringKnown: false });
+    const result = analyze(allOfProgram(["c0"]), [
+      { ...unknown, fulfills: [{ programId: "p", categoryId: "p-all" }] },
+    ]);
+    expect(result.suggestion).toHaveLength(1);
+    expect(result.unplaceable).toEqual([]);
+  });
+
   it("reports 'complete' when requirements are already satisfied", () => {
     const r = analyze(allOfProgram(["c0"]), fulfill(["c0"]), [
       { courseId: "c0", semesterId: "Y1F", allocation: "auto" },

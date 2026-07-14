@@ -1,10 +1,12 @@
 import { EMPTY_RULE_CONTEXT, RuleContext } from "@/lib/rules";
+import { placementCredits } from "@/lib/credits";
+import type { PlannerProgram } from "@/lib/requirements";
 import {
   Course,
   courseCovers,
   Placement,
-  Program,
   ProgramProgress,
+  RequirementGap,
   SemesterId,
   SEMESTER_IDS,
   semesterIndex,
@@ -27,11 +29,13 @@ export interface FeasibilityReport {
   overloadedTerms: { semesterId: SemesterId; credits: number }[];
   /** Requirements that could not be scheduled, with a reason. */
   unplaceable: { courseId: string; reason: string }[];
+  /** Advisor/waiver/choice work that cannot be represented as a course. */
+  requirementGaps: RequirementGap[];
   remaining: { courses: number; credits: number };
 }
 
 interface AnalyzeOpts {
-  programs: Program[];
+  programs: PlannerProgram[];
   progressByProgram: Map<string, ProgramProgress>;
   placements: Placement[];
   completedSemesters: SemesterId[];
@@ -68,30 +72,16 @@ export function analyzeFeasibility(opts: AnalyzeOpts): FeasibilityReport {
 
   // --- 1. Which courses are still needed to satisfy unmet requirements? ---
   const needed = new Set<string>();
-  const chosen = new Set<string>(); // pool picks reserved across categories
+  const requirementGaps: RequirementGap[] = [];
 
   for (const program of programs) {
     const pp = progressByProgram.get(program.id);
     if (!pp) continue;
-    program.categories.forEach((category, i) => {
+    program.categories.forEach((_category, i) => {
       const cp = pp.categories[i];
       if (!cp || cp.plannedUnits >= cp.requiredUnits) return;
-
-      if (category.rule.kind === "allOf") {
-        for (const id of cp.missingCourseIds) needed.add(id);
-        return;
-      }
-      // chooseN / creditsFrom: pick enough not-yet-counted pool courses.
-      let gap = cp.requiredUnits - cp.plannedUnits;
-      for (const id of category.rule.courses) {
-        if (gap <= 0) break;
-        if (cp.matchedCourseIds.includes(id) || placedIds.has(id) || chosen.has(id))
-          continue;
-        if (!coursesById.has(id)) continue;
-        needed.add(id);
-        chosen.add(id);
-        gap -= cp.unitKind === "credits" ? credits(coursesById, id) : 1;
-      }
+      for (const id of cp.missingCourseIds) needed.add(id);
+      requirementGaps.push(...cp.gaps);
     });
   }
 
@@ -122,10 +112,11 @@ export function analyzeFeasibility(opts: AnalyzeOpts): FeasibilityReport {
   const toSchedule = [...needed].filter((id) => !placedIds.has(id));
   if (toSchedule.length === 0) {
     return {
-      status: "complete",
+      status: requirementGaps.length === 0 ? "complete" : "infeasible",
       suggestion: [],
       overloadedTerms: collectOverloads(placements, coursesById),
       unplaceable: [],
+      requirementGaps,
       remaining: { courses: 0, credits: 0 },
     };
   }
@@ -138,9 +129,11 @@ export function analyzeFeasibility(opts: AnalyzeOpts): FeasibilityReport {
 
   const termCredits = new Map<SemesterId, number>();
   for (const p of placements) {
+    const course = coursesById.get(p.courseId);
     termCredits.set(
       p.semesterId,
-      (termCredits.get(p.semesterId) ?? 0) + credits(coursesById, p.courseId),
+      (termCredits.get(p.semesterId) ?? 0) +
+        (course ? placementCredits(p, course) : 0),
     );
   }
 
@@ -167,7 +160,12 @@ export function analyzeFeasibility(opts: AnalyzeOpts): FeasibilityReport {
   const fitsTerm = (id: string, term: SemesterId, capped: boolean): boolean => {
     const course = coursesById.get(id);
     if (!course) return false;
-    if (!course.offered.includes(semesterTerm(term))) return false;
+    if (
+      course.offeringKnown !== false &&
+      !course.offered.includes(semesterTerm(term))
+    ) {
+      return false;
+    }
     const site = studyAway[term] ?? homeSiteId;
     if (!course.sites.includes(site)) return false;
     if (course.tags.includes("capstone") && semesterYear(term) < 4) return false;
@@ -224,7 +222,7 @@ export function analyzeFeasibility(opts: AnalyzeOpts): FeasibilityReport {
   );
 
   let status: FeasibilityStatus;
-  if (unplaceable.length > 0) status = "infeasible";
+  if (unplaceable.length > 0 || requirementGaps.length > 0) status = "infeasible";
   else if (neededOverload || overloadedTerms.length > 0) status = "feasible-with-overload";
   else status = "feasible";
 
@@ -233,6 +231,7 @@ export function analyzeFeasibility(opts: AnalyzeOpts): FeasibilityReport {
     suggestion,
     overloadedTerms,
     unplaceable,
+    requirementGaps,
     remaining: {
       courses: suggestion.length + unplaceable.length,
       credits:
@@ -250,7 +249,10 @@ function collectOverloads(
   for (const p of placements) {
     byTerm.set(
       p.semesterId,
-      (byTerm.get(p.semesterId) ?? 0) + (coursesById.get(p.courseId)?.credits ?? 0),
+      (byTerm.get(p.semesterId) ?? 0) +
+        (coursesById.has(p.courseId)
+          ? placementCredits(p, coursesById.get(p.courseId)!)
+          : 0),
     );
   }
   return SEMESTER_IDS.filter((s) => (byTerm.get(s) ?? 0) > MAX_SEMESTER_CREDITS).map(
@@ -271,7 +273,10 @@ function reasonUnplaceable(
   const isCapstone = course.tags.includes("capstone");
 
   // Mirror the scheduler's constraints, narrowing term by term.
-  let terms = openTerms.filter((t) => course.offered.includes(semesterTerm(t)));
+  let terms =
+    course.offeringKnown === false
+      ? [...openTerms]
+      : openTerms.filter((t) => course.offered.includes(semesterTerm(t)));
   if (terms.length === 0)
     return `only offered in ${course.offered.join("/")}, with no open ${course.offered.join("/")} term left`;
 

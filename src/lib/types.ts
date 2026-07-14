@@ -489,9 +489,29 @@ export interface CategoryProgress {
   plannedUnits: number;
   /** Course ids currently credited to this category. */
   matchedCourseIds: string[];
-  /** For allOf rules: course ids still missing from the plan. */
+  /** Deterministic course ids still missing from the plan. */
   missingCourseIds: string[];
+  /** Non-deterministic or non-course evidence still requiring attention. */
+  gaps: RequirementGap[];
+  manualState: "none" | "pending" | "satisfied";
 }
+
+export type RequirementGap =
+  | {
+      kind: "manual";
+      label: string;
+      sourceText: string;
+    }
+  | {
+      kind: "waiver";
+      label: string;
+      waiverId: string;
+    }
+  | {
+      kind: "ambiguous";
+      label: string;
+      candidateCourseIds: string[];
+    };
 
 export interface ProgramProgress {
   programId: string;

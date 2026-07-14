@@ -1,9 +1,13 @@
 import {
+  categoryRequirement,
+  requirementDemand,
+  type PlannerProgram,
+} from "@/lib/requirements";
+import { placementCredits } from "@/lib/credits";
+import {
   Course,
   Fulfillment,
   Placement,
-  Program,
-  Rule,
   semesterIndex,
 } from "@/lib/types";
 
@@ -22,21 +26,6 @@ export interface AllocationResult {
 
 const DEFAULT_DOUBLE_COUNT_LIMIT = 2;
 
-function ruleUnits(rule: Rule): number {
-  switch (rule.kind) {
-    case "allOf":
-      return rule.courses.length;
-    case "chooseN":
-      return rule.n;
-    case "creditsFrom":
-      return rule.minCredits;
-  }
-}
-
-function unitsForCourse(rule: Rule, course: Course): number {
-  return rule.kind === "creditsFrom" ? course.credits : 1;
-}
-
 /**
  * Resolves which program categories each placed course actually counts
  * toward. "auto" cross-listed courses are assigned greedily, in chronological
@@ -46,35 +35,40 @@ function unitsForCourse(rule: Rule, course: Course): number {
 export function resolveAllocations(opts: {
   placements: Placement[];
   coursesById: Map<string, Course>;
-  programsById: Map<string, Program>;
+  programsById: Map<string, PlannerProgram>;
   activePrograms: string[];
 }): AllocationResult {
   const { placements, coursesById, programsById, activePrograms } = opts;
 
   const active = activePrograms
     .map((id) => programsById.get(id))
-    .filter((p): p is Program => p !== undefined);
+    .filter((p): p is PlannerProgram => p !== undefined);
   const activeIds = new Set(active.map((p) => p.id));
   const programOrder = new Map(activePrograms.map((id, i) => [id, i]));
 
   // Remaining demand per "programId/categoryId", in rule units.
   const demand = new Map<string, number>();
-  const rules = new Map<string, Rule>();
+  const unitKinds = new Map<string, "courses" | "credits">();
   for (const program of active) {
     for (const category of program.categories) {
       const key = `${program.id}/${category.id}`;
-      demand.set(key, ruleUnits(category.rule));
-      rules.set(key, category.rule);
+      const required = requirementDemand(categoryRequirement(category));
+      demand.set(key, required.units);
+      unitKinds.set(key, required.unitKind);
     }
   }
 
-  const consume = (f: Fulfillment, course: Course) => {
+  const consume = (f: Fulfillment, course: Course, placement: Placement) => {
     const key = `${f.programId}/${f.categoryId}`;
-    const rule = rules.get(key);
-    if (!rule) return;
+    const unitKind = unitKinds.get(key);
+    if (!unitKind) return;
     demand.set(
       key,
-      Math.max(0, (demand.get(key) ?? 0) - unitsForCourse(rule, course)),
+      Math.max(
+        0,
+        (demand.get(key) ?? 0) -
+          (unitKind === "credits" ? placementCredits(placement, course) : 1),
+      ),
     );
   };
 
@@ -128,7 +122,7 @@ export function resolveAllocations(opts: {
     }
 
     const chosen = [...passThroughFulfills, ...chosenMajors];
-    for (const f of chosen) consume(f, course);
+    for (const f of chosen) consume(f, course, placement);
     effective.set(course.id, chosen);
   }
 
@@ -136,7 +130,11 @@ export function resolveAllocations(opts: {
   let budget: AllocationResult["budget"] = null;
   if (activeMajors.length >= 2) {
     const limit = Math.min(
-      ...activeMajors.map((p) => p.doubleCountLimit ?? DEFAULT_DOUBLE_COUNT_LIMIT),
+      ...activeMajors.map((p) =>
+        "doubleCountLimit" in p
+          ? (p.doubleCountLimit ?? DEFAULT_DOUBLE_COUNT_LIMIT)
+          : DEFAULT_DOUBLE_COUNT_LIMIT,
+      ),
     );
     budget = { limit, used: doubleCounted.length };
   }

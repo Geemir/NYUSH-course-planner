@@ -12,7 +12,9 @@ import { computeProgress } from "@/lib/progress";
 import { buildRuleContext } from "@/lib/rules";
 import { computeWarnings } from "@/lib/validation";
 import {
+  CatalogProgram,
   Course,
+  FulfillmentFact,
   Placement,
   SemesterId,
   SpecialRule,
@@ -263,6 +265,39 @@ describe("legacy course robustness", () => {
 });
 
 describe("validation", () => {
+  it("uses selected credits for load warnings and ignores unknown offerings", () => {
+    const variable = {
+      ...COURSES_BY_ID.get("F 1")!,
+      id: "VAR 1",
+      credits: 4,
+      minCredits: 1,
+      maxCredits: 4,
+      offered: [],
+      offeringKnown: false,
+    };
+    const coursesById = new Map(COURSES_BY_ID);
+    coursesById.set(variable.id, variable);
+    const placements: Placement[] = [
+      { courseId: variable.id, semesterId: "Y2S", allocation: "auto", selectedCredits: 1 },
+      place("A 1", "Y2S"),
+      place("A 2", "Y2S"),
+      place("B 1", "Y2S"),
+      place("X 1", "Y2S"),
+    ];
+    const result = computeWarnings({
+      placements,
+      studyAway: {},
+      coursesById,
+      homeSiteId: "home",
+      siteNameById: SITE_NAMES,
+      budget: null,
+      doubleCounted: [],
+    });
+
+    expect(result.filter((warning) => warning.kind === "not-offered")).toHaveLength(0);
+    expect(result.filter((warning) => warning.kind === "overload")).toHaveLength(0);
+  });
+
   it("flags a missing prerequisite as an error", () => {
     const w = warnings([place("A 2", "Y1F")]);
     expect(w).toContainEqual(
@@ -335,6 +370,107 @@ describe("validation", () => {
 });
 
 describe("progress", () => {
+  it("evaluates active Bulletin categories recursively with explicit manual facts", () => {
+    const bulletinProgram = {
+      id: "bulletin-major",
+      name: "Bulletin Major",
+      shortName: "BM",
+      type: "major",
+      categories: [
+        {
+          id: "recursive",
+          name: "Recursive requirement",
+          requirement: {
+            kind: "all",
+            children: [
+              { kind: "course", courseId: "A 1" },
+              {
+                kind: "manualConfirmation",
+                label: "Advisor approval",
+                sourceText: "Advisor approval is required.",
+              },
+            ],
+          },
+          sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/programs/test/",
+          sourceTableId: "requirements",
+          sourceRowIndexes: [0],
+        },
+      ],
+      requirementRows: [],
+      sourceRows: [],
+      sourceReferenceIds: ["A 1"],
+      provenance: {
+        sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/programs/test/",
+        snapshotId: "snapshot",
+        sourceHash: "hash",
+      },
+    } as CatalogProgram;
+    const facts: FulfillmentFact[] = [
+      {
+        id: "manual-1",
+        kind: "manualConfirmation",
+        requirementId: "Advisor approval is required.",
+        label: "Approved",
+      },
+    ];
+    const result = computeProgress({
+      placements: [place("A 1", "Y1F")],
+      completedSemesters: ["Y1F"],
+      coursesById: COURSES_BY_ID,
+      programs: [bulletinProgram],
+      effective: new Map(),
+      fulfillmentFacts: facts,
+    });
+
+    expect(result.programs[0]).toMatchObject({
+      plannedFraction: 1,
+      completedFraction: 1,
+      categories: [
+        expect.objectContaining({
+          plannedUnits: 2,
+          completedUnits: 2,
+          manualState: "satisfied",
+          gaps: [],
+        }),
+      ],
+    });
+  });
+
+  it("uses selected variable credits for totals and credit-pool progress", () => {
+    const variable = {
+      ...COURSES_BY_ID.get("B 1")!,
+      id: "VAR 1",
+      credits: 4,
+      minCredits: 1,
+      maxCredits: 4,
+      fulfills: [{ programId: "b", categoryId: "b-elect" }],
+    };
+    const coursesById = new Map(COURSES_BY_ID);
+    coursesById.set(variable.id, variable);
+    const placements: Placement[] = [
+      { courseId: variable.id, semesterId: "Y1F", allocation: "auto", selectedCredits: 2 },
+    ];
+    const { effective } = resolveAllocations({
+      placements,
+      coursesById,
+      programsById: PROGRAMS_BY_ID,
+      activePrograms: ACTIVE,
+    });
+    const result = computeProgress({
+      placements,
+      completedSemesters: ["Y1F"],
+      coursesById,
+      programs: FIXTURE_PROGRAMS,
+      effective,
+    });
+    const category = result.programs
+      .find((program) => program.programId === "b")!
+      .categories.find((item) => item.categoryId === "b-elect")!;
+
+    expect(result.credits).toMatchObject({ planned: 2, completed: 2 });
+    expect(category).toMatchObject({ plannedUnits: 2, completedUnits: 2 });
+  });
+
   it("tracks allOf categories with completed vs planned units", () => {
     const result = progress(
       [place("A 1", "Y1F"), place("A 2", "Y2F")],

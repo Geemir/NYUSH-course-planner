@@ -1,4 +1,5 @@
 import { EMPTY_RULE_CONTEXT, RuleContext } from "@/lib/rules";
+import { placementCredits } from "@/lib/credits";
 import {
   Course,
   courseCovers,
@@ -120,7 +121,7 @@ export function computeWarnings(opts: {
 
     // --- Term offering pattern ---
     const term = semesterTerm(semesterId);
-    if (!course.offered.includes(term)) {
+    if (course.offeringKnown !== false && !course.offered.includes(term)) {
       warnings.push({
         id: `not-offered:${course.id}:${semesterId}`,
         kind: "not-offered",
@@ -162,7 +163,10 @@ export function computeWarnings(opts: {
   for (const semesterId of SEMESTER_IDS) {
     const credits = placements
       .filter((p) => p.semesterId === semesterId)
-      .reduce((sum, p) => sum + (coursesById.get(p.courseId)?.credits ?? 0), 0);
+      .reduce((sum, p) => {
+        const course = coursesById.get(p.courseId);
+        return course ? sum + placementCredits(p, course) : sum;
+      }, 0);
     if (credits > MAX_SEMESTER_CREDITS) {
       warnings.push({
         id: `overload:${semesterId}`,
