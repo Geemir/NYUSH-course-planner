@@ -1,24 +1,59 @@
-import { db } from "@/db";
-import { createBulletinFetch } from "@/lib/bulletin/fetch";
-import { syncBulletin } from "@/lib/bulletin/sync";
+import { basename } from "node:path";
+import type { SyncResult } from "@/lib/bulletin/sync";
 
-const fetcher = createBulletinFetch({
-  timeoutMs: 15_000,
-  retries: 2,
-  userAgent: "NYUSH Course Planner Bulletin Synchronizer",
-});
+interface BulletinSyncCliOptions {
+  execute: () => Promise<SyncResult>;
+  stdout: (line: string) => void;
+  stderr: (line: string) => void;
+}
 
-try {
-  const result = await syncBulletin({
-    fetcher,
-    db,
-    now: () => new Date(),
+export async function runBulletinSyncCli({
+  execute,
+  stdout,
+  stderr,
+}: BulletinSyncCliOptions): Promise<0 | 1> {
+  try {
+    const result = await execute();
+    stdout(
+      `${result.outcome}: snapshot=${result.snapshotId} documents=${result.documentCount} courses=${result.courseCount} programs=${result.programCount}`,
+    );
+    return 0;
+  } catch {
+    stderr("Bulletin synchronization failed.");
+    return 1;
+  }
+}
+
+async function executeDefault(): Promise<SyncResult> {
+  // These imports must stay inside runBulletinSyncCli's safe try boundary.
+  // The Node command activates Next's react-server export condition so the
+  // server-only marker resolves to its permitted empty module.
+  const [{ db }, { createBulletinFetch }, { syncBulletin }] = await Promise.all([
+    import("@/db"),
+    import("@/lib/bulletin/fetch"),
+    import("@/lib/bulletin/sync"),
+  ]);
+  if (process.argv.includes("--startup-smoke")) {
+    throw new Error("Intentional no-network startup smoke failure.");
+  }
+  const fetcher = createBulletinFetch({
+    timeoutMs: 15_000,
+    retries: 2,
+    userAgent: "NYUSH Course Planner Bulletin Synchronizer",
   });
-  console.log(
-    `${result.outcome}: snapshot=${result.snapshotId} documents=${result.documentCount} courses=${result.courseCount} programs=${result.programCount}`,
-  );
-  process.exitCode = 0;
-} catch {
-  console.error("Bulletin synchronization failed.");
-  process.exitCode = 1;
+  return syncBulletin({ fetcher, db, now: () => new Date() });
+}
+
+async function main(): Promise<0 | 1> {
+  return runBulletinSyncCli({
+    execute: executeDefault,
+    stdout: (line) => console.log(line),
+    stderr: (line) => console.error(line),
+  });
+}
+
+if (basename(process.argv[1] ?? "") === "sync-bulletin.ts") {
+  void main().then((exitCode) => {
+    process.exit(exitCode);
+  });
 }

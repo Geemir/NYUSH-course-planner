@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import * as schema from "@/db/schema";
 import { discoverBulletinSources } from "@/lib/bulletin/discover";
 import type { BulletinFetch } from "@/lib/bulletin/fetch";
 import {
@@ -12,6 +15,7 @@ import {
 import {
   assertPublishable,
   validateCatalogCandidate,
+  type SnapshotValidationReport,
 } from "@/lib/bulletin/validateSnapshot";
 import {
   getActiveCatalog,
@@ -49,7 +53,71 @@ export class BulletinSyncInProgressError extends Error {
   }
 }
 
-let syncInProgress = false;
+export const BULLETIN_SYNC_LOCK_ID = "__bulletin_sync_lock__";
+
+function lockValidationReport(
+  ownerToken: string,
+): SnapshotValidationReport {
+  return {
+    summary: {
+      snapshotId: BULLETIN_SYNC_LOCK_ID,
+      sourceHash: ownerToken,
+      documentCount: 0,
+      courseCount: 0,
+      programCount: 0,
+      sourceRowCount: 0,
+      requirementRowCount: 0,
+    },
+    errors: [],
+    warnings: [],
+  };
+}
+
+/** Atomically acquires the cross-process synchronization lease row. */
+export async function acquireBulletinSyncLock(
+  db: CatalogDb,
+  ownerToken: string,
+  startedAt: Date,
+): Promise<void> {
+  const inserted = await db
+    .insert(schema.catalogSnapshot)
+    .values({
+      id: BULLETIN_SYNC_LOCK_ID,
+      sourceHash: ownerToken,
+      status: "building",
+      validationReport: lockValidationReport(ownerToken),
+      documentCount: 0,
+      courseCount: 0,
+      programCount: 0,
+      sourceReferenceIds: [],
+      externalCourseIds: [],
+      unresolvedCourseIds: [],
+      failureSummary: "Bulletin synchronization lock",
+      startedAt,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (inserted[0]?.sourceHash !== ownerToken) {
+    throw new BulletinSyncInProgressError();
+  }
+}
+
+/** Releases only the lease owned by this exact synchronization invocation. */
+export async function releaseBulletinSyncLock(
+  db: CatalogDb,
+  ownerToken: string,
+): Promise<void> {
+  await db
+    .delete(schema.catalogSnapshot)
+    .where(
+      and(
+        eq(schema.catalogSnapshot.id, BULLETIN_SYNC_LOCK_ID),
+        eq(schema.catalogSnapshot.sourceHash, ownerToken),
+        eq(schema.catalogSnapshot.status, "building"),
+      ),
+    );
+}
 
 function result(
   outcome: SyncResult["outcome"],
@@ -79,11 +147,11 @@ export async function syncBulletin({
   db,
   now,
 }: SyncBulletinOptions): Promise<SyncResult> {
-  if (syncInProgress) throw new BulletinSyncInProgressError();
-  syncInProgress = true;
+  const ownerToken = randomUUID();
+  const startedAt = now();
+  await acquireBulletinSyncLock(db, ownerToken, startedAt);
 
   try {
-    const startedAt = now();
     const discovery = await discoverBulletinSources(fetcher);
     const programSources = [...discovery.majors, ...discovery.minors];
     const sources = [...programSources, ...discovery.subjects, CORE_SOURCE];
@@ -123,6 +191,8 @@ export async function syncBulletin({
     await publishCatalogCandidate(db, candidate, validationReport);
     return result("published", candidate, startedAt, now());
   } finally {
-    syncInProgress = false;
+    // A crashed process intentionally leaves a stale row rather than silently
+    // allowing concurrent takeover. Operators must inspect and remove it.
+    await releaseBulletinSyncLock(db, ownerToken);
   }
 }

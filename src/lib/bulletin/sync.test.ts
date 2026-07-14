@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle } from "drizzle-orm/pglite";
+import { migrate } from "drizzle-orm/pglite/migrator";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import * as schema from "@/db/schema";
 import type { BulletinDiscovery } from "@/lib/bulletin/sourceTypes";
 import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
 import type { CatalogCandidate } from "@/lib/types";
@@ -144,13 +148,26 @@ vi.mock("@/lib/catalogRepository", () => ({
 }));
 
 import {
+  acquireBulletinSyncLock,
   BulletinSyncInProgressError,
+  releaseBulletinSyncLock,
   syncBulletin,
 } from "@/lib/bulletin/sync";
 import { requireAdmin } from "@/lib/adminAuth";
 
-const db = {} as Parameters<typeof syncBulletin>[0]["db"];
+let client: PGlite;
+let db: Parameters<typeof syncBulletin>[0]["db"];
 const now = vi.fn(() => new Date("2026-07-14T00:00:00.000Z"));
+
+beforeAll(async () => {
+  client = new PGlite();
+  db = drizzle(client, { schema });
+  await migrate(db, { migrationsFolder: "./drizzle" });
+});
+
+afterAll(async () => {
+  await client.close();
+});
 
 function resetStubs() {
   stubs.events.length = 0;
@@ -218,7 +235,7 @@ describe("syncBulletin", () => {
     expect(stubs.events).not.toContain("publish");
   });
 
-  it("does not read or write the repository after a detail fetch failure", async () => {
+  it("releases the database lock after a detail fetch failure", async () => {
     resetStubs();
     const fetcher = vi.fn(async (url: string) => {
       stubs.events.push(`fetch:${url}`);
@@ -237,6 +254,11 @@ describe("syncBulletin", () => {
     ]);
     expect(stubs.events).not.toContain("hash-check");
     expect(stubs.events).not.toContain("publish");
+
+    resetStubs();
+    await expect(
+      syncBulletin({ fetcher: successfulFetcher(), db, now }),
+    ).resolves.toMatchObject({ outcome: "published" });
   });
 
   it("records a validation failure without inspecting or activating the catalog", async () => {
@@ -289,12 +311,44 @@ describe("syncBulletin", () => {
     const first = syncBulletin({ fetcher, db, now });
     await vi.waitFor(() => expect(fetcher).toHaveBeenCalledWith(PROGRAM_URL));
 
-    await expect(
-      syncBulletin({ fetcher: successfulFetcher(), db, now }),
-    ).rejects.toBeInstanceOf(BulletinSyncInProgressError);
+    const rejectedFetcher = successfulFetcher();
+    await expect(syncBulletin({ fetcher: rejectedFetcher, db, now })).rejects.toBeInstanceOf(
+      BulletinSyncInProgressError,
+    );
+    expect(rejectedFetcher).not.toHaveBeenCalled();
 
     release();
     await first;
+
+    resetStubs();
+    const retryFetcher = successfulFetcher();
+    await expect(syncBulletin({ fetcher: retryFetcher, db, now })).resolves.toMatchObject({
+      outcome: "published",
+    });
+    expect(retryFetcher).toHaveBeenCalled();
+  });
+
+  it("atomically coordinates lock ownership through the shared database", async () => {
+    const firstOwner = "owner-first";
+    const secondOwner = "owner-second";
+
+    await expect(
+      acquireBulletinSyncLock(db, firstOwner, now()),
+    ).resolves.toBeUndefined();
+    await expect(
+      acquireBulletinSyncLock(db, secondOwner, now()),
+    ).rejects.toBeInstanceOf(BulletinSyncInProgressError);
+
+    await releaseBulletinSyncLock(db, secondOwner);
+    await expect(
+      acquireBulletinSyncLock(db, secondOwner, now()),
+    ).rejects.toBeInstanceOf(BulletinSyncInProgressError);
+
+    await releaseBulletinSyncLock(db, firstOwner);
+    await expect(
+      acquireBulletinSyncLock(db, secondOwner, now()),
+    ).resolves.toBeUndefined();
+    await releaseBulletinSyncLock(db, secondOwner);
   });
 
   it("releases the synchronization lock when the injected clock throws", async () => {
