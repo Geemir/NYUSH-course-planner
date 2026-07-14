@@ -286,4 +286,44 @@ describe("catalog snapshot publication", () => {
 
     await expect(getCatalogStatus(db)).rejects.toThrow();
   });
+
+  it("accepts Task 6 failed reports with malformed source identity strings", async () => {
+    const report: SnapshotValidationReport = {
+      summary: {
+        snapshotId: "",
+        sourceHash: "",
+        documentCount: 1,
+        courseCount: 0,
+        programCount: 0,
+        sourceRowCount: 0,
+        requirementRowCount: 0,
+      },
+      errors: [
+        {
+          code: "invalid-source-document",
+          sourceUrl: "bad",
+          entityId: "",
+        },
+      ],
+      warnings: [],
+    };
+    await db.insert(schema.catalogSnapshot).values({
+      id: "failed-malformed-source-identity",
+      sourceHash: "",
+      status: "failed",
+      validationReport: report,
+      documentCount: 1,
+      courseCount: 0,
+      programCount: 0,
+      sourceReferenceIds: [],
+      externalCourseIds: [],
+      unresolvedCourseIds: [],
+      failureSummary: "invalid-source-document",
+      completedAt: new Date(),
+    });
+
+    const status = await getCatalogStatus(db);
+
+    expect(status.recent[0].validationReport).toEqual(report);
+  });
 });

@@ -62,7 +62,7 @@ const SNAPSHOT_VALIDATION_CODES = [
 const SnapshotValidationDiagnosticSchema = z
   .object({
     code: z.enum(SNAPSHOT_VALIDATION_CODES),
-    sourceUrl: z.string().url().optional(),
+    sourceUrl: z.string().optional(),
     entityId: z.string().optional(),
   })
   .strict();
@@ -71,8 +71,8 @@ const SnapshotValidationReportSchema = z
   .object({
     summary: z
       .object({
-        snapshotId: z.string().min(1),
-        sourceHash: z.string().min(1),
+        snapshotId: z.string(),
+        sourceHash: z.string(),
         documentCount: z.number().int().nonnegative(),
         courseCount: z.number().int().nonnegative(),
         programCount: z.number().int().nonnegative(),
