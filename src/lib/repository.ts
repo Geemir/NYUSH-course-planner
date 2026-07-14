@@ -11,9 +11,11 @@ import {
   type CatalogResponse,
 } from "@/lib/data";
 import {
+  CatalogProgram,
   Course,
   CourseSchema,
   PlanSnapshot,
+  RequirementNode,
   SpecialRule,
   SpecialRuleSchema,
 } from "@/lib/types";
@@ -157,8 +159,117 @@ export async function upsertCourses(
   return newCourses.length;
 }
 
-/** Removes a course from the shared catalog. */
+export const COURSE_REFERENCE_KINDS = ["plan", "program", "rule"] as const;
+export type CourseReferenceKind = (typeof COURSE_REFERENCE_KINDS)[number];
+
+export class CourseReferencedError extends Error {
+  readonly name = "CourseReferencedError";
+
+  constructor(
+    readonly courseId: string,
+    readonly references: CourseReferenceKind[],
+  ) {
+    super(`Course "${courseId}" is referenced by ${references.join(", ")}.`);
+  }
+}
+
+function requirementReferencesCourse(
+  requirement: RequirementNode,
+  courseId: string,
+): boolean {
+  switch (requirement.kind) {
+    case "course":
+      return requirement.courseId === courseId;
+    case "all":
+    case "any":
+    case "choose":
+    case "credits":
+      return requirement.children.some((child) =>
+        requirementReferencesCourse(child, courseId),
+      );
+    case "exclusion":
+      return (
+        requirement.excludedCourseIds.includes(courseId) ||
+        requirementReferencesCourse(requirement.child, courseId)
+      );
+    case "attribute":
+    case "waiver":
+    case "manualConfirmation":
+      return false;
+  }
+}
+
+function programReferencesCourse(
+  program: CatalogProgram,
+  courseId: string,
+): boolean {
+  return (
+    program.categories.some((category) =>
+      requirementReferencesCourse(category.requirement, courseId),
+    ) ||
+    program.requirementRows.some((row) =>
+      requirementReferencesCourse(row.node, courseId),
+    )
+  );
+}
+
+function ruleReferencesCourse(rule: SpecialRule, courseId: string): boolean {
+  switch (rule.kind) {
+    case "equivalence":
+      return rule.course === courseId || rule.target === courseId;
+    case "concurrentPrereq":
+      return (
+        rule.course === courseId ||
+        rule.prereq === courseId ||
+        rule.condition?.course === courseId
+      );
+  }
+}
+
+/** Finds persisted references that must be edited before a legacy delete. */
+export async function findCourseReferences(
+  db: Db,
+  courseId: string,
+): Promise<CourseReferenceKind[]> {
+  const references = new Set<CourseReferenceKind>();
+
+  const planRows = await db
+    .select({ snapshot: schema.plans.snapshot })
+    .from(schema.plans);
+  if (
+    planRows.some(({ snapshot }) =>
+      snapshot.placements.some((placement) => placement.courseId === courseId),
+    )
+  ) {
+    references.add("plan");
+  }
+
+  const programRows = await db
+    .select({ data: schema.catalogProgram.data })
+    .from(schema.catalogProgram)
+    .innerJoin(
+      schema.catalogSnapshot,
+      eq(schema.catalogProgram.snapshotId, schema.catalogSnapshot.id),
+    )
+    .where(eq(schema.catalogSnapshot.status, "active"));
+  if (programRows.some(({ data }) => programReferencesCourse(data, courseId))) {
+    references.add("program");
+  }
+
+  const ruleRows = await db.select({ data: schema.rules.data }).from(schema.rules);
+  if (ruleRows.some(({ data }) => ruleReferencesCourse(data, courseId))) {
+    references.add("rule");
+  }
+
+  return COURSE_REFERENCE_KINDS.filter((kind) => references.has(kind));
+}
+
+/** Removes an unreferenced course from the mutable shared catalog only. */
 export async function deleteCourse(db: Db, courseId: string): Promise<void> {
+  const references = await findCourseReferences(db, courseId);
+  if (references.length > 0) {
+    throw new CourseReferencedError(courseId, references);
+  }
   await db.delete(schema.courses).where(eq(schema.courses.id, courseId));
 }
 

@@ -8,6 +8,12 @@ import { accounts, sessions, users, verificationTokens } from "@/db/schema";
 
 const NYU_DOMAIN = "@nyu.edu";
 
+export interface AuthProviderEnv {
+  NODE_ENV?: string;
+  AUTH_MICROSOFT_ENTRA_ID_ID?: string;
+  AUTH_GOOGLE_ID?: string;
+}
+
 /** Config-driven admin allowlist (comma-separated emails in ADMIN_EMAILS). */
 const ADMIN_EMAILS = new Set(
   (process.env.ADMIN_EMAILS ?? "")
@@ -43,12 +49,19 @@ const devMagicLink: Provider = {
   },
 } as Provider;
 
-const oauthProviders: Provider[] = [];
-if (process.env.AUTH_MICROSOFT_ENTRA_ID_ID) {
-  oauthProviders.push(MicrosoftEntraID);
-}
-if (process.env.AUTH_GOOGLE_ID) {
-  oauthProviders.push(Google);
+/** Builds providers from one explicit environment snapshot for safe testing. */
+export function buildProviders(env: AuthProviderEnv): Provider[] {
+  const providers: Provider[] = [];
+  if (env.AUTH_MICROSOFT_ENTRA_ID_ID) {
+    providers.push(MicrosoftEntraID);
+  }
+  if (env.AUTH_GOOGLE_ID) {
+    providers.push(Google);
+  }
+  if (env.NODE_ENV !== "production") {
+    providers.push(devMagicLink);
+  }
+  return providers;
 }
 
 export const authConfig: NextAuthConfig = {
@@ -60,7 +73,7 @@ export const authConfig: NextAuthConfig = {
   }),
   session: { strategy: "database" },
   pages: { signIn: "/signin" },
-  providers: [...oauthProviders, devMagicLink],
+  providers: buildProviders(process.env),
   callbacks: {
     /** Hard gate: only @nyu.edu identities may sign in. */
     signIn({ user, profile }) {

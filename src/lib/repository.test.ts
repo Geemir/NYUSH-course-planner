@@ -5,6 +5,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { beforeAll, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import {
+  CourseReferencedError,
   deleteCourse,
   emptySnapshot,
   ensureCatalogSeeded,
@@ -14,7 +15,8 @@ import {
   upsertCourses,
   type Db,
 } from "@/lib/repository";
-import type { Course } from "@/lib/types";
+import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
+import type { CatalogProgram, Course } from "@/lib/types";
 
 let db: Db;
 let userId: string;
@@ -174,4 +176,211 @@ describe("course catalog repository", () => {
     const all = await getAllCourses(db);
     expect(all.some((c) => c.id === "TEST-SHU 999")).toBe(false);
   });
+
+  it("rejects deletion with deterministic plan, program, and rule references", async () => {
+    const courseId = "REF-SHU 101";
+    await upsertCourses(db, [testCourse(courseId)], "test");
+    const planUserId = "course-reference-user";
+    await db
+      .insert(schema.users)
+      .values({ id: planUserId, email: "course-reference@nyu.edu" });
+    await saveActivePlan(db, planUserId, {
+      ...emptySnapshot(),
+      placements: [{ courseId, semesterId: "Y1F", allocation: "auto" }],
+    });
+
+    const snapshotId = "active-reference-snapshot";
+    await db.insert(schema.catalogSnapshot).values({
+      id: snapshotId,
+      sourceHash: "active-reference-hash",
+      status: "active",
+      validationReport: validationReport(snapshotId, "active-reference-hash"),
+      documentCount: 0,
+      courseCount: 0,
+      programCount: 1,
+      sourceReferenceIds: [],
+      externalCourseIds: [],
+      unresolvedCourseIds: [],
+      completedAt: new Date(),
+    });
+    await db.insert(schema.catalogProgram).values({
+      snapshotId,
+      programId: "reference-program",
+      data: programReferencing(snapshotId, "active-reference-hash", courseId),
+    });
+    await db.insert(schema.rules).values([
+      {
+        id: "active-reference-rule",
+        kind: "equivalence",
+        status: "active",
+        data: {
+          id: "active-reference-rule",
+          kind: "equivalence",
+          course: courseId,
+          target: "OTHER-SHU 101",
+        },
+      },
+      {
+        id: "draft-reference-rule",
+        kind: "concurrentPrereq",
+        status: "draft",
+        data: {
+          id: "draft-reference-rule",
+          kind: "concurrentPrereq",
+          course: "OTHER-SHU 201",
+          prereq: "OTHER-SHU 101",
+          condition: { course: courseId, minGrade: "B" },
+        },
+      },
+    ]);
+
+    await expect(deleteCourse(db, courseId)).rejects.toMatchObject({
+      name: "CourseReferencedError",
+      courseId,
+      references: ["plan", "program", "rule"],
+    } satisfies Partial<CourseReferencedError>);
+    expect(
+      (await db.select().from(schema.courses).where(eq(schema.courses.id, courseId)))
+        .length,
+    ).toBe(1);
+    expect(
+      await db
+        .select()
+        .from(schema.catalogProgram)
+        .where(eq(schema.catalogProgram.snapshotId, snapshotId)),
+    ).toHaveLength(1);
+  });
+
+  it("rejects deletion when only an inactive plan references the course", async () => {
+    const courseId = "REF-SHU 102";
+    await upsertCourses(db, [testCourse(courseId)], "test");
+    const planUserId = "inactive-course-reference-user";
+    await db.insert(schema.users).values({
+      id: planUserId,
+      email: "inactive-course-reference@nyu.edu",
+    });
+    await db.insert(schema.plans).values({
+      userId: planUserId,
+      isActive: false,
+      snapshot: {
+        ...emptySnapshot(),
+        fulfillmentFacts: [],
+        placements: [{ courseId, semesterId: "Y2S", allocation: "auto" }],
+      },
+    });
+
+    await expect(deleteCourse(db, courseId)).rejects.toMatchObject({
+      references: ["plan"],
+    });
+  });
+
+  it("ignores retired program references without deleting versioned rows", async () => {
+    const courseId = "REF-SHU 103";
+    await upsertCourses(db, [testCourse(courseId)], "test");
+    const snapshotId = "retired-reference-snapshot";
+    const sourceHash = "retired-reference-hash";
+    await db.insert(schema.catalogSnapshot).values({
+      id: snapshotId,
+      sourceHash,
+      status: "retired",
+      validationReport: validationReport(snapshotId, sourceHash),
+      documentCount: 0,
+      courseCount: 0,
+      programCount: 1,
+      sourceReferenceIds: [],
+      externalCourseIds: [],
+      unresolvedCourseIds: [],
+      completedAt: new Date(),
+    });
+    await db.insert(schema.catalogProgram).values({
+      snapshotId,
+      programId: "retired-reference-program",
+      data: programReferencing(snapshotId, sourceHash, courseId),
+    });
+
+    await deleteCourse(db, courseId);
+
+    expect(
+      await db.select().from(schema.courses).where(eq(schema.courses.id, courseId)),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(schema.catalogProgram)
+        .where(eq(schema.catalogProgram.snapshotId, snapshotId)),
+    ).toHaveLength(1);
+  });
 });
+
+function testCourse(id: string): Course {
+  return {
+    id,
+    title: `Test course ${id}`,
+    credits: 4,
+    department: "Test",
+    prereqs: [],
+    offered: ["fall"],
+    sites: ["shanghai"],
+    fulfills: [],
+    equivalentTo: [],
+    tags: [],
+  };
+}
+
+function validationReport(
+  snapshotId: string,
+  sourceHash: string,
+): SnapshotValidationReport {
+  return {
+    summary: {
+      snapshotId,
+      sourceHash,
+      documentCount: 0,
+      courseCount: 0,
+      programCount: 1,
+      sourceRowCount: 1,
+      requirementRowCount: 1,
+    },
+    errors: [],
+    warnings: [],
+  };
+}
+
+function programReferencing(
+  snapshotId: string,
+  sourceHash: string,
+  courseId: string,
+): CatalogProgram {
+  const sourceUrl =
+    "https://bulletins.nyu.edu/undergraduate/shanghai/programs/reference-program/";
+  return {
+    id: "reference-program",
+    name: "Reference Program",
+    shortName: "REF",
+    type: "major",
+    categories: [
+      {
+        id: "required-course",
+        name: "Required Course",
+        requirement: { kind: "course", courseId },
+        sourceUrl,
+        sourceTableId: "requirements",
+        sourceRowIndexes: [0],
+      },
+    ],
+    requirementRows: [
+      {
+        sourceUrl,
+        tableId: "requirements",
+        sourceIndex: 0,
+        sourceText: courseId,
+        categoryId: "required-course",
+        nodePath: [],
+        node: { kind: "course", courseId },
+      },
+    ],
+    sourceRows: [],
+    sourceReferenceIds: [courseId],
+    provenance: { sourceUrl, snapshotId, sourceHash },
+  };
+}

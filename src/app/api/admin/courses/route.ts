@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { db } from "@/db";
 import {
   CourseParseError,
@@ -7,17 +6,14 @@ import {
   splitListings,
 } from "@/lib/courseParser";
 import { Course } from "@/lib/types";
-import { deleteCourse, upsertCourses } from "@/lib/repository";
+import { requireAdmin } from "@/lib/adminAuth";
+import {
+  CourseReferencedError,
+  deleteCourse,
+  upsertCourses,
+} from "@/lib/repository";
 
 const MAX_LISTINGS = 25;
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session?.user?.id) return { error: "unauthorized", status: 401 } as const;
-  if (session.user.role !== "admin")
-    return { error: "forbidden", status: 403 } as const;
-  return { ok: true } as const;
-}
 
 /**
  * Batch import. Body: { text, commit }.
@@ -76,6 +72,16 @@ export async function DELETE(request: Request) {
   }
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
-  await deleteCourse(db, id);
-  return NextResponse.json({ ok: true });
+  try {
+    await deleteCourse(db, id);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof CourseReferencedError) {
+      return NextResponse.json(
+        { error: "course referenced", references: error.references },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
 }
