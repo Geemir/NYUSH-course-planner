@@ -4,13 +4,23 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { beforeEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
+import { normalizeBulletin } from "@/lib/bulletin/normalize";
+import type { BulletinSourceDocument } from "@/lib/bulletin/parseCoursePage";
+import type {
+  BulletinProgramDocument,
+  SourceTableRow,
+} from "@/lib/bulletin/parseProgramPage";
+import type { BulletinDiscovery } from "@/lib/bulletin/sourceTypes";
+import {
+  validateCatalogCandidate,
+  type SnapshotValidationReport,
+} from "@/lib/bulletin/validateSnapshot";
 import {
   getActiveCatalog,
   getCatalogStatus,
   publishCatalogCandidate,
   type CatalogDb,
 } from "@/lib/catalogRepository";
-import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
 import type { CatalogCandidate } from "@/lib/types";
 
 let client: PGlite;
@@ -22,88 +32,93 @@ beforeEach(async () => {
   await migrate(db, { migrationsFolder: "./drizzle" });
 });
 
-function candidate(label: "A" | "B"): CatalogCandidate {
-  const snapshotId = `snapshot-${label.toLowerCase()}`;
-  const sourceUrl = `https://bulletins.nyu.edu/undergraduate/shanghai/courses/test-${label.toLowerCase()}/`;
+const PROGRAM_URL =
+  "https://bulletins.nyu.edu/undergraduate/shanghai/programs/test-program/";
+const SUBJECT_URL =
+  "https://bulletins.nyu.edu/undergraduate/shanghai/courses/test-shu/";
+
+function sourceRow(
+  role: SourceTableRow["role"],
+  sourceIndex: number,
+  text: string,
+  linkedCourseCodes: string[] = [],
+): SourceTableRow {
   return {
-    snapshotId,
-    sourceHash: `catalog-hash-${label.toLowerCase()}`,
-    documents: [
-      {
-        kind: "subject",
-        slug: `test-${label.toLowerCase()}`,
-        title: `Test subject ${label}`,
-        sourceUrl,
-        courses: [],
-      },
-    ],
-    courses: [
-      {
-        id: "TEST-SHU 101",
-        title: `Test Course ${label}`,
-        credits: 4,
-        minCredits: 4,
-        maxCredits: 4,
-        department: "TEST-SHU",
-        prereqs: [],
-        sourceReferenceIds: [],
-        offered: ["fall"],
-        offeringKnown: true,
-        sites: ["shanghai"],
-        fulfills: [],
-        equivalentTo: [],
-        attributes: [],
-        tags: [],
-        provenance: {
-          sourceUrl,
-          snapshotId,
-          sourceHash: `document-hash-${label.toLowerCase()}`,
-        },
-      },
-    ],
-    programs: [
-      {
-        id: "test-program",
-        name: `Test Program ${label}`,
-        shortName: `Test ${label}`,
-        type: "major",
-        categories: [],
-        requirementRows: [],
-        sourceRows: [],
-        sourceReferenceIds: [],
-        provenance: {
-          sourceUrl,
-          snapshotId,
-          sourceHash: `document-hash-${label.toLowerCase()}`,
-        },
-      },
-    ],
-    sourceReferenceIds: [],
-    externalCourseIds: [],
-    unresolvedCourseIds: [],
+    role,
+    sourceIndex,
+    text,
+    linkedCourseCodes,
+    sourceAnchors: [],
+    footnoteMarkers: [],
   };
 }
 
-function reportFor(input: CatalogCandidate): SnapshotValidationReport {
-  return {
-    summary: {
-      snapshotId: input.snapshotId,
-      sourceHash: input.sourceHash,
-      documentCount: input.documents.length,
-      courseCount: input.courses.length,
-      programCount: input.programs.length,
-      sourceRowCount: input.programs.reduce(
-        (count, program) => count + program.sourceRows.length,
-        0,
-      ),
-      requirementRowCount: input.programs.reduce(
-        (count, program) => count + program.requirementRows.length,
-        0,
-      ),
-    },
-    errors: [],
-    warnings: [],
+function candidate(label: "A" | "B"): CatalogCandidate {
+  const discovery: BulletinDiscovery = {
+    majors: [
+      {
+        kind: "major",
+        slug: "test-program",
+        title: `Test Program ${label}`,
+        url: PROGRAM_URL,
+      },
+    ],
+    minors: [],
+    subjects: [
+      {
+        kind: "subject",
+        slug: "test-shu",
+        title: `Test Subject ${label}`,
+        url: SUBJECT_URL,
+      },
+    ],
   };
+  const subjectDocument: BulletinSourceDocument = {
+    kind: "subject",
+    slug: "test-shu",
+    title: `Test Subject ${label}`,
+    sourceUrl: SUBJECT_URL,
+    courses: [
+      {
+        code: "TEST-SHU 101",
+        title: `Test Course ${label}`,
+        creditsText: "4 Credits",
+        offeringText: "Fall",
+        linkedCourseIds: [],
+        attributes: [],
+        detailTexts: [],
+      },
+    ],
+  };
+  const programDocument: BulletinProgramDocument = {
+    kind: "program",
+    slug: "test-program",
+    title: `Test Program ${label}`,
+    sourceUrl: PROGRAM_URL,
+    sections: [],
+    policies: [],
+    footnotes: [],
+    requirementTables: [
+      {
+        id: "program-requirements",
+        sectionId: "requirements",
+        rows: [
+          sourceRow("areaHeader", 0, "Foundations"),
+          sourceRow(
+            "course",
+            1,
+            `TEST-SHU 101 Test Course ${label}`,
+            ["TEST-SHU 101"],
+          ),
+        ],
+      },
+    ],
+  };
+  return normalizeBulletin(discovery, [subjectDocument, programDocument]);
+}
+
+function reportFor(input: CatalogCandidate): SnapshotValidationReport {
+  return validateCatalogCandidate(input);
 }
 
 describe("catalog snapshot publication", () => {
@@ -115,10 +130,10 @@ describe("catalog snapshot publication", () => {
     expect(await getActiveCatalog(db)).toEqual(input);
     expect(await getCatalogStatus(db)).toMatchObject({
       active: {
-        id: "snapshot-a",
-        sourceHash: "catalog-hash-a",
+        id: input.snapshotId,
+        sourceHash: input.sourceHash,
         status: "active",
-        documentCount: 1,
+        documentCount: 2,
         courseCount: 1,
         programCount: 1,
       },
@@ -138,8 +153,8 @@ describe("catalog snapshot publication", () => {
       .from(schema.catalogSnapshot);
     expect(snapshots).toEqual(
       expect.arrayContaining([
-        { id: "snapshot-a", status: "retired" },
-        { id: "snapshot-b", status: "active" },
+        { id: first.snapshotId, status: "retired" },
+        { id: second.snapshotId, status: "active" },
       ]),
     );
     expect(
@@ -157,7 +172,7 @@ describe("catalog snapshot publication", () => {
     await client.exec(`
       CREATE FUNCTION fail_snapshot_b_activation() RETURNS trigger AS $$
       BEGIN
-        IF NEW."id" = 'snapshot-b' AND NEW."status" = 'active' THEN
+        IF NEW."id" = '${second.snapshotId}' AND NEW."status" = 'active' THEN
           RAISE EXCEPTION 'injected activation failure';
         END IF;
         RETURN NEW;
@@ -177,7 +192,7 @@ describe("catalog snapshot publication", () => {
       await db
         .select()
         .from(schema.catalogSnapshot)
-        .where(eq(schema.catalogSnapshot.id, "snapshot-b")),
+        .where(eq(schema.catalogSnapshot.id, second.snapshotId)),
     ).toHaveLength(0);
   });
 
@@ -231,7 +246,44 @@ describe("catalog snapshot publication", () => {
 
     const status = await getCatalogStatus(db);
 
-    expect(status.active?.id).toBe("snapshot-a");
+    expect(status.active?.id).toBe(first.snapshotId);
     expect(status.recent).toHaveLength(10);
+  });
+
+  it("rejects an active catalog whose persisted source document is malformed", async () => {
+    const input = candidate("A");
+    await publishCatalogCandidate(db, input, reportFor(input));
+    const malformed = structuredClone(
+      input.documents.find(
+        (document) => (document as { kind?: string }).kind === "subject",
+      ),
+    ) as BulletinSourceDocument;
+    (malformed.courses[0] as unknown as { linkedCourseIds: unknown }).linkedCourseIds =
+      "not-an-array";
+    await db
+      .update(schema.catalogSourceDocument)
+      .set({ data: malformed })
+      .where(eq(schema.catalogSourceDocument.sourceUrl, SUBJECT_URL));
+
+    await expect(getActiveCatalog(db)).rejects.toThrow(
+      /invalid-source-document/i,
+    );
+  });
+
+  it("rejects malformed persisted validation reports in catalog status", async () => {
+    const input = candidate("A");
+    await publishCatalogCandidate(db, input, reportFor(input));
+    const malformed = structuredClone(reportFor(input)) as unknown as {
+      summary: { courseCount: unknown };
+    };
+    malformed.summary.courseCount = "one";
+    await db
+      .update(schema.catalogSnapshot)
+      .set({
+        validationReport: malformed as unknown as SnapshotValidationReport,
+      })
+      .where(eq(schema.catalogSnapshot.id, input.snapshotId));
+
+    await expect(getCatalogStatus(db)).rejects.toThrow();
   });
 });

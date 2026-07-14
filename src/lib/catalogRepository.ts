@@ -1,9 +1,12 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
+import { z } from "zod";
 import * as schema from "@/db/schema";
 import {
   assertPublishable,
+  validateCatalogCandidate,
+  type SnapshotValidationCode,
   type SnapshotValidationReport,
 } from "@/lib/bulletin/validateSnapshot";
 import {
@@ -36,6 +39,52 @@ export interface CatalogStatus {
   recent: CatalogStatusEntry[];
 }
 
+const SNAPSHOT_VALIDATION_CODES = [
+  "broken-executable-reference",
+  "duplicate-course-id",
+  "duplicate-program-id",
+  "duplicate-source-id",
+  "empty-catalog",
+  "invalid-source-document",
+  "manual-confirmation",
+  "missing-discovered-page",
+  "missing-fetched-page",
+  "missing-title",
+  "provenance-hash-mismatch",
+  "provenance-source-mismatch",
+  "snapshot-id-mismatch",
+  "source-hash-mismatch",
+  "source-row-coverage",
+  "supported-ambiguity",
+  "unresolved-local-reference",
+] as const satisfies readonly SnapshotValidationCode[];
+
+const SnapshotValidationDiagnosticSchema = z
+  .object({
+    code: z.enum(SNAPSHOT_VALIDATION_CODES),
+    sourceUrl: z.string().url().optional(),
+    entityId: z.string().optional(),
+  })
+  .strict();
+
+const SnapshotValidationReportSchema = z
+  .object({
+    summary: z
+      .object({
+        snapshotId: z.string().min(1),
+        sourceHash: z.string().min(1),
+        documentCount: z.number().int().nonnegative(),
+        courseCount: z.number().int().nonnegative(),
+        programCount: z.number().int().nonnegative(),
+        sourceRowCount: z.number().int().nonnegative(),
+        requirementRowCount: z.number().int().nonnegative(),
+      })
+      .strict(),
+    errors: z.array(SnapshotValidationDiagnosticSchema),
+    warnings: z.array(SnapshotValidationDiagnosticSchema),
+  })
+  .strict();
+
 export class CatalogPublicationError extends Error {
   constructor(message: string) {
     super(message);
@@ -56,6 +105,17 @@ function sourceUrlOf(document: unknown): string {
     );
   }
   return document.sourceUrl;
+}
+
+function persistedDocument(data: unknown): unknown {
+  if (typeof data !== "string") return data;
+  try {
+    return JSON.parse(data) as unknown;
+  } catch {
+    throw new CatalogPublicationError(
+      "A persisted catalog source document is not valid JSON.",
+    );
+  }
 }
 
 function assertReportMatchesCandidate(
@@ -161,7 +221,9 @@ export async function publishCatalogCandidate(
         candidate.documents.map((document) => ({
           snapshotId: candidate.snapshotId,
           sourceUrl: sourceUrlOf(document),
-          data: document,
+          // JSONB canonicalizes object key order, while Task 6 hashes the exact
+          // JSON serialization. A JSONB string preserves those sealed bytes.
+          data: JSON.stringify(document),
         })),
       );
     }
@@ -246,16 +308,18 @@ export async function getActiveCatalog(
     .where(eq(schema.catalogProgram.snapshotId, snapshot.id))
     .orderBy(asc(schema.catalogProgram.programId));
 
-  return CatalogCandidateSchema.parse({
+  const candidate = CatalogCandidateSchema.parse({
     snapshotId: snapshot.id,
     sourceHash: snapshot.sourceHash,
-    documents: documents.map((row) => row.data),
+    documents: documents.map((row) => persistedDocument(row.data)),
     courses: courses.map((row) => row.data),
     programs: programs.map((row) => row.data),
     sourceReferenceIds: snapshot.sourceReferenceIds,
     externalCourseIds: snapshot.externalCourseIds,
     unresolvedCourseIds: snapshot.unresolvedCourseIds,
   });
+  assertPublishable(validateCatalogCandidate(candidate));
+  return candidate;
 }
 
 function statusEntry(
@@ -265,7 +329,9 @@ function statusEntry(
     id: row.id,
     sourceHash: row.sourceHash,
     status: row.status,
-    validationReport: row.validationReport,
+    validationReport: SnapshotValidationReportSchema.parse(
+      row.validationReport,
+    ),
     documentCount: row.documentCount,
     courseCount: row.courseCount,
     programCount: row.programCount,
