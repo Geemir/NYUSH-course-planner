@@ -190,12 +190,7 @@ export async function getRulesByStatus(
     .select({ data: schema.rules.data })
     .from(schema.rules)
     .where(eq(schema.rules.status, status));
-  const out: SpecialRule[] = [];
-  for (const row of rows) {
-    const parsed = SpecialRuleSchema.safeParse(row.data);
-    if (parsed.success) out.push(parsed.data);
-  }
-  return out;
+  return rows.map((row) => SpecialRuleSchema.parse(row.data));
 }
 
 /** Active rules — the only ones the engines consult. */

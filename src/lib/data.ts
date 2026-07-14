@@ -3,12 +3,14 @@ import catalogFallbackJson from "@/data/catalog-fallback.json";
 import sitesJson from "@/data/sites.json";
 import {
   CatalogProgramSchema,
+  type CatalogProgram,
   Course,
   CourseSchema,
   Program,
   ProgramSchema,
   Site,
   SiteSchema,
+  type SpecialRule,
   SpecialRuleSchema,
 } from "@/lib/types";
 
@@ -20,6 +22,57 @@ const SnapshotMetadataSchema = z
   })
   .strict();
 
+function ruleCourseReferences(rule: SpecialRule): string[] {
+  switch (rule.kind) {
+    case "equivalence":
+      return [rule.course, rule.target];
+    case "concurrentPrereq":
+      return [
+        rule.course,
+        rule.prereq,
+        ...(rule.condition ? [rule.condition.course] : []),
+      ];
+  }
+}
+
+function addCatalogCoherenceIssues(
+  response: {
+    courses: Course[];
+    programs: { id: string; categories: { id: string }[] }[];
+    rules: SpecialRule[];
+  },
+  context: z.RefinementCtx,
+): void {
+  const courseIds = new Set(response.courses.map(({ id }) => id));
+  const categoryKeys = new Set(
+    response.programs.flatMap((program) =>
+      program.categories.map((category) => `${program.id}/${category.id}`),
+    ),
+  );
+  response.courses.forEach((course, courseIndex) => {
+    course.fulfills.forEach(({ programId, categoryId }, fulfillmentIndex) => {
+      if (!categoryKeys.has(`${programId}/${categoryId}`)) {
+        context.addIssue({
+          code: "custom",
+          message: `Course "${course.id}" targets missing category "${programId}/${categoryId}"`,
+          path: ["courses", courseIndex, "fulfills", fulfillmentIndex],
+        });
+      }
+    });
+  });
+  response.rules.forEach((rule, ruleIndex) => {
+    ruleCourseReferences(rule).forEach((courseId) => {
+      if (!courseIds.has(courseId)) {
+        context.addIssue({
+          code: "custom",
+          message: `Rule "${rule.id}" references missing course "${courseId}"`,
+          path: ["rules", ruleIndex],
+        });
+      }
+    });
+  });
+}
+
 export const BootstrapCatalogResponseSchema = z
   .object({
     snapshot: SnapshotMetadataSchema.extend({
@@ -29,7 +82,8 @@ export const BootstrapCatalogResponseSchema = z
     programs: z.array(ProgramSchema).min(1),
     rules: z.array(SpecialRuleSchema),
   })
-  .strict();
+  .strict()
+  .superRefine(addCatalogCoherenceIssues);
 
 export const BulletinCatalogResponseSchema = z
   .object({
@@ -40,6 +94,7 @@ export const BulletinCatalogResponseSchema = z
   })
   .strict()
   .superRefine((response, context) => {
+    addCatalogCoherenceIssues(response, context);
     const duplicate = (ids: string[]) =>
       ids.find((id, index) => ids.indexOf(id) !== index);
     const duplicateCourseId = duplicate(response.courses.map(({ id }) => id));
@@ -103,24 +158,26 @@ export const CATALOG_FALLBACK: CatalogResponse = CatalogResponseSchema.parse(
  */
 function loadData(): {
   programs: Program[];
+  bulletinPrograms: CatalogProgram[];
   courses: Course[];
   sites: Site[];
 } {
   const bootstrap = BootstrapCatalogResponseSchema.safeParse(CATALOG_FALLBACK);
-  if (!bootstrap.success) {
-    throw new Error(
-      "Legacy PROGRAMS exports require the bootstrap-legacy fallback until the dynamic catalog provider migration is complete.",
-    );
-  }
-  const programs = bootstrap.data.programs;
-  const courses = bootstrap.data.courses;
+  const bulletin = BulletinCatalogResponseSchema.safeParse(CATALOG_FALLBACK);
+  const programs: Program[] = bootstrap.success ? bootstrap.data.programs : [];
+  const bulletinPrograms: CatalogProgram[] = bulletin.success
+    ? bulletin.data.programs
+    : [];
+  const courses = CATALOG_FALLBACK.courses;
   const sites = z.array(SiteSchema).parse(sitesJson);
 
   const errors: string[] = [];
   const courseIds = new Set(courses.map((c) => c.id));
   const siteIds = new Set(sites.map((s) => s.id));
   const categoryKeys = new Set(
-    programs.flatMap((p) => p.categories.map((c) => `${p.id}/${c.id}`)),
+    [...programs, ...bulletinPrograms].flatMap((program) =>
+      program.categories.map((category) => `${program.id}/${category.id}`),
+    ),
   );
 
   const dupes = courses
@@ -176,12 +233,14 @@ function loadData(): {
     throw new Error(`Course data validation failed:\n  - ${errors.join("\n  - ")}`);
   }
 
-  return { programs, courses, sites };
+  return { programs, bulletinPrograms, courses, sites };
 }
 
 const data = loadData();
 
 export const PROGRAMS: Program[] = data.programs;
+/** Rich official programs; empty only while the fallback is bootstrap legacy. */
+export const BULLETIN_PROGRAMS: CatalogProgram[] = data.bulletinPrograms;
 export const COURSES: Course[] = data.courses;
 export const SITES: Site[] = data.sites;
 

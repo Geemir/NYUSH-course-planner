@@ -1,6 +1,7 @@
-import { writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { rename, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import {
   BulletinCatalogResponseSchema,
   CatalogResponseSchema,
@@ -11,6 +12,18 @@ export const CATALOG_FALLBACK_PATH = resolve(
   process.cwd(),
   "src/data/catalog-fallback.json",
 );
+
+interface FallbackFileOperations {
+  writeFile: typeof writeFile;
+  rename: typeof rename;
+  rm: typeof rm;
+}
+
+const DEFAULT_FILE_OPERATIONS: FallbackFileOperations = {
+  writeFile,
+  rename,
+  rm,
+};
 
 function assertNonemptyCatalog(input: unknown): void {
   if (
@@ -62,9 +75,28 @@ export function serializeCatalogFallback(input: unknown): string {
 export async function writeCatalogFallback(
   input: unknown,
   targetPath = CATALOG_FALLBACK_PATH,
+  operationOverrides: Partial<FallbackFileOperations> = {},
 ): Promise<void> {
   const serialized = serializeCatalogFallback(input);
-  await writeFile(targetPath, serialized, "utf8");
+  const operations = { ...DEFAULT_FILE_OPERATIONS, ...operationOverrides };
+  const temporaryPath = resolve(
+    dirname(targetPath),
+    `.${basename(targetPath)}.${process.pid}.${randomUUID()}.tmp`,
+  );
+  try {
+    await operations.writeFile(temporaryPath, serialized, {
+      encoding: "utf8",
+      flag: "wx",
+    });
+    await operations.rename(temporaryPath, targetPath);
+  } catch (error) {
+    try {
+      await operations.rm(temporaryPath, { force: true });
+    } catch {
+      // Best effort only: preserve the original write/rename failure.
+    }
+    throw error;
+  }
 }
 
 export async function generateCatalogFallback(): Promise<void> {

@@ -1,18 +1,28 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle } from "drizzle-orm/pglite";
+import { migrate } from "drizzle-orm/pglite/migrator";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { writeCatalogFallback } from "../../scripts/generate-catalog-fallback";
+import * as schema from "@/db/schema";
 import {
   CATALOG_FALLBACK,
   CatalogResponseSchema,
   type BulletinCatalogResponse,
 } from "@/lib/data";
-import { catalogResponseWithFallback } from "@/lib/repository";
+import {
+  catalogResponseWithFallback,
+  getRulesByStatus,
+  type Db,
+} from "@/lib/repository";
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.doUnmock("@/data/catalog-fallback.json");
+  vi.resetModules();
   await Promise.all(
     temporaryDirectories.splice(0).map((directory) =>
       rm(directory, { force: true, recursive: true }),
@@ -97,6 +107,33 @@ function bulletinResponse(): BulletinCatalogResponse {
 }
 
 describe("CatalogResponseSchema", () => {
+  it("loads an official fallback without forcing rich programs into legacy views", async () => {
+    const bulletin = bulletinResponse();
+    vi.resetModules();
+    vi.doMock("@/data/catalog-fallback.json", () => ({ default: bulletin }));
+
+    const dataModule = await import("@/lib/data");
+    expect(dataModule.COURSES.map(({ id }) => id)).toEqual(["TEST-SHU 101"]);
+    expect(dataModule.PROGRAMS).toEqual([]);
+    expect(dataModule.BULLETIN_PROGRAMS).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "test", provenance: expect.any(Object) }),
+      ]),
+    );
+    await expect(import("@/lib/repository")).resolves.toBeDefined();
+
+    const directory = await mkdtemp(join(tmpdir(), "catalog-fallback-"));
+    temporaryDirectories.push(directory);
+    const target = join(directory, "catalog-fallback.json");
+    const generator = await import("../../scripts/generate-catalog-fallback");
+    await generator.writeCatalogFallback(bulletin, target);
+    await generator.writeCatalogFallback(bulletin, target);
+    expect(
+      CatalogResponseSchema.parse(JSON.parse(await readFile(target, "utf8")))
+        .snapshot.kind,
+    ).toBe("bulletin");
+  });
+
   it("keeps official Bulletin and bootstrap legacy program shapes distinct", () => {
     const bulletin = bulletinResponse();
     expect(CatalogResponseSchema.parse(bulletin)).toMatchObject(bulletin);
@@ -141,6 +178,48 @@ describe("CatalogResponseSchema", () => {
     expect(invalidActiveRead).toEqual(CATALOG_FALLBACK);
     expect(invalidActiveRead.courses.length).toBeGreaterThan(0);
     expect(invalidActiveRead.programs.length).toBeGreaterThan(0);
+  });
+
+  it("falls back when a valid rule schema references a missing catalog course", async () => {
+    const incoherent = bulletinResponse();
+    incoherent.rules = [
+      {
+        kind: "equivalence",
+        id: "broken-equivalence",
+        course: "TEST-SHU 101",
+        target: "MISSING-SHU 999",
+      },
+    ];
+
+    expect(await catalogResponseWithFallback(async () => incoherent)).toEqual(
+      CATALOG_FALLBACK,
+    );
+  });
+
+  it("falls back when a course targets a missing program category", async () => {
+    const incoherent = bulletinResponse();
+    incoherent.courses[0].fulfills = [
+      { programId: "missing-program", categoryId: "missing-category" },
+    ];
+
+    expect(await catalogResponseWithFallback(async () => incoherent)).toEqual(
+      CATALOG_FALLBACK,
+    );
+  });
+
+  it("rejects rather than skips a malformed persisted active rule", async () => {
+    const client = new PGlite();
+    const database: Db = drizzle(client, { schema });
+    await migrate(database, { migrationsFolder: "./drizzle" });
+    await database.insert(schema.rules).values({
+      id: "malformed-active-rule",
+      kind: "equivalence",
+      data: { kind: "equivalence", id: "malformed-active-rule" } as never,
+      status: "active",
+    });
+
+    await expect(getRulesByStatus(database, "active")).rejects.toThrow();
+    await client.close();
   });
 });
 
@@ -197,5 +276,27 @@ describe("catalog fallback generation", () => {
       ),
     ).rejects.toThrow(/empty|nonempty|non-empty/i);
     expect(await readFile(target, "utf8")).toBe(existing);
+  });
+
+  it("preserves prior bytes and cleans the temporary file when rename fails", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "catalog-fallback-"));
+    temporaryDirectories.push(directory);
+    const target = join(directory, "catalog-fallback.json");
+    const existing = "existing last-known-good\n";
+    await writeFile(target, existing, "utf8");
+    const rename = vi.fn(async () => {
+      throw new Error("injected atomic rename failure");
+    });
+    const atomicWrite = writeCatalogFallback as unknown as (
+      input: unknown,
+      targetPath: string,
+      operations: { rename: typeof rename },
+    ) => Promise<void>;
+
+    await expect(
+      atomicWrite(bulletinResponse(), target, { rename }),
+    ).rejects.toThrow("injected atomic rename failure");
+    expect(await readFile(target, "utf8")).toBe(existing);
+    expect(await readdir(directory)).toEqual(["catalog-fallback.json"]);
   });
 });
