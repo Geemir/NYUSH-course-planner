@@ -13,6 +13,7 @@ import {
   getAllCourses,
   saveActivePlan,
   upsertCourses,
+  upsertRule,
   type Db,
 } from "@/lib/repository";
 import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
@@ -189,20 +190,7 @@ describe("course catalog repository", () => {
       placements: [{ courseId, semesterId: "Y1F", allocation: "auto" }],
     });
 
-    const snapshotId = "active-reference-snapshot";
-    await db.insert(schema.catalogSnapshot).values({
-      id: snapshotId,
-      sourceHash: "active-reference-hash",
-      status: "active",
-      validationReport: validationReport(snapshotId, "active-reference-hash"),
-      documentCount: 0,
-      courseCount: 0,
-      programCount: 1,
-      sourceReferenceIds: [],
-      externalCourseIds: [],
-      unresolvedCourseIds: [],
-      completedAt: new Date(),
-    });
+    const snapshotId = await ensureActiveReferenceSnapshot(db);
     await db.insert(schema.catalogProgram).values({
       snapshotId,
       programId: "reference-program",
@@ -274,6 +262,188 @@ describe("course catalog repository", () => {
     });
   });
 
+  it("rejects deletion for an active program source-only reference", async () => {
+    const courseId = "REF-SHU 104";
+    await upsertCourses(db, [testCourse(courseId)], "test");
+    const snapshotId = await ensureActiveReferenceSnapshot(db);
+    await db.insert(schema.catalogProgram).values({
+      snapshotId,
+      programId: "source-only-reference-program",
+      data: programWithSourceOnlyReference(
+        snapshotId,
+        "active-reference-hash",
+        courseId,
+      ),
+    });
+
+    await expect(deleteCourse(db, courseId)).rejects.toMatchObject({
+      references: ["program"],
+    });
+    expect(
+      await db.select().from(schema.courses).where(eq(schema.courses.id, courseId)),
+    ).toHaveLength(1);
+  });
+
+  it("fails closed when a persisted plan snapshot is schema-invalid", async () => {
+    const courseId = "MALFORMED-PLAN-SHU 101";
+    const planId = "malformed-plan-reference";
+    await upsertCourses(db, [testCourse(courseId)], "test");
+    await db.insert(schema.plans).values({
+      id: planId,
+      userId,
+      isActive: false,
+      snapshot: {
+        ...emptySnapshot(),
+        version: 2,
+      } as never,
+    });
+
+    try {
+      await expect(deleteCourse(db, courseId)).rejects.toThrow();
+      expect(
+        await db
+          .select()
+          .from(schema.courses)
+          .where(eq(schema.courses.id, courseId)),
+      ).toHaveLength(1);
+    } finally {
+      await db.delete(schema.plans).where(eq(schema.plans.id, planId));
+    }
+  });
+
+  it("fails closed when an active persisted program is schema-invalid", async () => {
+    const courseId = "MALFORMED-PROGRAM-SHU 101";
+    const snapshotId = await ensureActiveReferenceSnapshot(db);
+    const programId = "malformed-active-program";
+    await upsertCourses(db, [testCourse(courseId)], "test");
+    await db.insert(schema.catalogProgram).values({
+      snapshotId,
+      programId,
+      data: {
+        ...programWithSourceOnlyReference(snapshotId, "active-reference-hash", ""),
+        type: "certificate",
+        sourceReferenceIds: [],
+      } as never,
+    });
+
+    try {
+      await expect(deleteCourse(db, courseId)).rejects.toThrow();
+      expect(
+        await db
+          .select()
+          .from(schema.courses)
+          .where(eq(schema.courses.id, courseId)),
+      ).toHaveLength(1);
+    } finally {
+      await db
+        .delete(schema.catalogProgram)
+        .where(
+          and(
+            eq(schema.catalogProgram.snapshotId, snapshotId),
+            eq(schema.catalogProgram.programId, programId),
+          ),
+        );
+    }
+  });
+
+  it("fails closed when a persisted shared rule is schema-invalid", async () => {
+    const courseId = "MALFORMED-RULE-SHU 101";
+    const ruleId = "malformed-shared-rule";
+    await upsertCourses(db, [testCourse(courseId)], "test");
+    await db.insert(schema.rules).values({
+      id: ruleId,
+      kind: "futureRule",
+      status: "draft",
+      data: { id: ruleId, kind: "futureRule" } as never,
+    });
+
+    try {
+      await expect(deleteCourse(db, courseId)).rejects.toThrow();
+      expect(
+        await db
+          .select()
+          .from(schema.courses)
+          .where(eq(schema.courses.id, courseId)),
+      ).toHaveLength(1);
+    } finally {
+      await db.delete(schema.rules).where(eq(schema.rules.id, ruleId));
+    }
+  });
+
+  it("rejects plan writes whose course reference has no catalog target", async () => {
+    const missingCourseId = "MISSING-PLAN-SHU 101";
+    const missingUserId = "missing-plan-reference-user";
+    await db.insert(schema.users).values({
+      id: missingUserId,
+      email: "missing-plan-reference@nyu.edu",
+    });
+
+    await expect(
+      saveActivePlan(db, missingUserId, {
+        ...emptySnapshot(),
+        placements: [
+          { courseId: missingCourseId, semesterId: "Y1F", allocation: "auto" },
+        ],
+      }),
+    ).rejects.toThrow(/missing.*course/i);
+    expect(
+      await db
+        .select()
+        .from(schema.plans)
+        .where(eq(schema.plans.userId, missingUserId)),
+    ).toHaveLength(0);
+  });
+
+  it("rejects rule writes whose course reference has no catalog target", async () => {
+    const missingCourseId = "MISSING-RULE-SHU 101";
+
+    await expect(
+      upsertRule(
+        db,
+        {
+          id: "missing-course-reference-rule",
+          kind: "equivalence",
+          course: missingCourseId,
+          target: missingCourseId,
+        },
+        "draft",
+      ),
+    ).rejects.toThrow(/missing.*course/i);
+    expect(
+      await db
+        .select()
+        .from(schema.rules)
+        .where(eq(schema.rules.id, "missing-course-reference-rule")),
+    ).toHaveLength(0);
+  });
+
+  it("allows a plan reference to an active snapshot-only course", async () => {
+    const courseId = "SNAPSHOT-ONLY-SHU 101";
+    const snapshotId = await ensureActiveReferenceSnapshot(db);
+    const snapshotUserId = "snapshot-only-reference-user";
+    await db.insert(schema.catalogCourse).values({
+      snapshotId,
+      courseId,
+      data: testCourse(courseId),
+    });
+    await db.insert(schema.users).values({
+      id: snapshotUserId,
+      email: "snapshot-only-reference@nyu.edu",
+    });
+
+    await saveActivePlan(db, snapshotUserId, {
+      ...emptySnapshot(),
+      placements: [{ courseId, semesterId: "Y1S", allocation: "auto" }],
+    });
+
+    expect(
+      await db
+        .select()
+        .from(schema.plans)
+        .where(eq(schema.plans.userId, snapshotUserId)),
+    ).toHaveLength(1);
+  });
+
   it("ignores retired program references without deleting versioned rows", async () => {
     const courseId = "REF-SHU 103";
     await upsertCourses(db, [testCourse(courseId)], "test");
@@ -310,7 +480,107 @@ describe("course catalog repository", () => {
         .where(eq(schema.catalogProgram.snapshotId, snapshotId)),
     ).toHaveLength(1);
   });
+
+  it("prevents a delete-first race from committing a dangling plan reference", async () => {
+    const { client, db: raceDb } = await isolatedRepository();
+    const courseId = "RACE-PLAN-SHU 101";
+    const raceUserId = "race-plan-user";
+    try {
+      await raceDb
+        .insert(schema.users)
+        .values({ id: raceUserId, email: "race-plan@nyu.edu" });
+      await upsertCourses(raceDb, [testCourse(courseId)], "test");
+      const snapshot = {
+        ...emptySnapshot(),
+        placements: [{ courseId, semesterId: "Y1F" as const, allocation: "auto" }],
+      };
+
+      const [deletion, save] = await Promise.allSettled([
+        deleteCourse(raceDb, courseId),
+        saveActivePlan(raceDb, raceUserId, snapshot),
+      ]);
+
+      expect(deletion.status).toBe("fulfilled");
+      expect(save.status).toBe("rejected");
+      expect(
+        await raceDb
+          .select()
+          .from(schema.courses)
+          .where(eq(schema.courses.id, courseId)),
+      ).toHaveLength(0);
+      expect(
+        await raceDb
+          .select()
+          .from(schema.plans)
+          .where(eq(schema.plans.userId, raceUserId)),
+      ).toHaveLength(0);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("prevents a delete-first race from committing a dangling rule reference", async () => {
+    const { client, db: raceDb } = await isolatedRepository();
+    const courseId = "RACE-RULE-SHU 101";
+    try {
+      await upsertCourses(raceDb, [testCourse(courseId)], "test");
+      const rule = {
+        id: "race-reference-rule",
+        kind: "equivalence" as const,
+        course: courseId,
+        target: courseId,
+      };
+
+      const [deletion, save] = await Promise.allSettled([
+        deleteCourse(raceDb, courseId),
+        upsertRule(raceDb, rule, "draft"),
+      ]);
+
+      expect(deletion.status).toBe("fulfilled");
+      expect(save.status).toBe("rejected");
+      expect(
+        await raceDb
+          .select()
+          .from(schema.courses)
+          .where(eq(schema.courses.id, courseId)),
+      ).toHaveLength(0);
+      expect(await raceDb.select().from(schema.rules)).toHaveLength(0);
+    } finally {
+      await client.close();
+    }
+  });
 });
+
+async function isolatedRepository(): Promise<{
+  client: PGlite;
+  db: Db;
+}> {
+  const client = new PGlite();
+  const isolatedDb = drizzle(client, { schema });
+  await migrate(isolatedDb, { migrationsFolder: "./drizzle" });
+  return { client, db: isolatedDb };
+}
+
+async function ensureActiveReferenceSnapshot(targetDb: Db): Promise<string> {
+  const snapshotId = "active-reference-snapshot";
+  await targetDb
+    .insert(schema.catalogSnapshot)
+    .values({
+      id: snapshotId,
+      sourceHash: "active-reference-hash",
+      status: "active",
+      validationReport: validationReport(snapshotId, "active-reference-hash"),
+      documentCount: 0,
+      courseCount: 0,
+      programCount: 1,
+      sourceReferenceIds: [],
+      externalCourseIds: [],
+      unresolvedCourseIds: [],
+      completedAt: new Date(),
+    })
+    .onConflictDoNothing();
+  return snapshotId;
+}
 
 function testCourse(id: string): Course {
   return {
@@ -382,5 +652,31 @@ function programReferencing(
     sourceRows: [],
     sourceReferenceIds: [courseId],
     provenance: { sourceUrl, snapshotId, sourceHash },
+  };
+}
+
+function programWithSourceOnlyReference(
+  snapshotId: string,
+  sourceHash: string,
+  courseId: string,
+): CatalogProgram {
+  const program = programReferencing(snapshotId, sourceHash, courseId);
+  const manual = {
+    kind: "manualConfirmation" as const,
+    label: "Manual review",
+    sourceText: "Advisor confirmation required",
+  };
+  return {
+    ...program,
+    id: "source-only-reference-program",
+    categories: program.categories.map((category) => ({
+      ...category,
+      requirement: manual,
+    })),
+    requirementRows: program.requirementRows.map((row) => ({
+      ...row,
+      node: manual,
+    })),
+    sourceReferenceIds: courseId ? [courseId] : [],
   };
 }

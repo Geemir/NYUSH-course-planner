@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "@/db/schema";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/data";
 import {
   CatalogProgram,
+  CatalogProgramSchema,
   Course,
   CourseSchema,
   PlanSnapshot,
@@ -19,11 +20,23 @@ import {
   SpecialRule,
   SpecialRuleSchema,
 } from "@/lib/types";
+import { parsePlan } from "@/lib/planIO";
 
 /** Either driver — both expose the same query API for our schema. */
 export type Db =
   | NodePgDatabase<typeof schema>
   | PgliteDatabase<typeof schema>;
+
+type TransactionRunner = {
+  transaction<T>(operation: (tx: Db) => Promise<T>): Promise<T>;
+};
+
+function inTransaction<T>(
+  db: Db,
+  operation: (tx: Db) => Promise<T>,
+): Promise<T> {
+  return (db as unknown as TransactionRunner).transaction(operation);
+}
 
 /** A blank plan, used when a user has no saved plan yet. */
 export function emptySnapshot(): PlanSnapshot {
@@ -74,14 +87,21 @@ export async function saveActivePlan(
     ...snapshot,
     fulfillmentFacts: snapshot.fulfillmentFacts ?? [],
   };
-  await db
-    .insert(schema.plans)
-    .values({ userId, isActive: true, snapshot: persistedSnapshot })
-    .onConflictDoUpdate({
-      target: schema.plans.userId,
-      targetWhere: sql`${schema.plans.isActive} = true`,
-      set: { snapshot: persistedSnapshot, updatedAt: new Date() },
-    });
+  await inTransaction(db, async (tx) => {
+    await lockMutableCourseReferences(
+      tx,
+      persistedSnapshot.placements.map(({ courseId }) => courseId),
+      new Set(persistedSnapshot.customCourses.map(({ id }) => id)),
+    );
+    await tx
+      .insert(schema.plans)
+      .values({ userId, isActive: true, snapshot: persistedSnapshot })
+      .onConflictDoUpdate({
+        target: schema.plans.userId,
+        targetWhere: sql`${schema.plans.isActive} = true`,
+        set: { snapshot: persistedSnapshot, updatedAt: new Date() },
+      });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +193,80 @@ export class CourseReferencedError extends Error {
   }
 }
 
+export class CourseReferenceTargetNotFoundError extends Error {
+  readonly name = "CourseReferenceTargetNotFoundError";
+
+  constructor(readonly courseIds: string[]) {
+    super(`Missing referenced course: ${courseIds.join(", ")}.`);
+  }
+}
+
+const IMMUTABLE_FALLBACK_COURSE_IDS = new Set(
+  CATALOG_FALLBACK.courses.map(({ id }) => id),
+);
+
+function specialRuleCourseIds(rule: SpecialRule): string[] {
+  switch (rule.kind) {
+    case "equivalence":
+      return [rule.course, rule.target];
+    case "concurrentPrereq":
+      return [
+        rule.course,
+        rule.prereq,
+        ...(rule.condition ? [rule.condition.course] : []),
+      ];
+  }
+}
+
+/**
+ * Locks mutable reference targets in stable order. IDs backed only by the
+ * immutable fallback, an active Bulletin snapshot, or the plan's own custom
+ * courses are valid without a mutable row because legacy deletion cannot
+ * remove those targets.
+ */
+async function lockMutableCourseReferences(
+  db: Db,
+  courseIds: string[],
+  additionalImmutableIds: ReadonlySet<string> = new Set(),
+): Promise<void> {
+  const uniqueIds = [...new Set(courseIds)].sort();
+  if (uniqueIds.length === 0) return;
+
+  const mutableRows = await db
+    .select({ id: schema.courses.id })
+    .from(schema.courses)
+    .where(inArray(schema.courses.id, uniqueIds))
+    .orderBy(schema.courses.id)
+    .for("key share");
+  const mutableIds = new Set(mutableRows.map(({ id }) => id));
+  const unresolvedIds = uniqueIds.filter(
+    (id) =>
+      !mutableIds.has(id) &&
+      !IMMUTABLE_FALLBACK_COURSE_IDS.has(id) &&
+      !additionalImmutableIds.has(id),
+  );
+  if (unresolvedIds.length === 0) return;
+
+  const activeSnapshotRows = await db
+    .select({ id: schema.catalogCourse.courseId })
+    .from(schema.catalogCourse)
+    .innerJoin(
+      schema.catalogSnapshot,
+      eq(schema.catalogCourse.snapshotId, schema.catalogSnapshot.id),
+    )
+    .where(
+      and(
+        eq(schema.catalogSnapshot.status, "active"),
+        inArray(schema.catalogCourse.courseId, unresolvedIds),
+      ),
+    );
+  const activeSnapshotIds = new Set(activeSnapshotRows.map(({ id }) => id));
+  const missingIds = unresolvedIds.filter((id) => !activeSnapshotIds.has(id));
+  if (missingIds.length > 0) {
+    throw new CourseReferenceTargetNotFoundError(missingIds);
+  }
+}
+
 function requirementReferencesCourse(
   requirement: RequirementNode,
   courseId: string,
@@ -204,6 +298,7 @@ function programReferencesCourse(
   courseId: string,
 ): boolean {
   return (
+    program.sourceReferenceIds.includes(courseId) ||
     program.categories.some((category) =>
       requirementReferencesCourse(category.requirement, courseId),
     ) ||
@@ -214,16 +309,14 @@ function programReferencesCourse(
 }
 
 function ruleReferencesCourse(rule: SpecialRule, courseId: string): boolean {
-  switch (rule.kind) {
-    case "equivalence":
-      return rule.course === courseId || rule.target === courseId;
-    case "concurrentPrereq":
-      return (
-        rule.course === courseId ||
-        rule.prereq === courseId ||
-        rule.condition?.course === courseId
-      );
-  }
+  return specialRuleCourseIds(rule).includes(courseId);
+}
+
+function validatePersistedPlanSnapshot(value: unknown): PlanSnapshot {
+  // parsePlan owns the persisted plan shape. It intentionally filters stale
+  // IDs, so scan the original value only after its complete shape validates.
+  parsePlan(JSON.stringify(value));
+  return value as PlanSnapshot;
 }
 
 /** Finds persisted references that must be edited before a legacy delete. */
@@ -237,9 +330,11 @@ export async function findCourseReferences(
     .select({ snapshot: schema.plans.snapshot })
     .from(schema.plans);
   if (
-    planRows.some(({ snapshot }) =>
-      snapshot.placements.some((placement) => placement.courseId === courseId),
-    )
+    planRows
+      .map(({ snapshot }) => validatePersistedPlanSnapshot(snapshot))
+      .some((snapshot) =>
+        snapshot.placements.some((placement) => placement.courseId === courseId),
+      )
   ) {
     references.add("plan");
   }
@@ -252,12 +347,20 @@ export async function findCourseReferences(
       eq(schema.catalogProgram.snapshotId, schema.catalogSnapshot.id),
     )
     .where(eq(schema.catalogSnapshot.status, "active"));
-  if (programRows.some(({ data }) => programReferencesCourse(data, courseId))) {
+  if (
+    programRows
+      .map(({ data }) => CatalogProgramSchema.parse(data))
+      .some((program) => programReferencesCourse(program, courseId))
+  ) {
     references.add("program");
   }
 
   const ruleRows = await db.select({ data: schema.rules.data }).from(schema.rules);
-  if (ruleRows.some(({ data }) => ruleReferencesCourse(data, courseId))) {
+  if (
+    ruleRows
+      .map(({ data }) => SpecialRuleSchema.parse(data))
+      .some((rule) => ruleReferencesCourse(rule, courseId))
+  ) {
     references.add("rule");
   }
 
@@ -266,11 +369,20 @@ export async function findCourseReferences(
 
 /** Removes an unreferenced course from the mutable shared catalog only. */
 export async function deleteCourse(db: Db, courseId: string): Promise<void> {
-  const references = await findCourseReferences(db, courseId);
-  if (references.length > 0) {
-    throw new CourseReferencedError(courseId, references);
-  }
-  await db.delete(schema.courses).where(eq(schema.courses.id, courseId));
+  await inTransaction(db, async (tx) => {
+    const rows = await tx
+      .select({ id: schema.courses.id })
+      .from(schema.courses)
+      .where(eq(schema.courses.id, courseId))
+      .for("update");
+    if (rows.length === 0) return;
+
+    const references = await findCourseReferences(tx, courseId);
+    if (references.length > 0) {
+      throw new CourseReferencedError(courseId, references);
+    }
+    await tx.delete(schema.courses).where(eq(schema.courses.id, courseId));
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -284,17 +396,22 @@ const SEED_RULES: SpecialRule[] = SpecialRuleSchema.array().parse(
 
 /** Seeds example rules the first time the table is empty (idempotent). */
 export async function ensureRulesSeeded(db: Db): Promise<void> {
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(schema.rules);
-  if (count > 0) return;
-  if (SEED_RULES.length === 0) return;
-  await db
-    .insert(schema.rules)
-    .values(
-      SEED_RULES.map((r) => ({ id: r.id, kind: r.kind, data: r, note: r.note })),
-    )
-    .onConflictDoNothing();
+  await inTransaction(db, async (tx) => {
+    const [{ count }] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.rules);
+    if (count > 0 || SEED_RULES.length === 0) return;
+    await lockMutableCourseReferences(
+      tx,
+      SEED_RULES.flatMap(specialRuleCourseIds),
+    );
+    await tx
+      .insert(schema.rules)
+      .values(
+        SEED_RULES.map((r) => ({ id: r.id, kind: r.kind, data: r, note: r.note })),
+      )
+      .onConflictDoNothing();
+  });
 }
 
 export type RuleStatus = "active" | "draft";
@@ -372,19 +489,29 @@ export async function upsertRule(
   rule: SpecialRule,
   status: RuleStatus = "active",
 ): Promise<void> {
-  await db
-    .insert(schema.rules)
-    .values({ id: rule.id, kind: rule.kind, data: rule, note: rule.note, status })
-    .onConflictDoUpdate({
-      target: schema.rules.id,
-      set: {
-        kind: rule.kind,
-        data: rule,
-        note: rule.note,
+  const parsedRule = SpecialRuleSchema.parse(rule);
+  await inTransaction(db, async (tx) => {
+    await lockMutableCourseReferences(tx, specialRuleCourseIds(parsedRule));
+    await tx
+      .insert(schema.rules)
+      .values({
+        id: parsedRule.id,
+        kind: parsedRule.kind,
+        data: parsedRule,
+        note: parsedRule.note,
         status,
-        updatedAt: new Date(),
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: schema.rules.id,
+        set: {
+          kind: parsedRule.kind,
+          data: parsedRule,
+          note: parsedRule.note,
+          status,
+          updatedAt: new Date(),
+        },
+      });
+  });
 }
 
 /** Approve/return-to-draft a rule by id. */
