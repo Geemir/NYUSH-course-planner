@@ -1,5 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -18,6 +18,8 @@ import type { Course } from "@/lib/types";
 
 let db: Db;
 let userId: string;
+let concurrentUserId: string;
+let inactiveUserId: string;
 
 beforeAll(async () => {
   const client = new PGlite(); // in-memory
@@ -28,6 +30,16 @@ beforeAll(async () => {
     .values({ email: "test@nyu.edu" })
     .returning({ id: schema.users.id });
   userId = user.id;
+  const [concurrentUser] = await db
+    .insert(schema.users)
+    .values({ email: "concurrent@nyu.edu" })
+    .returning({ id: schema.users.id });
+  concurrentUserId = concurrentUser.id;
+  const [inactiveUser] = await db
+    .insert(schema.users)
+    .values({ email: "inactive@nyu.edu" })
+    .returning({ id: schema.users.id });
+  inactiveUserId = inactiveUser.id;
 });
 
 describe("plan repository", () => {
@@ -57,6 +69,66 @@ describe("plan repository", () => {
       .where(eq(schema.plans.userId, userId));
     expect(rows).toHaveLength(1);
     expect(rows[0].snapshot.startYear).toBe(2027);
+  });
+
+  it("atomically resolves concurrent first saves to one coherent active plan", async () => {
+    const first = {
+      ...emptySnapshot(),
+      startYear: 2028,
+      activePrograms: ["core"],
+      fulfillmentFacts: [
+        {
+          id: "first-waiver",
+          kind: "waiver" as const,
+          requirementId: "core/first",
+          label: "First save",
+        },
+      ],
+    };
+    const second = {
+      ...emptySnapshot(),
+      startYear: 2029,
+      activePrograms: ["cs"],
+      fulfillmentFacts: [
+        {
+          id: "second-waiver",
+          kind: "waiver" as const,
+          requirementId: "core/second",
+          label: "Second save",
+        },
+      ],
+    };
+
+    await Promise.all([
+      saveActivePlan(db, concurrentUserId, first),
+      saveActivePlan(db, concurrentUserId, second),
+    ]);
+
+    const rows = await db
+      .select({ snapshot: schema.plans.snapshot })
+      .from(schema.plans)
+      .where(
+        and(
+          eq(schema.plans.userId, concurrentUserId),
+          eq(schema.plans.isActive, true),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    expect([first, second]).toContainEqual(rows[0].snapshot);
+  });
+
+  it("ignores inactive plan rows", async () => {
+    await db.insert(schema.plans).values({
+      userId: inactiveUserId,
+      isActive: false,
+      snapshot: {
+        ...emptySnapshot(),
+        fulfillmentFacts: [],
+        startYear: 2030,
+      },
+    });
+
+    expect(await getActivePlan(db, inactiveUserId)).toBeNull();
   });
 });
 

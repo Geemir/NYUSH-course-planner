@@ -3,6 +3,8 @@ import { COURSES_BY_ID, PROGRAMS_BY_ID } from "@/lib/data";
 import {
   Course,
   CourseSchema,
+  FulfillmentFactsSchema,
+  GradeSchema,
   PlanSnapshot,
   SEMESTER_IDS,
   SemesterId,
@@ -17,12 +19,15 @@ const SnapshotSchema = z.object({
       courseId: z.string(),
       semesterId: SemesterIdSchema,
       allocation: z.string(),
+      selectedCredits: z.number().nonnegative().max(18).optional(),
+      expectedGrade: GradeSchema.optional(),
     }),
   ),
   studyAway: z.record(z.string(), z.string()).optional().default({}),
   completedSemesters: z.array(SemesterIdSchema).optional().default([]),
   activePrograms: z.array(z.string()),
   customCourses: z.array(z.unknown()).optional().default([]),
+  fulfillmentFacts: FulfillmentFactsSchema,
   dismissedWarnings: z.array(z.string()).optional().default([]),
   startYear: z.number().int().min(2015).max(2040).optional().default(2025),
 });
@@ -65,6 +70,7 @@ export function parsePlan(text: string): PlanSnapshot {
     activePrograms:
       activePrograms.length > 0 ? activePrograms : [...PROGRAMS_BY_ID.keys()],
     customCourses,
+    fulfillmentFacts: parsed.fulfillmentFacts,
     dismissedWarnings: parsed.dismissedWarnings,
     startYear: parsed.startYear,
   };

@@ -4,6 +4,7 @@ import { COURSES_BY_ID } from "@/lib/data";
 import {
   Allocation,
   Course,
+  FulfillmentFact,
   Grade,
   Placement,
   PlanSnapshot,
@@ -16,6 +17,7 @@ interface PlannerState {
   completedSemesters: SemesterId[];
   activePrograms: string[];
   customCourses: Course[];
+  fulfillmentFacts: FulfillmentFact[];
   dismissedWarnings: string[];
   startYear: number;
 
@@ -43,6 +45,7 @@ const initialState = {
   // Default to the CS + IMA double-major plan; swap via the degree-plan chooser.
   activePrograms: ["core", "cs", "ima"],
   customCourses: [] as Course[],
+  fulfillmentFacts: [] as FulfillmentFact[],
   dismissedWarnings: [] as string[],
   startYear: 2025,
 };
@@ -163,6 +166,7 @@ export const usePlannerStore = create<PlannerState>()(
           completedSemesters: snapshot.completedSemesters,
           activePrograms: snapshot.activePrograms,
           customCourses: snapshot.customCourses,
+          fulfillmentFacts: snapshot.fulfillmentFacts ?? [],
           dismissedWarnings: snapshot.dismissedWarnings,
           startYear: snapshot.startYear,
         }),
@@ -179,6 +183,7 @@ export function snapshotFromState(state: {
   completedSemesters: SemesterId[];
   activePrograms: string[];
   customCourses: Course[];
+  fulfillmentFacts: FulfillmentFact[];
   dismissedWarnings: string[];
   startYear: number;
 }): PlanSnapshot {
@@ -189,6 +194,7 @@ export function snapshotFromState(state: {
     completedSemesters: state.completedSemesters,
     activePrograms: state.activePrograms,
     customCourses: state.customCourses,
+    fulfillmentFacts: state.fulfillmentFacts,
     dismissedWarnings: state.dismissedWarnings,
     startYear: state.startYear,
   };

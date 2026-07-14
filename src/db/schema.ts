@@ -14,9 +14,14 @@ import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
 import type {
   CatalogProgram,
   Course,
+  FulfillmentFact,
   PlanSnapshot,
   SpecialRule,
 } from "@/lib/types";
+
+type PersistedPlanSnapshot = Omit<PlanSnapshot, "fulfillmentFacts"> & {
+  fulfillmentFacts: FulfillmentFact[];
+};
 
 // ---------------------------------------------------------------------------
 // Auth.js (NextAuth) core tables — standard adapter schema.
@@ -80,8 +85,8 @@ export const verificationTokens = pgTable(
 // ---------------------------------------------------------------------------
 // Per-user plans. The plan body reuses the client-side PlanSnapshot shape
 // (placements, studyAway, completedSemesters, activePrograms,
-// dismissedWarnings, startYear, customCourses) stored as JSONB, so the
-// existing planIO helpers serialize straight into the column.
+// fulfillmentFacts, dismissedWarnings, startYear, customCourses) stored as
+// JSONB. Persistence materializes missing legacy fulfillment facts as [].
 // ---------------------------------------------------------------------------
 
 export const plans = pgTable(
@@ -95,7 +100,7 @@ export const plans = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull().default("My 4-Year Plan"),
     isActive: boolean("isActive").notNull().default(true),
-    snapshot: jsonb("snapshot").$type<PlanSnapshot>().notNull(),
+    snapshot: jsonb("snapshot").$type<PersistedPlanSnapshot>().notNull(),
     updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   },

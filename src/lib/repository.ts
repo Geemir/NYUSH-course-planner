@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "@/db/schema";
@@ -32,6 +32,7 @@ export function emptySnapshot(): PlanSnapshot {
     completedSemesters: [],
     activePrograms: ["core", "cs", "ima"],
     customCourses: [],
+    fulfillmentFacts: [],
     dismissedWarnings: [],
     startYear: 2025,
   };
@@ -45,9 +46,17 @@ export async function getActivePlan(
   const rows = await db
     .select({ snapshot: schema.plans.snapshot })
     .from(schema.plans)
-    .where(eq(schema.plans.userId, userId))
+    .where(
+      and(
+        eq(schema.plans.userId, userId),
+        eq(schema.plans.isActive, true),
+      ),
+    )
     .limit(1);
-  return rows[0]?.snapshot ?? null;
+  const snapshot = rows[0]?.snapshot;
+  return snapshot
+    ? { ...snapshot, fulfillmentFacts: snapshot.fulfillmentFacts ?? [] }
+    : null;
 }
 
 /**
@@ -59,20 +68,18 @@ export async function saveActivePlan(
   userId: string,
   snapshot: PlanSnapshot,
 ): Promise<void> {
-  const existing = await db
-    .select({ id: schema.plans.id })
-    .from(schema.plans)
-    .where(eq(schema.plans.userId, userId))
-    .limit(1);
-
-  if (existing[0]) {
-    await db
-      .update(schema.plans)
-      .set({ snapshot, updatedAt: new Date() })
-      .where(eq(schema.plans.id, existing[0].id));
-  } else {
-    await db.insert(schema.plans).values({ userId, snapshot });
-  }
+  const persistedSnapshot = {
+    ...snapshot,
+    fulfillmentFacts: snapshot.fulfillmentFacts ?? [],
+  };
+  await db
+    .insert(schema.plans)
+    .values({ userId, isActive: true, snapshot: persistedSnapshot })
+    .onConflictDoUpdate({
+      target: schema.plans.userId,
+      targetWhere: sql`${schema.plans.isActive} = true`,
+      set: { snapshot: persistedSnapshot, updatedAt: new Date() },
+    });
 }
 
 // ---------------------------------------------------------------------------
