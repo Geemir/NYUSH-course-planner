@@ -1,28 +1,119 @@
 import { z } from "zod";
-import coursesJson from "@/data/courses.json";
-import programsJson from "@/data/programs.json";
+import catalogFallbackJson from "@/data/catalog-fallback.json";
 import sitesJson from "@/data/sites.json";
 import {
+  CatalogProgramSchema,
   Course,
   CourseSchema,
   Program,
   ProgramSchema,
   Site,
   SiteSchema,
+  SpecialRuleSchema,
 } from "@/lib/types";
 
+const SnapshotMetadataSchema = z
+  .object({
+    id: z.string().min(1),
+    sourceHash: z.string().min(1),
+    publishedAt: z.string().datetime().optional(),
+  })
+  .strict();
+
+export const BootstrapCatalogResponseSchema = z
+  .object({
+    snapshot: SnapshotMetadataSchema.extend({
+      kind: z.literal("bootstrap-legacy"),
+    }),
+    courses: z.array(CourseSchema).min(1),
+    programs: z.array(ProgramSchema).min(1),
+    rules: z.array(SpecialRuleSchema),
+  })
+  .strict();
+
+export const BulletinCatalogResponseSchema = z
+  .object({
+    snapshot: SnapshotMetadataSchema.extend({ kind: z.literal("bulletin") }),
+    courses: z.array(CourseSchema).min(1),
+    programs: z.array(CatalogProgramSchema).min(1),
+    rules: z.array(SpecialRuleSchema),
+  })
+  .strict()
+  .superRefine((response, context) => {
+    const duplicate = (ids: string[]) =>
+      ids.find((id, index) => ids.indexOf(id) !== index);
+    const duplicateCourseId = duplicate(response.courses.map(({ id }) => id));
+    if (duplicateCourseId) {
+      context.addIssue({
+        code: "custom",
+        message: `Duplicate course id "${duplicateCourseId}"`,
+        path: ["courses"],
+      });
+    }
+    const duplicateProgramId = duplicate(response.programs.map(({ id }) => id));
+    if (duplicateProgramId) {
+      context.addIssue({
+        code: "custom",
+        message: `Duplicate program id "${duplicateProgramId}"`,
+        path: ["programs"],
+      });
+    }
+    response.courses.forEach((course, index) => {
+      if (course.provenance?.snapshotId !== response.snapshot.id) {
+        context.addIssue({
+          code: "custom",
+          message: "Bulletin course provenance must match the response snapshot",
+          path: ["courses", index, "provenance", "snapshotId"],
+        });
+      }
+    });
+    response.programs.forEach((program, index) => {
+      if (program.provenance.snapshotId !== response.snapshot.id) {
+        context.addIssue({
+          code: "custom",
+          message: "Bulletin program provenance must match the response snapshot",
+          path: ["programs", index, "provenance", "snapshotId"],
+        });
+      }
+    });
+  });
+
+export const CatalogResponseSchema = z.union([
+  BulletinCatalogResponseSchema,
+  BootstrapCatalogResponseSchema,
+]);
+
+export type BulletinCatalogResponse = z.infer<
+  typeof BulletinCatalogResponseSchema
+>;
+export type BootstrapCatalogResponse = z.infer<
+  typeof BootstrapCatalogResponseSchema
+>;
+export type CatalogResponse = z.infer<typeof CatalogResponseSchema>;
+
+/** Checked-in, validated last-known-good catalog used when DB reads fail. */
+export const CATALOG_FALLBACK: CatalogResponse = CatalogResponseSchema.parse(
+  catalogFallbackJson,
+);
+
 /**
- * Parses and cross-checks the three JSON data files. Throws with a readable
- * message when a swapped-in major config is malformed, so config errors
- * surface immediately at dev time instead of as silent UI bugs.
+ * Preserves the legacy static exports while the dynamic catalog provider is
+ * being migrated. The course and program values come from one coherent
+ * generated fallback, never independently curated JSON files.
  */
 function loadData(): {
   programs: Program[];
   courses: Course[];
   sites: Site[];
 } {
-  const programs = z.array(ProgramSchema).parse(programsJson);
-  const courses = z.array(CourseSchema).parse(coursesJson);
+  const bootstrap = BootstrapCatalogResponseSchema.safeParse(CATALOG_FALLBACK);
+  if (!bootstrap.success) {
+    throw new Error(
+      "Legacy PROGRAMS exports require the bootstrap-legacy fallback until the dynamic catalog provider migration is complete.",
+    );
+  }
+  const programs = bootstrap.data.programs;
+  const courses = bootstrap.data.courses;
   const sites = z.array(SiteSchema).parse(sitesJson);
 
   const errors: string[] = [];
@@ -35,7 +126,9 @@ function loadData(): {
   const dupes = courses
     .map((c) => c.id)
     .filter((id, i, all) => all.indexOf(id) !== i);
-  for (const id of dupes) errors.push(`courses.json: duplicate course id "${id}"`);
+  for (const id of dupes) {
+    errors.push(`catalog-fallback.json: duplicate course id "${id}"`);
+  }
 
   if (sites.filter((s) => s.isHome).length !== 1) {
     errors.push(`sites.json: exactly one site must have "isHome": true`);
@@ -46,7 +139,7 @@ function loadData(): {
       for (const courseId of category.rule.courses) {
         if (!courseIds.has(courseId)) {
           errors.push(
-            `programs.json: ${program.id}/${category.id} references unknown course "${courseId}"`,
+            `catalog-fallback.json: ${program.id}/${category.id} references unknown course "${courseId}"`,
           );
         }
       }
@@ -58,20 +151,22 @@ function loadData(): {
       for (const prereqId of group) {
         if (!courseIds.has(prereqId)) {
           errors.push(
-            `courses.json: ${course.id} has unknown prerequisite "${prereqId}"`,
+            `catalog-fallback.json: ${course.id} has unknown prerequisite "${prereqId}"`,
           );
         }
       }
     }
     for (const siteId of course.sites) {
       if (!siteIds.has(siteId)) {
-        errors.push(`courses.json: ${course.id} lists unknown site "${siteId}"`);
+        errors.push(
+          `catalog-fallback.json: ${course.id} lists unknown site "${siteId}"`,
+        );
       }
     }
     for (const f of course.fulfills) {
       if (!categoryKeys.has(`${f.programId}/${f.categoryId}`)) {
         errors.push(
-          `courses.json: ${course.id} fulfills unknown category "${f.programId}/${f.categoryId}"`,
+          `catalog-fallback.json: ${course.id} fulfills unknown category "${f.programId}/${f.categoryId}"`,
         );
       }
     }

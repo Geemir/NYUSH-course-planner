@@ -1,8 +1,15 @@
 import { eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
-import coursesSeed from "@/data/courses.json";
 import * as schema from "@/db/schema";
+import { getActiveCatalog, type CatalogDb } from "@/lib/catalogRepository";
+import {
+  BulletinCatalogResponseSchema,
+  CATALOG_FALLBACK,
+  CatalogResponseSchema,
+  type BulletinCatalogResponse,
+  type CatalogResponse,
+} from "@/lib/data";
 import {
   Course,
   CourseSchema,
@@ -94,7 +101,7 @@ export async function ensureCatalogSeeded(db: Db): Promise<void> {
     .from(schema.courses);
   if (count > 0) return;
 
-  const parsed = CourseSchema.array().parse(coursesSeed);
+  const parsed = CourseSchema.array().parse(CATALOG_FALLBACK.courses);
   if (parsed.length === 0) return;
   await db
     .insert(schema.courses)
@@ -153,16 +160,9 @@ export async function deleteCourse(db: Db, courseId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Example rules seeded into a fresh DB so the feature is visible/demoable. */
-const SEED_RULES: SpecialRule[] = [
-  {
-    kind: "concurrentPrereq",
-    id: "seed-ds-concurrent-ics",
-    course: "CSCI-SHU 210", // Data Structures
-    prereq: "CSCI-SHU 101", // may be taken in the same term as Intro CS
-    condition: { course: "CSCI-SHU 11", minGrade: "A" }, // if A in ICP
-    note: "An A in Intro to Computer Programming lets you take Data Structures and Intro to CS in the same semester.",
-  },
-];
+const SEED_RULES: SpecialRule[] = SpecialRuleSchema.array().parse(
+  CATALOG_FALLBACK.rules,
+);
 
 /** Seeds example rules the first time the table is empty (idempotent). */
 export async function ensureRulesSeeded(db: Db): Promise<void> {
@@ -201,6 +201,52 @@ export async function getRulesByStatus(
 /** Active rules — the only ones the engines consult. */
 export function getActiveRules(db: Db): Promise<SpecialRule[]> {
   return getRulesByStatus(db, "active");
+}
+
+/** Reads one schema-validated active Bulletin candidate and its active rules. */
+export async function readActiveCatalogResponse(
+  db: Db,
+): Promise<BulletinCatalogResponse | null> {
+  const active = await getActiveCatalog(db as CatalogDb);
+  if (!active) return null;
+  const rules = await getActiveRules(db);
+  return BulletinCatalogResponseSchema.parse({
+    snapshot: {
+      id: active.snapshotId,
+      sourceHash: active.sourceHash,
+      kind: "bulletin",
+    },
+    courses: active.courses,
+    programs: active.programs,
+    rules,
+  });
+}
+
+/**
+ * Converts read/validation failures to the checked-in nonempty LKG. The
+ * callback boundary keeps the fallback policy reusable by the route and tests.
+ */
+export async function catalogResponseWithFallback(
+  read: () => Promise<unknown | null>,
+  onError?: (error: unknown) => void,
+): Promise<CatalogResponse> {
+  try {
+    const response = await read();
+    return response === null
+      ? CATALOG_FALLBACK
+      : CatalogResponseSchema.parse(response);
+  } catch (error) {
+    onError?.(error);
+    return CATALOG_FALLBACK;
+  }
+}
+
+/** Public catalog read: active Bulletin snapshot, otherwise the coherent LKG. */
+export function getCatalogResponse(db: Db): Promise<CatalogResponse> {
+  return catalogResponseWithFallback(
+    () => readActiveCatalogResponse(db),
+    (error) => console.error("[catalog] failed to read active catalog:", error),
+  );
 }
 
 /**

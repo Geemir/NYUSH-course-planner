@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "bulletin:sync": "node --conditions=react-server --import tsx scripts/sync-bulletin.ts",
+    "catalog:generate-fallback": "node --conditions=react-server --import tsx scripts/generate-catalog-fallback.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"

@@ -1,0 +1,1761 @@
+{
+  "courses": [
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [],
+      "id": "CSCI-SHU 11",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "abudhabi"
+      ],
+      "tags": [
+        "intro"
+      ],
+      "title": "Introduction to Computer Programming"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-found",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-found",
+          "programId": "ds"
+        }
+      ],
+      "id": "CSCI-SHU 101",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "abudhabi"
+      ],
+      "tags": [
+        "intro"
+      ],
+      "title": "Introduction to Computer Science"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-found",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-found",
+          "programId": "ds"
+        }
+      ],
+      "id": "CSCI-SHU 210",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "abudhabi"
+      ],
+      "tags": [],
+      "title": "Data Structures"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-found",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "core-math",
+          "programId": "core"
+        }
+      ],
+      "id": "CSCI-SHU 2314",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Discrete Mathematics"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-found",
+          "programId": "cs"
+        }
+      ],
+      "id": "CSCI-SHU 220",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 210"
+        ],
+        [
+          "CSCI-SHU 2314"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Algorithms"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Engineering",
+      "fulfills": [
+        {
+          "categoryId": "cs-found",
+          "programId": "cs"
+        }
+      ],
+      "id": "CENG-SHU 202",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Computer Architecture"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-found",
+          "programId": "cs"
+        }
+      ],
+      "id": "CSCI-SHU 215",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CENG-SHU 202"
+        ],
+        [
+          "CSCI-SHU 210"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Operating Systems"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-capstone",
+          "programId": "cs"
+        }
+      ],
+      "id": "CSCI-SHU 420",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 220"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [
+        "capstone"
+      ],
+      "title": "CS Senior Project (Capstone)"
+    },
+    {
+      "credits": 4,
+      "department": "Data Science",
+      "fulfills": [
+        {
+          "categoryId": "ds-found",
+          "programId": "ds"
+        }
+      ],
+      "id": "DATS-SHU 101",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [
+        "intro"
+      ],
+      "title": "Introduction to Data Science"
+    },
+    {
+      "credits": 4,
+      "department": "Data Science",
+      "fulfills": [
+        {
+          "categoryId": "ds-core",
+          "programId": "ds"
+        }
+      ],
+      "id": "DATS-SHU 301",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "MATH-SHU 235"
+        ],
+        [
+          "CSCI-SHU 210"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Causal Inference & Statistical Learning"
+    },
+    {
+      "credits": 4,
+      "department": "Data Science",
+      "fulfills": [
+        {
+          "categoryId": "ds-elect",
+          "programId": "ds"
+        }
+      ],
+      "id": "DATS-SHU 310",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 210"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Big Data & Data Engineering"
+    },
+    {
+      "credits": 4,
+      "department": "Data Science",
+      "fulfills": [
+        {
+          "categoryId": "ds-capstone",
+          "programId": "ds"
+        }
+      ],
+      "id": "DATS-SHU 401",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 360"
+        ],
+        [
+          "DATS-SHU 301"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [
+        "capstone"
+      ],
+      "title": "Data Science Capstone"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-elect",
+          "programId": "ds"
+        }
+      ],
+      "id": "CSCI-SHU 213",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 210"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Databases"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        }
+      ],
+      "id": "CSCI-SHU 254",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 215"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Distributed Systems"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-elect",
+          "programId": "ds"
+        }
+      ],
+      "id": "CSCI-SHU 308",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 210"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "abudhabi"
+      ],
+      "tags": [],
+      "title": "Computer Networking"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-core",
+          "programId": "ds"
+        }
+      ],
+      "id": "CSCI-SHU 360",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 210"
+        ],
+        [
+          "MATH-SHU 140"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Machine Learning"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-elect",
+          "programId": "ds"
+        }
+      ],
+      "id": "CSCI-SHU 376",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 360"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Natural Language Processing"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        }
+      ],
+      "id": "CSCI-SHU 380",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 210"
+        ],
+        [
+          "MATH-SHU 140"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Computer Graphics"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        }
+      ],
+      "id": "CSCI-SHU 410",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 210"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Software Engineering"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Science",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "ds-elect",
+          "programId": "ds"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "CSCI-SHU 235",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 101",
+          "CSCI-SHU 11"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [
+        "cross-listed"
+      ],
+      "title": "Information Visualization"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 152",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [
+        "cross-listed"
+      ],
+      "title": "Creative Coding Lab"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 260",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101",
+          "CSCI-SHU 101",
+          "CSCI-SHU 11"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [
+        "cross-listed"
+      ],
+      "title": "Nature of Code"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-elect",
+          "programId": "ds"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 305",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101",
+          "CSCI-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [
+        "cross-listed"
+      ],
+      "title": "Machine Learning for New Interfaces"
+    },
+    {
+      "credits": 4,
+      "department": "Computer Engineering",
+      "fulfills": [
+        {
+          "categoryId": "cs-elect",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "CENG-SHU 240",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "CSCI-SHU 101",
+          "INTM-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [
+        "cross-listed"
+      ],
+      "title": "Embedded Systems & Physical Interfaces"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-found",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-found",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 101",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [
+        "intro"
+      ],
+      "title": "Interaction Lab"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-found",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 120",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "berlin"
+      ],
+      "tags": [
+        "intro"
+      ],
+      "title": "Communications Lab"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-found",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 240",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "What Is New Media?"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 220",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Application Lab"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 201",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Creative Game Design & Development"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 205",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Kinetic Interfaces"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 210",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101",
+          "CSCI-SHU 101",
+          "CSCI-SHU 11"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Developing Web"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 265",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 120"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "berlin"
+      ],
+      "tags": [],
+      "title": "Net Art"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 270",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "berlin"
+      ],
+      "tags": [],
+      "title": "Interactive Sound"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-elect",
+          "programId": "ima"
+        },
+        {
+          "categoryId": "imam-elect",
+          "programId": "ima-minor"
+        }
+      ],
+      "id": "INTM-SHU 310",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Artificial Intelligence Arts"
+    },
+    {
+      "credits": 4,
+      "department": "Interactive Media Arts",
+      "fulfills": [
+        {
+          "categoryId": "ima-capstone",
+          "programId": "ima"
+        }
+      ],
+      "id": "INTM-SHU 450",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "INTM-SHU 101"
+        ],
+        [
+          "INTM-SHU 120"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [
+        "capstone"
+      ],
+      "title": "IMA Capstone Studio"
+    },
+    {
+      "credits": 4,
+      "department": "Mathematics",
+      "fulfills": [
+        {
+          "categoryId": "cs-math",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-math",
+          "programId": "ds"
+        },
+        {
+          "categoryId": "core-math",
+          "programId": "core"
+        }
+      ],
+      "id": "MATH-SHU 131",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "abudhabi",
+        "london",
+        "berlin",
+        "paris",
+        "prague"
+      ],
+      "tags": [],
+      "title": "Calculus"
+    },
+    {
+      "credits": 4,
+      "department": "Mathematics",
+      "fulfills": [
+        {
+          "categoryId": "cs-math",
+          "programId": "cs"
+        },
+        {
+          "categoryId": "ds-math",
+          "programId": "ds"
+        },
+        {
+          "categoryId": "core-math",
+          "programId": "core"
+        }
+      ],
+      "id": "MATH-SHU 140",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "MATH-SHU 131"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "abudhabi"
+      ],
+      "tags": [],
+      "title": "Linear Algebra"
+    },
+    {
+      "credits": 4,
+      "department": "Mathematics",
+      "fulfills": [
+        {
+          "categoryId": "ds-math",
+          "programId": "ds"
+        },
+        {
+          "categoryId": "core-math",
+          "programId": "core"
+        }
+      ],
+      "id": "MATH-SHU 235",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "MATH-SHU 131"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Probability & Statistics"
+    },
+    {
+      "credits": 4,
+      "department": "Writing",
+      "fulfills": [
+        {
+          "categoryId": "core-writing",
+          "programId": "core"
+        }
+      ],
+      "id": "WRIT-SHU 101",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Writing as Inquiry"
+    },
+    {
+      "credits": 4,
+      "department": "Writing",
+      "fulfills": [
+        {
+          "categoryId": "core-writing",
+          "programId": "core"
+        }
+      ],
+      "id": "WRIT-SHU 201",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "WRIT-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Perspectives on the Humanities"
+    },
+    {
+      "credits": 4,
+      "department": "Social Science",
+      "fulfills": [
+        {
+          "categoryId": "core-gps",
+          "programId": "core"
+        }
+      ],
+      "id": "SCA-SHU 101",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Global Perspectives on Society"
+    },
+    {
+      "credits": 4,
+      "department": "Chinese Language",
+      "fulfills": [
+        {
+          "categoryId": "core-lang",
+          "programId": "core"
+        }
+      ],
+      "id": "CHIN-SHU 101",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Elementary Chinese I"
+    },
+    {
+      "credits": 4,
+      "department": "Chinese Language",
+      "fulfills": [
+        {
+          "categoryId": "core-lang",
+          "programId": "core"
+        }
+      ],
+      "id": "CHIN-SHU 102",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CHIN-SHU 101"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Elementary Chinese II"
+    },
+    {
+      "credits": 4,
+      "department": "Chinese Language",
+      "fulfills": [
+        {
+          "categoryId": "core-lang",
+          "programId": "core"
+        }
+      ],
+      "id": "CHIN-SHU 201",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "CHIN-SHU 102"
+        ]
+      ],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Intermediate Chinese I"
+    },
+    {
+      "credits": 4,
+      "department": "Science",
+      "fulfills": [
+        {
+          "categoryId": "core-science",
+          "programId": "core"
+        }
+      ],
+      "id": "SCIEN-SHU 101",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai"
+      ],
+      "tags": [],
+      "title": "Foundations of Science I"
+    },
+    {
+      "credits": 4,
+      "department": "Environmental Studies",
+      "fulfills": [
+        {
+          "categoryId": "core-science",
+          "programId": "core"
+        }
+      ],
+      "id": "ENVST-SHU 201",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Environmental Systems Science"
+    },
+    {
+      "credits": 4,
+      "department": "Philosophy",
+      "fulfills": [
+        {
+          "categoryId": "core-persp",
+          "programId": "core"
+        }
+      ],
+      "id": "PHIL-SHU 105",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "london"
+      ],
+      "tags": [],
+      "title": "Minds and Machines"
+    },
+    {
+      "credits": 4,
+      "department": "Social Science",
+      "fulfills": [
+        {
+          "categoryId": "core-persp",
+          "programId": "core"
+        }
+      ],
+      "id": "SOCS-SHU 150",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "abudhabi"
+      ],
+      "tags": [],
+      "title": "Society and Social Change"
+    },
+    {
+      "credits": 4,
+      "department": "Art History",
+      "fulfills": [
+        {
+          "categoryId": "core-persp",
+          "programId": "core"
+        }
+      ],
+      "id": "ARTH-SHU 150",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "paris",
+        "london"
+      ],
+      "tags": [],
+      "title": "Global Art Histories"
+    },
+    {
+      "credits": 4,
+      "department": "Economics",
+      "fulfills": [],
+      "id": "ECON-SHU 150",
+      "offered": [
+        "fall",
+        "spring"
+      ],
+      "prereqs": [],
+      "sites": [
+        "shanghai",
+        "newyork",
+        "abudhabi",
+        "london"
+      ],
+      "tags": [],
+      "title": "Microeconomics"
+    },
+    {
+      "credits": 4,
+      "department": "Economics",
+      "fulfills": [],
+      "id": "ECON-SHU 251",
+      "offered": [
+        "spring"
+      ],
+      "prereqs": [
+        [
+          "ECON-SHU 150"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Macroeconomics"
+    },
+    {
+      "credits": 4,
+      "department": "Business & Finance",
+      "fulfills": [],
+      "id": "BUSF-SHU 101",
+      "offered": [
+        "fall"
+      ],
+      "prereqs": [
+        [
+          "ECON-SHU 150"
+        ]
+      ],
+      "sites": [
+        "shanghai",
+        "newyork"
+      ],
+      "tags": [],
+      "title": "Foundations of Finance"
+    }
+  ],
+  "programs": [
+    {
+      "categories": [
+        {
+          "id": "core-writing",
+          "name": "Writing (WAI + Perspectives on the Humanities)",
+          "rule": {
+            "courses": [
+              "WRIT-SHU 101",
+              "WRIT-SHU 201"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "core-gps",
+          "name": "Global Perspectives on Society",
+          "rule": {
+            "courses": [
+              "SCA-SHU 101"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "core-lang",
+          "name": "Chinese Language",
+          "rule": {
+            "courses": [
+              "CHIN-SHU 101",
+              "CHIN-SHU 102",
+              "CHIN-SHU 201"
+            ],
+            "kind": "chooseN",
+            "n": 2
+          }
+        },
+        {
+          "id": "core-math",
+          "name": "Mathematics",
+          "rule": {
+            "courses": [
+              "MATH-SHU 131",
+              "MATH-SHU 140",
+              "MATH-SHU 235",
+              "CSCI-SHU 2314"
+            ],
+            "kind": "chooseN",
+            "n": 1
+          }
+        },
+        {
+          "id": "core-science",
+          "name": "Science",
+          "rule": {
+            "courses": [
+              "SCIEN-SHU 101",
+              "ENVST-SHU 201"
+            ],
+            "kind": "chooseN",
+            "n": 1
+          }
+        },
+        {
+          "id": "core-persp",
+          "name": "Humanities / Social Science Perspectives",
+          "rule": {
+            "courses": [
+              "PHIL-SHU 105",
+              "SOCS-SHU 150",
+              "ARTH-SHU 150"
+            ],
+            "kind": "chooseN",
+            "n": 1
+          }
+        }
+      ],
+      "color": "#10b981",
+      "id": "core",
+      "name": "NYUSH Core Curriculum",
+      "shortName": "Core",
+      "type": "core"
+    },
+    {
+      "categories": [
+        {
+          "id": "cs-found",
+          "name": "Foundational Courses",
+          "rule": {
+            "courses": [
+              "CSCI-SHU 101",
+              "CSCI-SHU 210",
+              "CSCI-SHU 2314",
+              "CSCI-SHU 220",
+              "CENG-SHU 202",
+              "CSCI-SHU 215"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "cs-math",
+          "name": "Math Requirements",
+          "rule": {
+            "courses": [
+              "MATH-SHU 131",
+              "MATH-SHU 140"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "cs-elect",
+          "name": "Major Electives",
+          "rule": {
+            "courses": [
+              "CSCI-SHU 213",
+              "CSCI-SHU 254",
+              "CSCI-SHU 308",
+              "CSCI-SHU 360",
+              "CSCI-SHU 376",
+              "CSCI-SHU 380",
+              "CSCI-SHU 410",
+              "CSCI-SHU 235",
+              "INTM-SHU 152",
+              "INTM-SHU 260",
+              "INTM-SHU 305",
+              "CENG-SHU 240"
+            ],
+            "kind": "chooseN",
+            "n": 3
+          }
+        },
+        {
+          "id": "cs-capstone",
+          "isCapstone": true,
+          "name": "Senior Capstone",
+          "rule": {
+            "courses": [
+              "CSCI-SHU 420"
+            ],
+            "kind": "allOf"
+          }
+        }
+      ],
+      "color": "#8b5cf6",
+      "doubleCountLimit": 2,
+      "id": "cs",
+      "name": "Computer Science",
+      "shortName": "CS",
+      "type": "major"
+    },
+    {
+      "categories": [
+        {
+          "id": "ima-found",
+          "name": "Foundations",
+          "rule": {
+            "courses": [
+              "INTM-SHU 101",
+              "INTM-SHU 120",
+              "INTM-SHU 240"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "ima-elect",
+          "name": "IMA Electives",
+          "rule": {
+            "courses": [
+              "INTM-SHU 152",
+              "INTM-SHU 201",
+              "INTM-SHU 205",
+              "INTM-SHU 210",
+              "INTM-SHU 220",
+              "INTM-SHU 260",
+              "INTM-SHU 265",
+              "INTM-SHU 270",
+              "INTM-SHU 305",
+              "INTM-SHU 310",
+              "CSCI-SHU 235",
+              "CENG-SHU 240"
+            ],
+            "kind": "creditsFrom",
+            "minCredits": 16
+          }
+        },
+        {
+          "id": "ima-capstone",
+          "isCapstone": true,
+          "name": "Capstone Studio",
+          "rule": {
+            "courses": [
+              "INTM-SHU 450"
+            ],
+            "kind": "allOf"
+          }
+        }
+      ],
+      "color": "#f59e0b",
+      "doubleCountLimit": 2,
+      "id": "ima",
+      "name": "Interactive Media Arts",
+      "shortName": "IMA",
+      "type": "major"
+    },
+    {
+      "categories": [
+        {
+          "id": "ds-found",
+          "name": "Foundational Courses",
+          "rule": {
+            "courses": [
+              "DATS-SHU 101",
+              "CSCI-SHU 101",
+              "CSCI-SHU 210"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "ds-math",
+          "name": "Math & Statistics",
+          "rule": {
+            "courses": [
+              "MATH-SHU 131",
+              "MATH-SHU 140",
+              "MATH-SHU 235"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "ds-core",
+          "name": "Data Science Core",
+          "rule": {
+            "courses": [
+              "CSCI-SHU 360",
+              "DATS-SHU 301"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "ds-elect",
+          "name": "Data Science Electives",
+          "rule": {
+            "courses": [
+              "CSCI-SHU 213",
+              "CSCI-SHU 235",
+              "CSCI-SHU 308",
+              "CSCI-SHU 376",
+              "DATS-SHU 310",
+              "INTM-SHU 305"
+            ],
+            "kind": "chooseN",
+            "n": 3
+          }
+        },
+        {
+          "id": "ds-capstone",
+          "isCapstone": true,
+          "name": "Senior Capstone",
+          "rule": {
+            "courses": [
+              "DATS-SHU 401"
+            ],
+            "kind": "allOf"
+          }
+        }
+      ],
+      "color": "#0891b2",
+      "doubleCountLimit": 2,
+      "id": "ds",
+      "name": "Data Science",
+      "shortName": "DS",
+      "type": "major"
+    },
+    {
+      "categories": [
+        {
+          "id": "imam-found",
+          "name": "Foundation",
+          "rule": {
+            "courses": [
+              "INTM-SHU 101"
+            ],
+            "kind": "allOf"
+          }
+        },
+        {
+          "id": "imam-elect",
+          "name": "IMA Minor Electives",
+          "rule": {
+            "courses": [
+              "INTM-SHU 120",
+              "INTM-SHU 240",
+              "INTM-SHU 152",
+              "INTM-SHU 201",
+              "INTM-SHU 205",
+              "INTM-SHU 210",
+              "INTM-SHU 220",
+              "INTM-SHU 260",
+              "INTM-SHU 265",
+              "INTM-SHU 270",
+              "INTM-SHU 305",
+              "INTM-SHU 310",
+              "CSCI-SHU 235",
+              "CENG-SHU 240"
+            ],
+            "kind": "chooseN",
+            "n": 4
+          }
+        }
+      ],
+      "color": "#fb923c",
+      "id": "ima-minor",
+      "name": "Interactive Media Arts (Minor)",
+      "shortName": "IMA min",
+      "type": "minor"
+    }
+  ],
+  "rules": [
+    {
+      "condition": {
+        "course": "CSCI-SHU 11",
+        "minGrade": "A"
+      },
+      "course": "CSCI-SHU 210",
+      "id": "seed-ds-concurrent-ics",
+      "kind": "concurrentPrereq",
+      "note": "An A in Intro to Computer Programming lets you take Data Structures and Intro to CS in the same semester.",
+      "prereq": "CSCI-SHU 101"
+    }
+  ],
+  "snapshot": {
+    "id": "bootstrap-legacy-v1",
+    "kind": "bootstrap-legacy",
+    "sourceHash": "007f501e2ba1c6cded682d8a95ce142076b5e2c0c29802c546cb258aebc1deaf"
+  }
+}
