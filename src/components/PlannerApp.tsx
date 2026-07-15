@@ -31,6 +31,7 @@ import { PlanSync } from "@/components/PlanSync";
 import { CourseCatalog } from "@/components/catalog/CourseCatalog";
 import { CourseDetailDialog } from "@/components/dialogs/CourseDetailDialog";
 import { PlannerBoard } from "@/components/planner/PlannerBoard";
+import { PlanDerivedProvider } from "@/components/planner/PlanDerivedProvider";
 import { FeasibilityDialog } from "@/components/progress/FeasibilityDialog";
 import { ProgressRings } from "@/components/progress/ProgressRings";
 import { RequirementChecklist } from "@/components/progress/RequirementChecklist";
@@ -362,64 +363,66 @@ export function PlannerApp() {
 
   return (
     <CatalogProvider>
-      <TooltipProvider>
-        <PlanSync />
-        <div className="flex min-h-screen flex-col">
-        <Header onImportFile={handleImportFile} />
-        <DndContext
-          sensors={sensors}
-          collisionDetection={pointerWithin}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <main className="grid flex-1 gap-5 p-5 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_330px]">
-            <aside className="lg:sticky lg:top-5 lg:self-start">
-              <h2 className="mb-2.5 px-1 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-                Course Catalog
-              </h2>
-              <CourseCatalog
-                onSelectCourse={handleSelectCourse}
-                onMenuClosed={handleMenuClosed}
-              />
-            </aside>
+      <PlanDerivedProvider>
+        <TooltipProvider>
+          <PlanSync />
+          <div className="flex min-h-screen flex-col">
+            <Header onImportFile={handleImportFile} />
+            <DndContext
+              sensors={sensors}
+              collisionDetection={pointerWithin}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <main className="grid flex-1 gap-5 p-5 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_330px]">
+                <aside className="lg:sticky lg:top-5 lg:self-start">
+                  <h2 className="mb-2.5 px-1 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                    Course Catalog
+                  </h2>
+                  <CourseCatalog
+                    onSelectCourse={handleSelectCourse}
+                    onMenuClosed={handleMenuClosed}
+                  />
+                </aside>
 
-            <section>
-              <h2 className="mb-2.5 px-1 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-                4-Year Timeline
-              </h2>
-              <PlannerBoard onSelectCourse={handleSelectCourse} />
-            </section>
+                <section>
+                  <h2 className="mb-2.5 px-1 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                    4-Year Timeline
+                  </h2>
+                  <PlannerBoard onSelectCourse={handleSelectCourse} />
+                </section>
 
-            <aside className="lg:col-span-2 xl:col-span-1 xl:sticky xl:top-5 xl:self-start">
-              <h2 className="mb-2.5 px-1 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-                Degree Progress
-              </h2>
-              <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
-                <ProgressRings />
-                <FeasibilityDialog />
-                <Separator />
-                <RequirementChecklist />
-                <Separator />
-                <SpecialRulesPanel />
-                <div>
-                  <h3 className="text-sm font-semibold">Warnings</h3>
-                  <WarningCenter />
-                </div>
-              </div>
-            </aside>
-          </main>
+                <aside className="lg:col-span-2 xl:col-span-1 xl:sticky xl:top-5 xl:self-start">
+                  <h2 className="mb-2.5 px-1 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                    Degree Progress
+                  </h2>
+                  <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
+                    <ProgressRings />
+                    <FeasibilityDialog />
+                    <Separator />
+                    <RequirementChecklist />
+                    <Separator />
+                    <SpecialRulesPanel />
+                    <div>
+                      <h3 className="text-sm font-semibold">Warnings</h3>
+                      <WarningCenter />
+                    </div>
+                  </div>
+                </aside>
+              </main>
 
-          <DragOverlay>
-            {dragCourseId && <DragPreview courseId={dragCourseId} />}
-          </DragOverlay>
-        </DndContext>
+              <DragOverlay>
+                {dragCourseId && <DragPreview courseId={dragCourseId} />}
+              </DragOverlay>
+            </DndContext>
 
-        <CourseDetailDialog
-          courseId={detailCourseId}
-          onClose={() => setDetailCourseId(null)}
-        />
-        </div>
-      </TooltipProvider>
+            <CourseDetailDialog
+              courseId={detailCourseId}
+              onClose={() => setDetailCourseId(null)}
+            />
+          </div>
+        </TooltipProvider>
+      </PlanDerivedProvider>
     </CatalogProvider>
   );
 }
