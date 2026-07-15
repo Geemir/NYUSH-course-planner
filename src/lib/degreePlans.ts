@@ -1,3 +1,5 @@
+import type { PlannerProgram } from "@/lib/requirements";
+
 /**
  * Curated degree-plan presets. Each sets which programs are tracked
  * (rings + requirement checklists). "core" is always included.
@@ -22,10 +24,44 @@ export const DEGREE_PLANS: DegreePlan[] = [
 /** Id used by the chooser when the active set matches no preset. */
 export const CUSTOM_PLAN_ID = "custom";
 
-/** Finds the preset whose program set equals the active set (order-insensitive). */
-export function matchDegreePlan(activePrograms: string[]): string {
+export function degreeOptionsFromPrograms(
+  programs: readonly PlannerProgram[],
+): DegreePlan[] {
+  const coreId = programs.find((program) => program.type === "core")?.id;
+  return programs
+    .filter((program) => program.type === "major")
+    .map((program) => ({
+      id: program.id,
+      label: program.name,
+      programs: coreId ? [coreId, program.id] : [program.id],
+    }));
+}
+
+export function reconcileProgramSelection(
+  activeIds: readonly string[],
+  validIds: readonly string[],
+  defaultIds: readonly string[],
+): string[] {
+  const valid = new Set(validIds);
+  const active = activeIds.filter(
+    (id, index) => valid.has(id) && activeIds.indexOf(id) === index,
+  );
+  const coreId = defaultIds[0];
+  const hasTrackedProgram = active.some((id) => id !== coreId);
+  if (hasTrackedProgram) return active;
+
+  return defaultIds.filter(
+    (id, index) => valid.has(id) && defaultIds.indexOf(id) === index,
+  );
+}
+
+/** Finds the option whose program set equals the active set (order-insensitive). */
+export function matchDegreePlan(
+  activePrograms: string[],
+  options: readonly DegreePlan[] = DEGREE_PLANS,
+): string {
   const active = [...activePrograms].sort().join(",");
-  const found = DEGREE_PLANS.find(
+  const found = options.find(
     (plan) => [...plan.programs].sort().join(",") === active,
   );
   return found?.id ?? CUSTOM_PLAN_ID;

@@ -17,7 +17,14 @@ import { usePlannerStore } from "@/store/plannerStore";
  */
 export function useCourseData() {
   const customCourses = usePlannerStore((s) => s.customCourses);
-  const { courses: catalog } = useCatalog();
+  const {
+    courses: catalog,
+    programs,
+    programsById,
+    snapshot,
+    rules,
+    loaded,
+  } = useCatalog();
 
   return useMemo(() => {
     const coursesById = new Map<string, Course>(catalog.map((c) => [c.id, c]));
@@ -32,6 +39,11 @@ export function useCourseData() {
       courses: [...coursesById.values()],
       coursesById,
       customIds,
+      programs,
+      programsById,
+      snapshot,
+      rules,
+      loaded,
     };
-  }, [customCourses, catalog]);
+  }, [customCourses, catalog, loaded, programs, programsById, rules, snapshot]);
 }

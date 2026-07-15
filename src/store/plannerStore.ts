@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { COURSES_BY_ID } from "@/lib/data";
+import { reconcileProgramSelection } from "@/lib/degreePlans";
 import {
   Allocation,
   Course,
@@ -29,6 +30,10 @@ interface PlannerState {
   toggleCompletedSemester: (semesterId: SemesterId) => void;
   toggleProgram: (programId: string) => void;
   setActivePrograms: (programIds: string[]) => void;
+  reconcilePrograms: (
+    validIds: readonly string[],
+    defaultIds: readonly string[],
+  ) => void;
   addCustomCourse: (course: Course) => void;
   removeCustomCourse: (courseId: string) => void;
   dismissWarning: (warningId: string) => void;
@@ -123,6 +128,15 @@ export const usePlannerStore = create<PlannerState>()(
 
       // Replaces the tracked-program set wholesale (used by degree-plan presets).
       setActivePrograms: (programIds) => set({ activePrograms: programIds }),
+
+      reconcilePrograms: (validIds, defaultIds) =>
+        set((state) => ({
+          activePrograms: reconcileProgramSelection(
+            state.activePrograms,
+            validIds,
+            defaultIds,
+          ),
+        })),
 
       // Upserts by course id — re-importing an existing code replaces it,
       // which also lets a custom course shadow/fix a built-in one.
