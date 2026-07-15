@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import { useCatalog } from "@/components/CatalogProvider";
 import { useCourseData } from "@/hooks/useCourseData";
 import { resolveAllocations } from "@/lib/allocation";
-import { HOME_SITE, PROGRAMS, PROGRAMS_BY_ID, SITES } from "@/lib/data";
+import { selectActiveCatalogPrograms } from "@/lib/catalogClient";
+import { HOME_SITE, SITES } from "@/lib/data";
 import { analyzeFeasibility } from "@/lib/feasibility";
 import { computeProgress } from "@/lib/progress";
 import { buildRuleContext } from "@/lib/rules";
@@ -32,7 +33,7 @@ export function usePlanDerived() {
   const fulfillmentFacts = usePlannerStore((s) => s.fulfillmentFacts);
   const dismissedIds = usePlannerStore((s) => s.dismissedWarnings);
   const { coursesById, customIds } = useCourseData();
-  const { rules: specialRules } = useCatalog();
+  const { rules: specialRules, programs } = useCatalog();
 
   return useMemo(() => {
     const ruleCtx = buildRuleContext({
@@ -41,16 +42,15 @@ export function usePlanDerived() {
       coursesById,
     });
 
+    const programsById = new Map(programs.map((program) => [program.id, program]));
     const allocation = resolveAllocations({
       placements,
       coursesById,
-      programsById: PROGRAMS_BY_ID,
+      programsById,
       activePrograms,
     });
 
-    const activeProgramObjs = PROGRAMS.filter((p) =>
-      activePrograms.includes(p.id),
-    );
+    const activeProgramObjs = selectActiveCatalogPrograms(programs, activePrograms);
 
     const progress = computeProgress({
       placements,
@@ -131,7 +131,7 @@ export function usePlanDerived() {
     /** Major program ids a placed course currently counts toward. */
     const effectiveMajors = (courseId: string): string[] =>
       (allocation.effective.get(courseId) ?? [])
-        .filter((f) => PROGRAMS_BY_ID.get(f.programId)?.type === "major")
+        .filter((f) => programsById.get(f.programId)?.type === "major")
         .map((f) => f.programId);
 
     return {
@@ -152,5 +152,5 @@ export function usePlanDerived() {
       specialRules,
       feasibility,
     };
-  }, [placements, studyAway, completedSemesters, activePrograms, fulfillmentFacts, dismissedIds, coursesById, customIds, specialRules]);
+  }, [placements, studyAway, completedSemesters, activePrograms, fulfillmentFacts, dismissedIds, coursesById, customIds, specialRules, programs]);
 }

@@ -20,7 +20,7 @@ function course(id: string, extra: Partial<Course> = {}): Course {
 
 const courses = [
   course("A", { attributes: ["Core: Science"] }),
-  course("B", { minCredits: 2, maxCredits: 4, credits: 4 }),
+  course("B", { minCredits: 1, maxCredits: 4, credits: 4 }),
   course("C", { attributes: ["Core: Science"] }),
   course("ALT", { equivalentTo: ["A"] }),
 ];
@@ -194,6 +194,45 @@ describe("recursive Bulletin requirement evaluator", () => {
       matchedCourseIds: ["A", "B"],
     });
     expect(requirementDemand(node)).toEqual({ units: 6, unitKind: "credits" });
+  });
+
+  it("marks every course whose maximum credits are required by a credit pool", () => {
+    const result = evaluate({
+      kind: "credits",
+      minimum: 8,
+      children: [
+        { kind: "course", courseId: "A" },
+        { kind: "course", courseId: "B" },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      plannedUnits: 0,
+      missingCourseIds: ["A", "B"],
+      gaps: [],
+    });
+  });
+
+  it("preserves an unresolved capacity gap when all candidates cannot reach the minimum", () => {
+    const result = evaluate(
+      {
+        kind: "credits",
+        minimum: 8,
+        children: [
+          { kind: "course", courseId: "A" },
+          { kind: "course", courseId: "B" },
+        ],
+      },
+      [placement("B", "Y1F", 1)],
+    );
+
+    expect(result.missingCourseIds).toEqual(["A"]);
+    expect(result.gaps).toEqual([
+      expect.objectContaining({
+        kind: "ambiguous",
+        candidateCourseIds: [],
+      }),
+    ]);
   });
 
   it("matches attribute requirements against real course data", () => {

@@ -1,21 +1,21 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { COURSES } from "@/lib/data";
-import { Course, CourseSchema, SpecialRule, SpecialRuleSchema } from "@/lib/types";
+import {
+  catalogValueFromResponse,
+  type ClientCatalogValue,
+} from "@/lib/catalogClient";
+import { CATALOG_FALLBACK } from "@/lib/data";
 
-interface CatalogValue {
-  /** The shared catalog: DB-backed once loaded, bundled JSON until then. */
-  courses: Course[];
-  /** Active special rules from the DB (empty until loaded). */
-  rules: SpecialRule[];
+interface CatalogValue extends ClientCatalogValue {
   /** True once the DB catalog has replaced the bundled fallback. */
   loaded: boolean;
 }
 
+const fallbackCatalog = catalogValueFromResponse(CATALOG_FALLBACK);
+
 const CatalogContext = createContext<CatalogValue>({
-  courses: COURSES,
-  rules: [],
+  ...fallbackCatalog,
   loaded: false,
 });
 
@@ -26,8 +26,7 @@ const CatalogContext = createContext<CatalogValue>({
  * merged on top in useCourseData.
  */
 export function CatalogProvider({ children }: { children: React.ReactNode }) {
-  const [courses, setCourses] = useState<Course[]>(COURSES);
-  const [rules, setRules] = useState<SpecialRule[]>([]);
+  const [catalog, setCatalog] = useState<ClientCatalogValue>(fallbackCatalog);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -36,12 +35,9 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await fetch("/api/catalog");
         if (!res.ok || !active) return;
-        const data = (await res.json()) as { courses: unknown; rules: unknown };
-        const parsedCourses = CourseSchema.array().safeParse(data.courses);
-        const parsedRules = SpecialRuleSchema.array().safeParse(data.rules);
-        if (parsedCourses.success && parsedCourses.data.length > 0 && active) {
-          setCourses(parsedCourses.data);
-          setRules(parsedRules.success ? parsedRules.data : []);
+        const parsed = catalogValueFromResponse(await res.json());
+        if (active) {
+          setCatalog(parsed);
           setLoaded(true);
         }
       } catch {
@@ -54,7 +50,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <CatalogContext.Provider value={{ courses, rules, loaded }}>
+    <CatalogContext.Provider value={{ ...catalog, loaded }}>
       {children}
     </CatalogContext.Provider>
   );

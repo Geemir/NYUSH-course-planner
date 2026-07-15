@@ -184,6 +184,55 @@ describe("feasibility analyzer", () => {
     expect(result.unplaceable).toEqual([]);
   });
 
+  it("does not claim a credit pool is feasible when all remaining capacity is insufficient", () => {
+    const program = {
+      id: "p",
+      name: "P",
+      shortName: "P",
+      type: "major",
+      categories: [
+        {
+          id: "credits",
+          name: "Credits",
+          requirement: {
+            kind: "credits",
+            minimum: 8,
+            children: [
+              { kind: "course", courseId: "c0" },
+              { kind: "course", courseId: "c1" },
+            ],
+          },
+          sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/programs/p/",
+          sourceTableId: "requirements",
+          sourceRowIndexes: [0],
+        },
+      ],
+      requirementRows: [],
+      sourceRows: [],
+      sourceReferenceIds: ["c0", "c1"],
+      provenance: {
+        sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/programs/p/",
+        snapshotId: "snapshot",
+        sourceHash: "hash",
+      },
+    } as CatalogProgram;
+    const courses = [
+      course("c0", { minCredits: 1, maxCredits: 4, credits: 4 }),
+      course("c1", { maxCredits: 4, credits: 4 }),
+    ];
+    const result = analyze(program, courses, [
+      { courseId: "c0", semesterId: "Y1F", allocation: "auto", selectedCredits: 1 },
+    ]);
+
+    expect(result.status).toBe("infeasible");
+    expect(result.suggestion).toEqual([
+      expect.objectContaining({ courseId: "c1" }),
+    ]);
+    expect(result.requirementGaps).toEqual([
+      expect.objectContaining({ kind: "ambiguous", candidateCourseIds: [] }),
+    ]);
+  });
+
   it("reports 'complete' when requirements are already satisfied", () => {
     const r = analyze(allOfProgram(["c0"]), fulfill(["c0"]), [
       { courseId: "c0", semesterId: "Y1F", allocation: "auto" },

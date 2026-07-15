@@ -433,26 +433,57 @@ export function evaluateRequirement(
         ? sum + placementCredits(placement, course)
         : sum;
     }, 0);
+    const matchedCourses = matchedCourseIds
+      .map((id) => context.coursesById.get(id))
+      .filter((course): course is Course => course !== undefined);
     const candidates = directCourseIds(current).filter(
-      (id) => !matchedCourseIds.includes(id),
+      (id) =>
+        !matchedCourses.some(
+          (course) =>
+            courseCovers(course, id) || rules.equivalentsOf(id).includes(course.id),
+        ),
     );
+    const maximumContribution = (id: string) => {
+      const course = context.coursesById.get(id);
+      return course ? (course.maxCredits ?? course.credits) : 0;
+    };
+    const candidateCapacity = candidates.reduce(
+      (sum, id) => sum + maximumContribution(id),
+      0,
+    );
+    const maximumAvailable = plannedUnits + candidateCapacity;
+    const deterministic = candidates.filter(
+      (id) => maximumAvailable - maximumContribution(id) < current.minimum,
+    );
+    const deterministicCapacity = deterministic.reduce(
+      (sum, id) => sum + maximumContribution(id),
+      plannedUnits,
+    );
+    const optionalCandidates = candidates.filter(
+      (id) => !deterministic.includes(id),
+    );
+    const unresolved = plannedUnits < current.minimum &&
+      (maximumAvailable < current.minimum ||
+        deterministicCapacity < current.minimum);
     return result(demand, {
       plannedUnits,
       completedUnits,
       matchedCourseIds,
-      missingCourseIds:
-        plannedUnits < current.minimum && candidates.length === 1 ? candidates : [],
+      missingCourseIds: plannedUnits < current.minimum ? deterministic : [],
       manualState: aggregateManualState(children),
-      gaps:
-        plannedUnits < current.minimum && candidates.length !== 1
-          ? [
-              {
-                kind: "ambiguous",
-                label: `Choose ${current.minimum - plannedUnits} more credits`,
-                candidateCourseIds: candidates,
-              },
-            ]
-          : [],
+      gaps: unresolved
+        ? [
+            {
+              kind: "ambiguous",
+              label:
+                maximumAvailable < current.minimum
+                  ? `Available courses provide at most ${maximumAvailable} of ${current.minimum} required credits`
+                  : `Choose ${current.minimum - deterministicCapacity} more credits`,
+              candidateCourseIds:
+                maximumAvailable < current.minimum ? [] : optionalCandidates,
+            },
+          ]
+        : [],
     });
   };
 
