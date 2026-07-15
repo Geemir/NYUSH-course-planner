@@ -175,6 +175,74 @@ const normalize = () =>
   normalizeBulletin(discovery, [subjectDocument, programDocument]);
 
 describe("normalizeBulletin", () => {
+  it("manualizes a code-only local requirement absent from the inventory", () => {
+    const unresolvedProgram: BulletinProgramDocument = {
+      ...programDocument,
+      requirementTables: [
+        {
+          id: "unresolved-requirements",
+          sectionId: "requirements",
+          rows: [
+            row("areaHeader", 0, "Legacy Requirement"),
+            row("course", 1, "MATH-SHU 998", ["MATH-SHU 998"], "4"),
+          ],
+        },
+      ],
+    };
+
+    const candidate = normalizeBulletin(discovery, [
+      subjectDocument,
+      unresolvedProgram,
+    ]);
+
+    expect(candidate.programs[0].categories[0].requirement).toEqual({
+      kind: "manualConfirmation",
+      label: "Legacy Requirement",
+      sourceText: "MATH-SHU 998",
+    });
+    expect(candidate.unresolvedCourseIds).toContain("MATH-SHU 998");
+  });
+
+  it("normalizes official hyphenated course-code suffixes", () => {
+    const suffixedProgram: BulletinProgramDocument = {
+      ...programDocument,
+      requirementTables: [
+        {
+          id: "suffix-requirements",
+          sectionId: "requirements",
+          rows: [
+            row("areaHeader", 0, "Studio"),
+            row(
+              "course",
+              1,
+              "INTM-SHU 140T-A Open Project Salon",
+              ["INTM-SHU 140T-A"],
+              "4",
+            ),
+          ],
+        },
+      ],
+    };
+    const suffixedSubject: BulletinSourceDocument = {
+      ...subjectDocument,
+      courses: [
+        {
+          code: "INTM-SHU 140T-A",
+          title: "Open Project Salon",
+          creditsText: "4 Credits",
+          linkedCourseIds: [],
+          attributes: [],
+          detailTexts: [],
+        },
+      ],
+    };
+
+    expect(
+      normalizeBulletin(discovery, [suffixedSubject, suffixedProgram]).programs[0]
+        .categories[0].requirement,
+    ).toEqual({ kind: "course", courseId: "INTM-SHU 140T-A" });
+  });
+
   it("normalizes exact courses and explicit select-one and credit pools", () => {
     const categories = normalize().programs[0].categories;
 
@@ -542,6 +610,36 @@ describe("normalizeBulletin", () => {
       minCredits: 2,
       maxCredits: 4,
       creditsText: "2-4 Credits",
+    });
+  });
+
+  it("supports official parenthesized fixed and variable credits", () => {
+    const parenthesizedSubject: BulletinSourceDocument = {
+      ...subjectDocument,
+      courses: subjectDocument.courses.map((course) => {
+        if (course.code === "MATH-SHU 121") {
+          return { ...course, creditsText: "(4 Credits)" };
+        }
+        if (course.code === "MATH-SHU 238") {
+          return { ...course, creditsText: "(2-4 Credits)" };
+        }
+        return course;
+      }),
+    };
+
+    const courses = new Map(
+      normalizeBulletin(discovery, [parenthesizedSubject, programDocument]).courses.map(
+        (course) => [course.id, course],
+      ),
+    );
+
+    expect(courses.get("MATH-SHU 121")).toMatchObject({
+      minCredits: 4,
+      maxCredits: 4,
+    });
+    expect(courses.get("MATH-SHU 238")).toMatchObject({
+      minCredits: 2,
+      maxCredits: 4,
     });
   });
 

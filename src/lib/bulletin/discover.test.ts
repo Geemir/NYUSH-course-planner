@@ -108,6 +108,38 @@ describe("discoverBulletinSources", () => {
     ).rejects.toThrow("identity could not be verified");
   });
 
+  it("accepts the official Course Inventory A-Z index heading", async () => {
+    const liveCourseIndex = COURSE_INDEX.replace(
+      "<h1>NYU Shanghai Courses</h1>",
+      "<h1>Course Inventory A-Z</h1>",
+    );
+
+    const result = await discoverBulletinSources(
+      fixtureFetcher(new Map([[COURSE_INDEX_URL, liveCourseIndex]])),
+    );
+
+    expect(result.subjects.map((source) => source.slug)).toEqual([
+      "csci-shu",
+      "math-shu",
+    ]);
+  });
+
+  it("ignores the official course-index PDF utility link", async () => {
+    const liveCourseIndex = COURSE_INDEX.replace(
+      "</body>",
+      '<a href="/undergraduate/shanghai/courses/courses.pdf">Download Page (PDF)</a></body>',
+    );
+
+    const result = await discoverBulletinSources(
+      fixtureFetcher(new Map([[COURSE_INDEX_URL, liveCourseIndex]])),
+    );
+
+    expect(result.subjects.map((source) => source.slug)).toEqual([
+      "csci-shu",
+      "math-shu",
+    ]);
+  });
+
   it("rejects sources absent from the authoritative sitemap", async () => {
     const incompleteSitemap = SITEMAP.replace(
       /\s*<url><loc>https:\/\/bulletins\.nyu\.edu\/undergraduate\/shanghai\/courses\/math-shu\/<\/loc><\/url>/,

@@ -295,7 +295,7 @@ describe("validateCatalogCandidate", () => {
     );
   });
 
-  it("blocks unresolved local references, including executable references", () => {
+  it("warns on unresolved source references but blocks executable references", () => {
     const unresolved = candidate();
     unresolved.sourceReferenceIds.push("MATH-SHU 998");
     unresolved.unresolvedCourseIds.push("MATH-SHU 998");
@@ -306,7 +306,11 @@ describe("validateCatalogCandidate", () => {
       courseId: "MATH-SHU 999",
     };
 
-    expect(codes(validateCatalogCandidate(unresolved))).toContain(
+    const unresolvedReport = validateCatalogCandidate(unresolved);
+    expect(codes(unresolvedReport)).not.toContain(
+      "unresolved-local-reference",
+    );
+    expect(unresolvedReport.warnings.map((warning) => warning.code)).toContain(
       "unresolved-local-reference",
     );
     expect(codes(validateCatalogCandidate(executable))).toContain(
@@ -513,7 +517,7 @@ describe("validateCatalogCandidate", () => {
     expectOnlyInvalidSourceDocument(input);
   });
 
-  it("rejects case-insensitive duplicate normalized subject titles", () => {
+  it("accepts distinct subject course codes sharing a normalized title", () => {
     const input = candidate();
     const subject = subjectIn(input);
     subject.courses.push({
@@ -522,7 +526,10 @@ describe("validateCatalogCandidate", () => {
       title: "  aLGeBrA  ",
     });
 
-    expectOnlyInvalidSourceDocument(input);
+    resealCandidate(input);
+    expect(codes(validateCatalogCandidate(input))).not.toContain(
+      "invalid-source-document",
+    );
   });
 
   it("rejects duplicate program requirement-table IDs", () => {

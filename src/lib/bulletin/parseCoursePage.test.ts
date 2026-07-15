@@ -65,6 +65,46 @@ describe("parseCoursePage", () => {
     });
   });
 
+  it("parses the official detail-field course block markup", () => {
+    const livePage = `
+      <main>
+        <nav aria-label="Breadcrumbs">
+          <a href="/undergraduate/shanghai/">NYU Shanghai</a>
+        </nav>
+        <h1>Computer Science (CSCI-SHU)</h1>
+        <div class="courseblock">
+          <div class="cols noindent">
+            <span class="text detail-code"><strong>CSCI-SHU 101</strong></span>
+            <span class="text detail-title"><strong>Introduction to Computer Science</strong></span>
+            <span class="text detail-hours_html"><strong>(2-4 Credits)</strong></span>
+          </div>
+          <div class="noindent">
+            <span class="text detail-typically_offered"><span class="label">Typically offered </span>Fall and Spring</span>
+          </div>
+          <div class="noindent">
+            <div class="courseblockextra">Students learn computational thinking.
+Prerequisites: <a href="/search/?P=CSCI-SHU%2011">CSCI-SHU 11</a> or placement exam.
+Course Attributes: Algorithmic Thinking; Computer Science Required</div>
+          </div>
+        </div>
+      </main>`;
+
+    expect(parseCoursePage(livePage, META).courses[0]).toMatchObject({
+      code: "CSCI-SHU 101",
+      title: "Introduction to Computer Science",
+      creditsText: "(2-4 Credits)",
+      description: "Students learn computational thinking.",
+      offeringText: "Fall and Spring",
+      prerequisiteText: "CSCI-SHU 11 or placement exam.",
+      linkedCourseIds: ["CSCI-SHU 11"],
+      attributes: ["Algorithmic Thinking", "Computer Science Required"],
+      detailTexts: [
+        "Prerequisites: CSCI-SHU 11 or placement exam.",
+        "Course Attributes: Algorithmic Thinking; Computer Science Required",
+      ],
+    });
+  });
+
   it("keeps absent optional fields unknown instead of inventing values", () => {
     const course = parseCoursePage(COURSE_PAGE, META).courses[2];
 
@@ -86,17 +126,16 @@ describe("parseCoursePage", () => {
     );
   });
 
-  it("rejects duplicate course titles", () => {
+  it("allows distinct course codes to share an official title", () => {
     const duplicate = COURSE_PAGE.replace(
       "Topics in Computer Science",
       "Introduction to Computer Science",
     );
 
-    expect(() => parseCoursePage(duplicate, META)).toThrowError(
-      new BulletinParseError(
-        "Duplicate Bulletin course title: Introduction to Computer Science.",
-      ),
-    );
+    expect(parseCoursePage(duplicate, META).courses.slice(0, 2)).toMatchObject([
+      { code: "CSCI-SHU 101", title: "Introduction to Computer Science" },
+      { code: "CSCI-SHU 205", title: "Introduction to Computer Science" },
+    ]);
   });
 
   it("rejects a course block with a missing code", () => {
@@ -118,6 +157,17 @@ describe("parseCoursePage", () => {
 
     expect(() => parseCoursePage(malformedCode, META)).toThrowError(
       new BulletinParseError("A Bulletin course block is missing its code."),
+    );
+  });
+
+  it("accepts an official hyphenated course-code suffix", () => {
+    const suffixedCode = COURSE_PAGE.replace(
+      "CSCI-SHU&nbsp;101",
+      "CSCI-SHU&nbsp;140T-A",
+    );
+
+    expect(parseCoursePage(suffixedCode, META).courses[0].code).toBe(
+      "CSCI-SHU 140T-A",
     );
   });
 
@@ -177,6 +227,15 @@ describe("parseCoursePage", () => {
     expect(() => parseCoursePage(wrongCampus, META)).toThrow(
       "Shanghai subject page identity could not be verified",
     );
+  });
+
+  it("accepts the official plural Breadcrumbs aria label", () => {
+    const liveBreadcrumb = COURSE_PAGE.replace(
+      'aria-label="Breadcrumb"',
+      'aria-label="Breadcrumbs"',
+    );
+
+    expect(parseCoursePage(liveBreadcrumb, META).slug).toBe("csci-shu");
   });
 
   it("rejects metadata outside the canonical Shanghai subject path", () => {

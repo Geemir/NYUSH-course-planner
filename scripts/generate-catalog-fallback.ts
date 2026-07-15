@@ -119,11 +119,28 @@ export async function generateCatalogFallback(): Promise<void> {
   );
 }
 
+export async function runCatalogFallbackCli({
+  execute,
+  stderr,
+}: {
+  execute: () => Promise<void>;
+  stderr: (line: string) => void;
+}): Promise<0 | 1> {
+  try {
+    await execute();
+    return 0;
+  } catch {
+    stderr("Catalog fallback generation failed.");
+    return 1;
+  }
+}
+
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined;
 if (invokedPath === fileURLToPath(import.meta.url)) {
-  generateCatalogFallback().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`Catalog fallback generation failed: ${message}\n`);
-    process.exitCode = 1;
+  void runCatalogFallbackCli({
+    execute: generateCatalogFallback,
+    stderr: (line) => process.stderr.write(`${line}\n`),
+  }).then((exitCode) => {
+    process.exit(exitCode);
   });
 }

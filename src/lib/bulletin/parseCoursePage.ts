@@ -29,8 +29,10 @@ export class BulletinParseError extends Error {
 }
 
 const SUBJECT_PATH = "/undergraduate/shanghai/courses/";
-const COURSE_ID = /^[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?$/;
-const LINKED_COURSE_ID = /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?\b/;
+const COURSE_ID =
+  /^[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?(?:-[A-Z])?$/;
+const LINKED_COURSE_IDS =
+  /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?(?:-[A-Z])?\b/g;
 const DETAIL_SELECTOR = ".courseblockextra";
 type LoadedPage = ReturnType<typeof cheerio.load>;
 type PageNode = Parameters<LoadedPage>[0];
@@ -96,6 +98,9 @@ function courseTitle(
   $: LoadedPage,
   block: PageNode,
 ): string {
+  const detailTitle = normalizedText($(block).find(".detail-title").first().text());
+  if (detailTitle !== "") return detailTitle;
+
   const titleLine = $(block).find(".courseblocktitle").first();
   if (titleLine.length === 0) return "";
 
@@ -109,14 +114,44 @@ function courseTitle(
   return title.replace(/^[\s.:;-]+/, "").trim();
 }
 
+function parseLiveCourseExtra(selection: PageSelection) {
+  const text = normalizedText(selection.find(DETAIL_SELECTOR).first().text());
+  const details: Array<{ label: string; text: string }> = [];
+  const labelPattern =
+    /\b(Prerequisite(?:s|\(s\))?|Offered|Offering|Course Attributes?(?:\(s\))?|Fulfillment):\s*/gi;
+  const matches = [...text.matchAll(labelPattern)];
+
+  for (const [index, match] of matches.entries()) {
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? text.length;
+    details.push({
+      label: labelText(match[1]),
+      text: normalizedText(text.slice(start, end)),
+    });
+  }
+
+  return {
+    description: normalizedText(text.slice(0, matches[0]?.index ?? text.length)),
+    details,
+  };
+}
+
+function liveOfferingText(selection: PageSelection): string {
+  const offering = selection.find(".detail-typically_offered").first().clone();
+  offering.find(".label").first().remove();
+  return normalizedText(offering.text());
+}
+
 function parseCourse(
   $: LoadedPage,
   block: PageNode,
 ): SourceCourse {
   const selection = $(block);
-  const titleLine = selection.find(".courseblocktitle").first();
   const codeText = normalizedText(
-    titleLine.find(".courseblockcode, .coursecode").first().text(),
+    selection
+      .find(".courseblocktitle .courseblockcode, .courseblocktitle .coursecode, .detail-code")
+      .first()
+      .text(),
   );
   const code = COURSE_ID.test(codeText) ? codeText : "";
   if (code === "") {
@@ -124,8 +159,10 @@ function parseCourse(
   }
 
   const creditsText = normalizedText(
-    titleLine
-      .find(".courseblockhours, .courseblockcredits, .credits")
+    selection
+      .find(
+        ".courseblocktitle .courseblockhours, .courseblocktitle .courseblockcredits, .courseblocktitle .credits, .detail-hours_html",
+      )
       .first()
       .text(),
   );
@@ -134,17 +171,24 @@ function parseCourse(
     throw new BulletinParseError(`Bulletin course ${code} is missing its title.`);
   }
 
-  const description = normalizedText(
+  const legacyDescription = normalizedText(
     selection
       .find(".courseblockdesc")
       .toArray()
       .map((element) => normalizedPlainText($(element)))
       .join(" "),
   );
-  const details = selection
-    .find(DETAIL_SELECTOR)
-    .toArray()
-    .map((element) => parseDetail($, element));
+  const liveMarkup = selection.find(".detail-code").length > 0;
+  const live = liveMarkup
+    ? parseLiveCourseExtra(selection)
+    : { description: "", details: [] };
+  const description = legacyDescription || live.description;
+  const details = liveMarkup
+    ? live.details
+    : selection
+        .find(DETAIL_SELECTOR)
+        .toArray()
+        .map((element) => parseDetail($, element));
   const prerequisite = details.find((detail) =>
     /^prerequisite(?:s|\(s\))?$/i.test(detail.label),
   );
@@ -155,14 +199,9 @@ function parseCourse(
     /^(?:course\s+)?attributes?(?:\(s\))?$/i.test(detail.label),
   );
   const linkedCourseIds = prerequisite
-    ? prerequisite.element
-        .find("a")
-        .toArray()
-        .flatMap(
-          (anchor) =>
-            normalizedText($(anchor).text()).match(LINKED_COURSE_ID) ?? [],
-        )
-        .filter((courseId, index, values) => values.indexOf(courseId) === index)
+    ? (prerequisite.text.match(LINKED_COURSE_IDS) ?? []).filter(
+        (courseId, index, values) => values.indexOf(courseId) === index,
+      )
     : [];
   const attributes = attributeDetail
     ? attributeDetail.text
@@ -170,21 +209,21 @@ function parseCourse(
         .map(normalizedText)
         .filter(Boolean)
     : [];
+  const offeringText =
+    offering?.text || (liveMarkup ? liveOfferingText(selection) : "");
 
   return {
     code,
     title,
     ...(creditsText ? { creditsText } : {}),
     ...(description ? { description } : {}),
-    ...(offering?.text ? { offeringText: offering.text } : {}),
+    ...(offeringText ? { offeringText } : {}),
     ...(prerequisite?.text
       ? { prerequisiteText: prerequisite.text }
       : {}),
     linkedCourseIds,
     attributes,
-    detailTexts: details.map((detail) =>
-      normalizedPlainText(detail.element),
-    ),
+    detailTexts: details.map((detail) => `${detail.label}: ${detail.text}`),
   };
 }
 
@@ -192,7 +231,7 @@ function hasShanghaiBreadcrumb($: LoadedPage, sourceUrl: string): boolean {
   return $("nav[aria-label], .breadcrumb, .breadcrumbs, #breadcrumb")
     .filter((_index, element) => {
       const label = normalizedText($(element).attr("aria-label") ?? "");
-      return label === "" || label.toLowerCase() === "breadcrumb";
+      return label === "" || /^breadcrumbs?$/i.test(label);
     })
     .find("a[href]")
     .toArray()
@@ -241,21 +280,13 @@ export function parseCoursePage(
 
   const courses = blocks.map((block) => parseCourse($, block));
   const codes = new Set<string>();
-  const titles = new Set<string>();
   for (const course of courses) {
     if (codes.has(course.code)) {
       throw new BulletinParseError(
         `Duplicate Bulletin course code: ${course.code}.`,
       );
     }
-    const normalizedTitle = course.title.toLocaleLowerCase("en-US");
-    if (titles.has(normalizedTitle)) {
-      throw new BulletinParseError(
-        `Duplicate Bulletin course title: ${course.title}.`,
-      );
-    }
     codes.add(course.code);
-    titles.add(normalizedTitle);
   }
 
   return {

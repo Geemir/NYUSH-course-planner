@@ -86,6 +86,18 @@ describe("parseProgramPage", () => {
     ]);
   });
 
+  it("preserves official hyphenated course-code suffixes in requirement rows", () => {
+    const suffixedCode = PROGRAM_PAGE.replace(
+      ">CSCI-SHU 101</a>",
+      ">CSCI-SHU 140T-A</a>",
+    );
+
+    expect(
+      parseProgramPage(suffixedCode, PROGRAM_META).requirementTables[0].rows[2]
+        .linkedCourseCodes,
+    ).toEqual(["CSCI-SHU 140T-A"]);
+  });
+
   it("keeps the eight-term sample plan separate from requirement tables", () => {
     const document = parseProgramPage(PROGRAM_PAGE, PROGRAM_META);
 
@@ -211,6 +223,17 @@ describe("parseProgramPage", () => {
     );
   });
 
+  it("accepts the official plural Breadcrumbs aria label", () => {
+    const liveBreadcrumb = PROGRAM_PAGE.replace(
+      'aria-label="Breadcrumb"',
+      'aria-label="Breadcrumbs"',
+    );
+
+    expect(parseProgramPage(liveBreadcrumb, PROGRAM_META).slug).toBe(
+      "computer-science-bs",
+    );
+  });
+
   it("rejects BA or BS documents with no requirement tables", () => {
     const missingRequirements = PROGRAM_PAGE.replace(
       /<table class="sc_courselist" id="computer-science-requirements">[\s\S]*?<\/table>/,
@@ -242,6 +265,18 @@ describe("parseProgramPage", () => {
     expect(() => parseProgramPage(duplicateId, PROGRAM_META)).toThrow(
       "Duplicate Bulletin table ID: computer-science-requirements",
     );
+  });
+
+  it("derives a deterministic table ID from the official source container", () => {
+    const liveTable = PROGRAM_PAGE.replace(
+      ' id="computer-science-requirements"',
+      "",
+    );
+
+    const document = parseProgramPage(liveTable, PROGRAM_META);
+
+    expect(document.requirementTables[0].id).toBe("requirements-table-1");
+    expect(document.requirementTables[0].sectionId).toBe("requirements");
   });
 
   it("rejects a requirement table row that cannot be preserved in order", () => {

@@ -93,7 +93,8 @@ export class BulletinProgramParseError extends Error {
 const SHANGHAI_PATH = "/undergraduate/shanghai/";
 const PROGRAM_PATH = `${SHANGHAI_PATH}programs/`;
 const CORE_PATH = `${SHANGHAI_PATH}core-curriculum/`;
-const COURSE_CODE = /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?\b/g;
+const COURSE_CODE =
+  /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?(?:-[A-Z])?\b/g;
 const REQUIREMENT_TABLE_SELECTOR = "table.sc_courselist, table.sc_plangrid";
 const SOURCE_CONTAINER_SELECTOR = "main section[id], main [id$='textcontainer']";
 type LoadedPage = ReturnType<typeof cheerio.load>;
@@ -142,7 +143,7 @@ function hasShanghaiBreadcrumb($: LoadedPage, sourceUrl: string): boolean {
   return $("nav[aria-label], .breadcrumb, .breadcrumbs, #breadcrumb")
     .filter((_index, element) => {
       const label = normalizedText($(element).attr("aria-label") ?? "");
-      return label === "" || label.toLowerCase() === "breadcrumb";
+      return label === "" || /^breadcrumbs?$/i.test(label);
     })
     .find("a[href]")
     .toArray()
@@ -391,24 +392,33 @@ export function parseProgramPage(
 
   const allTables = $(REQUIREMENT_TABLE_SELECTOR).toArray();
   const tableIds = new Set<string>();
+  const tableSourceIds = new Map<PageNode, string>();
+  const sectionTableCounts = new Map<string, number>();
   for (const table of allTables) {
-    const id = normalizedText($(table).attr("id") ?? "");
+    let id = normalizedText($(table).attr("id") ?? "");
     if (id === "") {
-      throw new BulletinProgramParseError(
-        "A Bulletin curriculum table is missing its source ID.",
-      );
+      const sectionId = tableSection($, table).id;
+      if (sectionId === "") {
+        throw new BulletinProgramParseError(
+          "A Bulletin curriculum table is missing its source ID.",
+        );
+      }
+      const ordinal = (sectionTableCounts.get(sectionId) ?? 0) + 1;
+      sectionTableCounts.set(sectionId, ordinal);
+      id = `${sectionId}-table-${ordinal}`;
     }
     if (tableIds.has(id)) {
       throw new BulletinProgramParseError(`Duplicate Bulletin table ID: ${id}.`);
     }
     tableIds.add(id);
+    tableSourceIds.set(table, id);
   }
 
   const requirementTables: SourceTable[] = [];
   const sampleTerms: SourceSamplePlanTerm[] = [];
   let samplePlanSection: { id: string; heading: string } | undefined;
   for (const table of allTables) {
-    const id = normalizedText($(table).attr("id") ?? "");
+    const id = tableSourceIds.get(table)!;
     const section = tableSection($, table);
     const samplePlan =
       $(table).hasClass("sample-plan-term") ||

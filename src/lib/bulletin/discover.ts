@@ -36,6 +36,7 @@ function hasIndexIdentity(html: string, identity: "Programs" | "Courses") {
   const expected = new Set([
     identity.toLowerCase(),
     `nyu shanghai ${identity.toLowerCase()}`,
+    ...(identity === "Courses" ? ["course inventory a-z"] : []),
   ]);
   return $("h1")
     .toArray()
@@ -110,6 +111,17 @@ function parsePrograms(html: string): BulletinProgramSource[] {
   );
 }
 
+function hasSubjectDetailPath(href: string): boolean {
+  try {
+    const url = new URL(href, COURSE_INDEX_URL);
+    if (!url.pathname.startsWith(COURSE_PATH)) return false;
+    const remainder = url.pathname.slice(COURSE_PATH.length);
+    return /^[a-z0-9-]+-shu\/?$/i.test(remainder);
+  } catch {
+    return false;
+  }
+}
+
 function parseSubjects(html: string): BulletinSubjectSource[] {
   if (!hasIndexIdentity(html, "Courses")) {
     throw new BulletinDiscoveryError(
@@ -123,7 +135,7 @@ function parseSubjects(html: string): BulletinSubjectSource[] {
     const title = normalizedText($(anchor).text());
     const href = $(anchor).attr("href") ?? "";
     const appearsToBeSubject =
-      SUBJECT_CODE.test(title) || href.includes(COURSE_PATH);
+      SUBJECT_CODE.test(title) || hasSubjectDetailPath(href);
     if (!appearsToBeSubject) return;
 
     const source = canonicalSourceUrl(href, COURSE_INDEX_URL, COURSE_PATH);

@@ -30,7 +30,8 @@ export class BulletinNormalizationError extends Error {
   }
 }
 
-const COURSE_CODE = /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?\b/g;
+const COURSE_CODE =
+  /\b[A-Z]{2,}(?:-[A-Z]{2,})+\s+\d{1,4}[A-Z]?(?:-[A-Z])?\b/g;
 
 function hash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -73,7 +74,9 @@ function parseCredits(course: SourceCourse): {
   minCredits: number;
   maxCredits: number;
 } {
-  const match = course.creditsText?.match(
+  const rawCredits = course.creditsText?.trim();
+  const credits = rawCredits?.match(/^\(([^()]*)\)$/)?.[1] ?? rawCredits;
+  const match = credits?.match(
     /^(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?\s*(?:credits?)?$/i,
   );
   if (!match) {
@@ -273,7 +276,9 @@ function isPureCourseReference(
     const withoutMarker = removeTrailingLiteral(displayText, marker);
     if (withoutMarker !== undefined) displayText = withoutMarker;
   }
-  if (displayText === "") return true;
+  if (displayText === "") {
+    return courseTitles.has(courseId) || isExternalNyuCourseId(courseId);
+  }
   const knownTitle = courseTitles.get(courseId);
   return knownTitle !== undefined && displayText === knownTitle;
 }

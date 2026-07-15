@@ -3,14 +3,57 @@ import {
   catalogValueFromResponse,
   selectActiveCatalogPrograms,
 } from "@/lib/catalogClient";
-import { CATALOG_FALLBACK } from "@/lib/data";
 
 describe("client catalog program boundary", () => {
   it("preserves legacy fallback programs explicitly", () => {
-    const value = catalogValueFromResponse(CATALOG_FALLBACK);
+    const legacy = {
+      snapshot: {
+        id: "bootstrap",
+        sourceHash: "bootstrap-hash",
+        kind: "bootstrap-legacy" as const,
+      },
+      courses: [
+        {
+          id: "TEST-SHU 101",
+          title: "Test Course",
+          credits: 4,
+          department: "TEST-SHU",
+          prereqs: [],
+          offered: ["fall" as const],
+          sites: ["shanghai"],
+          fulfills: [{ programId: "test", categoryId: "foundation" }],
+          equivalentTo: [],
+          attributes: [],
+          tags: [],
+        },
+      ],
+      programs: [
+        {
+          id: "test",
+          name: "Test Program",
+          shortName: "Test",
+          type: "major" as const,
+          color: "#57068c",
+          categories: [
+            {
+              id: "foundation",
+              name: "Foundation",
+              isCapstone: false,
+              rule: {
+                kind: "allOf" as const,
+                courses: ["TEST-SHU 101"],
+              },
+            },
+          ],
+        },
+      ],
+      rules: [],
+    };
+
+    const value = catalogValueFromResponse(legacy);
 
     expect(value.snapshot.kind).toBe("bootstrap-legacy");
-    expect(value.programs).toEqual(CATALOG_FALLBACK.programs);
+    expect(value.programs).toEqual(legacy.programs);
     expect(value.programs.length).toBeGreaterThan(0);
   });
 

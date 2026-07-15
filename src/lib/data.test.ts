@@ -1,72 +1,71 @@
 import { describe, expect, it } from "vitest";
 import {
+  BULLETIN_PROGRAMS,
+  CATALOG_FALLBACK,
   COURSES,
   COURSES_BY_ID,
   HOME_SITE,
   PROGRAMS,
   PROGRAMS_BY_ID,
-  activeCrossListedMajors,
-  isActivelyCrossListed,
-  isCrossListed,
 } from "@/lib/data";
 
-describe("real course data", () => {
-  it("parses and passes referential integrity checks", () => {
-    expect(PROGRAMS.map((p) => p.id)).toEqual([
-      "core",
-      "cs",
-      "ima",
-      "ds",
-      "ima-minor",
-    ]);
-    expect(COURSES.length).toBeGreaterThanOrEqual(45);
+describe("generated catalog fallback", () => {
+  it("loads a non-empty official Bulletin snapshot", () => {
+    expect(CATALOG_FALLBACK.snapshot.kind).toBe("bulletin");
+    expect(CATALOG_FALLBACK.snapshot.id).toMatch(/^bulletin-/);
+    expect(CATALOG_FALLBACK.snapshot.sourceHash).not.toBe("");
+    expect(COURSES.length).toBeGreaterThan(0);
+    expect(BULLETIN_PROGRAMS.length).toBeGreaterThan(0);
     expect(HOME_SITE.id).toBe("shanghai");
   });
 
-  it("models program types: majors, one core, one minor", () => {
-    expect(PROGRAMS_BY_ID.get("cs")!.type).toBe("major");
-    expect(PROGRAMS_BY_ID.get("ds")!.type).toBe("major");
-    expect(PROGRAMS_BY_ID.get("core")!.type).toBe("core");
-    expect(PROGRAMS_BY_ID.get("ima-minor")!.type).toBe("minor");
+  it("keeps the legacy program compatibility view empty for Bulletin data", () => {
+    expect(PROGRAMS).toEqual([]);
+    expect(PROGRAMS_BY_ID.size).toBe(0);
   });
 
-  it("contains the CS prerequisite chain", () => {
-    expect(COURSES_BY_ID.get("CSCI-SHU 210")!.prereqs).toEqual([["CSCI-SHU 101"]]);
-    expect(COURSES_BY_ID.get("CSCI-SHU 220")!.prereqs).toContainEqual([
-      "CSCI-SHU 210",
-    ]);
+  it("contains major, minor, and Core program types", () => {
+    const types = new Set(BULLETIN_PROGRAMS.map((program) => program.type));
+
+    expect(types).toEqual(new Set(["major", "minor", "core"]));
+    expect(BULLETIN_PROGRAMS.some((program) => program.id === "core")).toBe(
+      true,
+    );
   });
 
-  it("marks CS/IMA cross-listed courses", () => {
-    expect(isCrossListed(COURSES_BY_ID.get("INTM-SHU 152")!)).toBe(true);
-    expect(isCrossListed(COURSES_BY_ID.get("CSCI-SHU 235")!)).toBe(true);
+  it("keeps every entity provenance on the fallback snapshot", () => {
+    const snapshotId = CATALOG_FALLBACK.snapshot.id;
+
+    expect(
+      COURSES.every((course) => course.provenance?.snapshotId === snapshotId),
+    ).toBe(true);
+    expect(
+      BULLETIN_PROGRAMS.every(
+        (program) => program.provenance.snapshotId === snapshotId,
+      ),
+    ).toBe(true);
   });
 
-  it("cross-listing is active-aware for mutually-exclusive majors", () => {
-    // Intro CS fulfills both CS and DS (never tracked together), so it is
-    // 'cross-listed' globally but NOT under any single-major plan.
-    const introCS = COURSES_BY_ID.get("CSCI-SHU 101")!;
-    expect(isCrossListed(introCS)).toBe(true);
-    expect(isActivelyCrossListed(introCS, ["core", "cs", "ima"])).toBe(false);
-    expect(activeCrossListedMajors(introCS, ["core", "cs", "ima"])).toEqual([
-      "cs",
-    ]);
+  it("resolves every local executable prerequisite", () => {
+    const missingPrerequisites = COURSES.flatMap((course) =>
+      course.prereqs.flat().filter((courseId) => !COURSES_BY_ID.has(courseId)),
+    );
 
-    // A genuine CS+IMA course stays cross-listed when both majors are active.
-    const ccl = COURSES_BY_ID.get("INTM-SHU 152")!;
-    expect(isActivelyCrossListed(ccl, ["core", "cs", "ima"])).toBe(true);
-
-    // InfoVis is DS+IMA cross-listed under a DS+IMA plan.
-    const infoViz = COURSES_BY_ID.get("CSCI-SHU 235")!;
-    expect(isActivelyCrossListed(infoViz, ["core", "ds", "ima"])).toBe(true);
-
-    // The IMA minor is not a major, so it never triggers cross-listing.
-    expect(isActivelyCrossListed(ccl, ["core", "cs", "ima-minor"])).toBe(false);
+    expect(
+      missingPrerequisites.every(
+        (courseId) => !courseId.split(/\s+/, 1)[0].endsWith("-SHU"),
+      ),
+    ).toBe(true);
   });
 
-  it("has a capstone for each major", () => {
-    expect(COURSES_BY_ID.get("CSCI-SHU 420")!.tags).toContain("capstone");
-    expect(COURSES_BY_ID.get("INTM-SHU 450")!.tags).toContain("capstone");
-    expect(COURSES_BY_ID.get("DATS-SHU 401")!.tags).toContain("capstone");
+  it("preserves rich official course descriptions and credit ranges", () => {
+    expect(COURSES.some((course) => Boolean(course.description))).toBe(true);
+    expect(
+      COURSES.every(
+        (course) =>
+          (course.minCredits ?? course.credits) <=
+          (course.maxCredits ?? course.credits),
+      ),
+    ).toBe(true);
   });
 });

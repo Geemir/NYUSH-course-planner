@@ -35,6 +35,10 @@ function ruleCourseReferences(rule: SpecialRule): string[] {
   }
 }
 
+function isExternalNyuCourseId(courseId: string): boolean {
+  return !courseId.split(/\s+/, 1)[0].endsWith("-SHU");
+}
+
 function addCatalogCoherenceIssues(
   response: {
     courses: Course[];
@@ -206,7 +210,7 @@ function loadData(): {
   for (const course of courses) {
     for (const group of course.prereqs) {
       for (const prereqId of group) {
-        if (!courseIds.has(prereqId)) {
+        if (!courseIds.has(prereqId) && !isExternalNyuCourseId(prereqId)) {
           errors.push(
             `catalog-fallback.json: ${course.id} has unknown prerequisite "${prereqId}"`,
           );

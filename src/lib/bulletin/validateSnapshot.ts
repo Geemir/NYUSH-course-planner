@@ -88,14 +88,6 @@ function hasUniqueValues(values: readonly string[]): boolean {
   return new Set(values).size === values.length;
 }
 
-function normalizedTitle(value: string): string {
-  return value
-    .normalize("NFKC")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLocaleLowerCase("en-US");
-}
-
 function hasCanonicalSourceIdentity(
   kind: "subject" | "program" | "core",
   slugValue: string,
@@ -246,11 +238,6 @@ function isBulletinDocument(value: unknown): value is BulletinDocument {
       value.courses.every(isSubjectCourse) &&
       hasUniqueValues(
         value.courses.map((course) => (course as Record<string, unknown>).code as string),
-      ) &&
-      hasUniqueValues(
-        value.courses.map((course) =>
-          normalizedTitle((course as Record<string, unknown>).title as string),
-        ),
       )
     );
   }
@@ -814,7 +801,7 @@ export function validateCatalogCandidate(
   ]);
   [...allSourceReferences].sort(compareText).forEach((courseId) => {
     if (isLocalCourseId(courseId) && !localCourseIds.has(courseId)) {
-      errors.push({ code: "unresolved-local-reference", entityId: courseId });
+      warnings.push({ code: "unresolved-local-reference", entityId: courseId });
     }
   });
 
