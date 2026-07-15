@@ -1,8 +1,9 @@
 # NYUSH Course Planner
 
-Interactive 4-year course planner for NYU Shanghai double majors (CS + IMA by
-default), with prerequisite checking, cross-listing allocation, study-away
-planning, and live degree-progress rings.
+Interactive four-year course planner for NYU Shanghai students, backed by the
+official NYU Bulletin program requirements and course inventory, with
+prerequisite checking, cross-listing allocation, study-away planning, and live
+degree progress.
 
 ```bash
 npm install
@@ -40,6 +41,62 @@ ADMIN_EMAILS=a@nyu.edu,b@nyu.edu   # who can access /admin
 # AUTH_GOOGLE_ID/SECRET                       # prod OAuth (optional)
 DEEPSEEK_API_KEY=...       # AI course importer
 ```
+
+## Official NYU Bulletin synchronization
+
+The shared catalog is sourced from the official
+[NYU Shanghai Undergraduate Bulletin](https://bulletins.nyu.edu/undergraduate/shanghai/).
+The synchronizer discovers every listed major, minor, and subject page, parses
+the Core curriculum, validates the complete candidate, and only then activates
+one immutable snapshot. Bulletin snapshots are trusted first-party data and are
+published automatically after validation; they do not wait in an editorial
+approval queue.
+
+### Scheduled operation
+
+Run the database migrations in `drizzle/` before the first synchronization and
+set `DATABASE_URL` for the production Postgres database. The scheduler command
+is:
+
+```bash
+npm run bulletin:sync
+```
+
+A typical daily cron entry is:
+
+```cron
+15 3 * * * cd /app/nyush-course-planner && npm run bulletin:sync
+```
+
+Use the scheduler's configured timezone when choosing the hour. A successful
+run prints `published` with snapshot/document/course/program counts. If the
+validated source hash already matches the active snapshot, it prints `no-op`;
+no catalog rows are rewritten.
+
+Operational visibility is available to admins at
+`GET /api/admin/bulletin/status`. An authenticated admin can also trigger the
+same workflow with `POST /api/admin/bulletin/sync`. The database lock prevents
+overlapping runs. A failed fetch, parse, validation, or activation never retires
+the current active snapshot: activation is one transaction, so readers continue
+to receive the prior last-known-good version.
+
+After a successful production sync, refresh the checked-in disaster-recovery
+fallback from that same active snapshot:
+
+```bash
+npm run catalog:generate-fallback
+npm test -- src/lib/data.test.ts
+```
+
+The fallback is generated atomically and is never assembled by hand. Official
+references to courses absent from the current inventory are retained for audit,
+but remain non-executable manual-confirmation warnings rather than fabricated
+courses.
+
+Future user-submitted corrections and additions should be implemented as
+reviewed correction overlays: request, review, approve, then apply an overlay on
+top of an official snapshot. They must not silently mutate or replace the
+archived Bulletin source snapshot.
 
 ## Shared course catalog & admin (v2 Phase 2)
 
