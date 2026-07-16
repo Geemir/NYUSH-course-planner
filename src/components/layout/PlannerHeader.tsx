@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type RefObject } from "react";
 import {
   BookOpen,
   Download,
@@ -48,11 +48,13 @@ import { snapshotFromState, usePlannerStore } from "@/store/plannerStore";
 const START_YEARS = [2022, 2023, 2024, 2025, 2026, 2027, 2028];
 
 type PlannerHeaderProps = {
+  guideButtonRef?: RefObject<HTMLButtonElement | null>;
   onGuide: () => void;
   onImportFile: (file: File) => void;
 };
 
 export function PlannerHeader({
+  guideButtonRef,
   onGuide,
   onImportFile,
 }: PlannerHeaderProps) {
@@ -162,6 +164,7 @@ export function PlannerHeader({
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <Button
+            ref={guideButtonRef}
             type="button"
             variant="outline"
             className="h-11 px-3"

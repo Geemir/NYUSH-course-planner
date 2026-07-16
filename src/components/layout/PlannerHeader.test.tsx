@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlannerHeader } from "@/components/layout/PlannerHeader";
 import { usePlannerStore } from "@/store/plannerStore";
@@ -58,6 +59,21 @@ describe("PlannerHeader", () => {
       within(menu).getByRole("menuitem", { name: "Reset plan" }),
     ).toBeDefined();
     expect(within(menu).queryByText("Guide")).toBeNull();
+  });
+
+  it("exposes the Guide button for dialog focus restoration", () => {
+    const guideButtonRef = createRef<HTMLButtonElement>();
+    render(
+      <PlannerHeader
+        guideButtonRef={guideButtonRef}
+        onGuide={() => undefined}
+        onImportFile={() => undefined}
+      />,
+    );
+
+    expect(guideButtonRef.current).toBe(
+      screen.getByRole("button", { name: "Guide" }),
+    );
   });
 
   it("shows dynamic majors, entry year, credits, theme, and account controls", async () => {

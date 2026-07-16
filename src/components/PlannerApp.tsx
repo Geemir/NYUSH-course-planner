@@ -16,8 +16,10 @@ import { CatalogProvider } from "@/components/CatalogProvider";
 import { PlanSync } from "@/components/PlanSync";
 import { CourseCatalog } from "@/components/catalog/CourseCatalog";
 import { CourseDetailDialog } from "@/components/dialogs/CourseDetailDialog";
+import { InspirationStrip } from "@/components/inspiration/InspirationStrip";
 import { PlannerHeader } from "@/components/layout/PlannerHeader";
 import { PlannerWorkspace } from "@/components/layout/PlannerWorkspace";
+import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { PlannerBoard } from "@/components/planner/PlannerBoard";
 import { PlanDerivedProvider } from "@/components/planner/PlanDerivedProvider";
 import { FeasibilityDialog } from "@/components/progress/FeasibilityDialog";
@@ -28,6 +30,7 @@ import { WarningCenter } from "@/components/progress/WarningCenter";
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCourseData } from "@/hooks/useCourseData";
+import { useOnboarding } from "@/hooks/useOnboarding";
 import { parsePlan } from "@/lib/planIO";
 import { SEMESTER_IDS, SemesterId } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
@@ -58,6 +61,8 @@ export function PlannerApp() {
   );
   const [detailCourseId, setDetailCourseId] = useState<string | null>(null);
   const [dragCourseId, setDragCourseId] = useState<string | null>(null);
+  const onboarding = useOnboarding();
+  const guideButtonRef = useRef<HTMLButtonElement>(null);
   const justDragged = useRef(false);
   // When a catalog dropdown closes, the browser's trailing click event can
   // hit-test against the card underneath it — swallow those stray clicks.
@@ -131,9 +136,13 @@ export function PlannerApp() {
           <PlanSync />
           <div className="flex min-h-screen flex-col">
             <PlannerHeader
-              onGuide={() => undefined}
+              guideButtonRef={guideButtonRef}
+              onGuide={onboarding.restart}
               onImportFile={handleImportFile}
             />
+            <div className="px-4 pt-4 sm:px-6 sm:pt-6">
+              <InspirationStrip />
+            </div>
             <DndContext
               sensors={sensors}
               collisionDetection={pointerWithin}
@@ -171,6 +180,12 @@ export function PlannerApp() {
               </DragOverlay>
             </DndContext>
 
+            <OnboardingDialog
+              open={onboarding.open}
+              onOpenChange={onboarding.setOpen}
+              onComplete={onboarding.complete}
+              returnFocusRef={guideButtonRef}
+            />
             <CourseDetailDialog
               courseId={detailCourseId}
               onClose={() => setDetailCourseId(null)}
