@@ -34,7 +34,7 @@ export function StudyAwaySelect({ semesterId }: { semesterId: SemesterId }) {
         size="sm"
         aria-label="Study away site"
         className={cn(
-          "h-7 gap-1 border-dashed px-2 text-xs",
+          "h-11 gap-1 border-dashed px-3 text-sm data-[size=sm]:h-11",
           isAway && "border-sky-500/60 text-sky-600 dark:text-sky-400",
         )}
       >

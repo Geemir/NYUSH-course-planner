@@ -49,9 +49,9 @@
 }
 
 :root {
-  /* NYU violet (#57068C) as the brand primary; near-white violet-tinted canvas */
-  --background: oklch(0.984 0.004 310);
-  --foreground: oklch(0.145 0 0);
+  /* Academic Workspace: NYU violet, neutral canvas, opaque working surfaces. */
+  --background: oklch(0.982 0.003 310);
+  --foreground: oklch(0.19 0.012 300);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -61,7 +61,7 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.46 0.012 300);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -82,6 +82,14 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --z-dropdown: 40;
+  --z-sticky: 30;
+  --z-backdrop: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+  --z-tooltip: 80;
+  --motion-fast: 150ms;
+  --motion-standard: 220ms;
 }
 
 .dark {
@@ -125,8 +133,32 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-size: 1rem;
+    line-height: 1.5;
   }
   html {
     @apply font-sans;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 22%, transparent);
+  }
+}
+
+[data-sonner-toaster] {
+  z-index: var(--z-toast) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

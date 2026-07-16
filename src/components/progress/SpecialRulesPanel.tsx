@@ -30,11 +30,11 @@ export function SpecialRulesPanel() {
 
   return (
     <div data-testid="special-rules-panel">
-      <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+      <h3 className="flex items-center gap-2 text-base font-semibold">
         <Sparkles className="size-4 text-primary" />
         Special rules
       </h3>
-      <ul className="flex flex-col gap-1.5 py-1">
+      <ul className="flex flex-col gap-2 py-2">
         {specialRules.map((rule) => (
           <li key={rule.id} className="text-sm leading-snug text-muted-foreground">
             {describeRule(rule, coursesById)}

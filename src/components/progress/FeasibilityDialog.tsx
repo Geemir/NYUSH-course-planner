@@ -111,7 +111,7 @@ function FeasibilityResults({ onClose }: { onClose: () => void }) {
               {feasibility.requirementGaps.map((gap, index) => (
                 <li
                   key={`${gap.kind}:${gap.label}:${index}`}
-                  className="border-l-2 border-border pl-3 text-sm"
+                  className="rounded-lg bg-muted/45 p-3 text-sm"
                 >
                   <p className="font-medium">{gap.label}</p>
                   <p className="text-xs leading-relaxed text-muted-foreground">
@@ -206,7 +206,7 @@ export function FeasibilityDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
-        render={<Button variant="outline" size="sm" className="w-full" />}
+        render={<Button variant="outline" className="h-11 w-full" />}
       >
         <ClipboardCheck />
         Check feasibility

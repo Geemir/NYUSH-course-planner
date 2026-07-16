@@ -82,7 +82,7 @@ export function PlannerHeader({
   };
 
   return (
-    <header className="sticky top-0 z-40 flex h-[68px] items-center gap-3 border-b bg-background px-4">
+    <header className="sticky top-0 z-[var(--z-sticky)] flex h-18 items-center gap-4 border-b bg-background px-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <GraduationCap className="size-5" aria-hidden="true" />
@@ -176,7 +176,7 @@ export function PlannerHeader({
               render={
                 <Button
                   variant="ghost"
-                  className="h-11 px-3"
+                  className="h-11 min-w-11 px-3"
                   aria-label="Plan actions"
                 />
               }

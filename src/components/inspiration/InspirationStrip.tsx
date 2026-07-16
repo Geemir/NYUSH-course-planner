@@ -43,7 +43,7 @@ export function InspirationStrip() {
   return (
     <section
       aria-label="Planning inspiration"
-      className="relative isolate min-h-44 overflow-hidden rounded-xl bg-foreground text-white"
+      className="relative isolate min-h-48 overflow-hidden rounded-xl bg-foreground text-white"
     >
       <Image
         src={academicWorkspace}
@@ -57,7 +57,7 @@ export function InspirationStrip() {
         aria-hidden="true"
       />
 
-      <div className="flex min-h-44 max-w-4xl flex-col justify-center gap-5 px-5 py-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
+      <div className="flex min-h-48 max-w-5xl flex-col justify-center gap-6 px-5 py-7 sm:px-8 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
         <blockquote aria-live="polite" className="max-w-[62ch]">
           <p className="text-xl leading-8 font-medium tracking-[-0.02em] text-pretty sm:text-2xl sm:leading-9">
             “{quote.text}”
@@ -67,7 +67,7 @@ export function InspirationStrip() {
         <Button
           type="button"
           variant="ghost"
-          className="h-11 w-fit shrink-0 bg-black/15 px-4 text-white hover:bg-white/15 hover:text-white focus-visible:border-white/60 focus-visible:ring-white/50"
+          className="h-11 w-fit shrink-0 bg-black/20 px-4 text-white transition-colors duration-[var(--motion-fast)] hover:bg-white/15 hover:text-white focus-visible:border-white/60 focus-visible:ring-white/50"
           aria-label="Show another thought"
           onClick={showNextQuote}
         >

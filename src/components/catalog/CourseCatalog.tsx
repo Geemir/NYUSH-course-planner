@@ -86,7 +86,7 @@ function CatalogCard({
       onClick={() => onSelect(course.id)}
       data-testid={`catalog-${course.id}`}
       className={cn(
-        "group flex cursor-grab items-center gap-2 rounded-lg border bg-background p-2.5 transition-colors duration-150 hover:border-primary/40 hover:bg-muted/50",
+        "group flex cursor-grab items-center gap-3 rounded-xl border bg-background p-3 outline-none transition-colors duration-[var(--motion-fast)] hover:border-primary/40 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring",
         placement && "opacity-60",
         isDragging && "z-10 opacity-50",
       )}
@@ -112,7 +112,7 @@ function CatalogCard({
               Custom
             </Badge>
           )}
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+          <span className="text-[11px] font-medium text-muted-foreground/80">
             {course.offeringKnown === false
               ? "Schedule varies"
               : course.offered.map((t) => t.slice(0, 2)).join(" · ")}
@@ -131,7 +131,8 @@ function CatalogCard({
           render={
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
+              className="size-11"
               aria-label={`Assign ${course.id} to a semester`}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
               onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
@@ -301,14 +302,14 @@ export function CourseCatalog({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search courses…"
           aria-label="Search courses"
-          className="h-9 pl-8 text-sm"
+          className="h-11 pl-9 text-base"
         />
       </div>
       <div className="flex items-center justify-between gap-2">
         <Select value={filter} onValueChange={(v) => setFilter(v as string)}>
           <SelectTrigger
             size="sm"
-            className="flex-1 text-sm"
+            className="h-11 flex-1 text-sm"
             aria-label="Filter courses"
           >
             <SelectValue>{filterLabel}</SelectValue>

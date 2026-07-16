@@ -11,8 +11,8 @@ export function ProgressRings() {
   const { credits } = progress;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-4">
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-x-5 gap-y-6">
         {activeProgramObjs.map((program) => {
           const p = progressByProgram.get(program.id);
           if (!p) return null;

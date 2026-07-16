@@ -120,7 +120,7 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
   return (
     <li
       data-testid={isManual ? "manual-requirement" : "waiver-requirement"}
-      className="flex flex-col gap-2 border-l-2 border-border py-2 pl-3"
+      className="flex flex-col gap-2 rounded-lg bg-muted/45 p-3"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
@@ -141,7 +141,8 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
         <Button
           type="button"
           variant={fact ? "ghost" : "outline"}
-          size="xs"
+          size="sm"
+          className="min-h-9"
           onClick={() => (fact ? removeFact(fact.id) : addFact())}
         >
           {fact ? `Remove ${action}` : `Record ${action}`}

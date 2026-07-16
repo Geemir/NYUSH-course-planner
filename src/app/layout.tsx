@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "NYUSH Course Planner",
   description:
-    "Interactive 4-year course planner for NYU Shanghai double majors — prerequisites, cross-listing, study away, and live degree progress.",
+    "An interactive four-year course planner for students across all NYU Shanghai majors, with Bulletin requirements, prerequisites, study away, and live degree progress.",
 };
 
 export default function RootLayout({
@@ -31,7 +31,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-full flex-col">
         <ThemeProvider>
           {children}
           <Toaster richColors position="bottom-right" />

@@ -49,9 +49,9 @@ export function WarningCenter() {
                   render={
                     <Button
                       variant="ghost"
-                      size="icon-xs"
+                      size="icon-sm"
                       aria-label="Dismiss warning"
-                      className="shrink-0 opacity-40 transition-opacity duration-150 group-hover:opacity-100"
+                      className="size-9 shrink-0 opacity-60 transition-opacity duration-[var(--motion-fast)] group-hover:opacity-100"
                       onClick={() => dismissWarning(warning.id)}
                     />
                   }
@@ -82,9 +82,9 @@ export function WarningCenter() {
                 </span>
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   aria-label="Restore warning"
-                  className="shrink-0"
+                  className="size-9 shrink-0"
                   onClick={() => restoreWarning(warning.id)}
                 >
                   <Undo2 />

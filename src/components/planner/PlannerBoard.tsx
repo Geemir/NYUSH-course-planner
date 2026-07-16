@@ -16,7 +16,7 @@ export function PlannerBoard({
   const startYear = usePlannerStore((s) => s.startYear);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       {[1, 2, 3, 4].map((year) => {
         const fallYear = startYear + year - 1;
         return (
@@ -27,7 +27,7 @@ export function PlannerBoard({
             className="flex flex-col gap-3"
           >
             <header className="flex items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary font-bold text-primary-foreground shadow-sm">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary font-bold text-primary-foreground shadow-sm">
                 {year}
               </span>
               <div className="flex min-w-28 flex-col gap-0.5">

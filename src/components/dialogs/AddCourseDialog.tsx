@@ -77,7 +77,7 @@ export function AddCourseDialog() {
         if (!next) reset();
       }}
     >
-      <DialogTrigger render={<Button variant="outline" size="sm" className="w-full" />}>
+      <DialogTrigger render={<Button variant="outline" className="h-11 w-full" />}>
         <Sparkles />
         Add custom course
       </DialogTrigger>

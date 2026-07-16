@@ -49,11 +49,11 @@ function WorkspaceRail({
   return (
     <aside
       aria-labelledby={headingId}
-      className="min-w-0 self-start lg:sticky lg:top-22"
+      className="min-w-0 self-start lg:sticky lg:top-24"
     >
       <h2
         id={headingId}
-        className="mb-3 px-1 text-sm font-semibold tracking-wide text-muted-foreground uppercase"
+        className="mb-4 px-1 text-base font-semibold text-foreground"
       >
         {label}
       </h2>
@@ -108,7 +108,7 @@ export function PlannerWorkspace({
 
   return (
     <>
-      <main className="grid min-w-0 flex-1 gap-5 p-4 sm:p-5 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(620px,1fr)] 2xl:grid-cols-[340px_minmax(620px,1fr)_360px]">
+      <main className="grid min-w-0 flex-1 gap-6 p-4 sm:p-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(620px,1fr)] 2xl:grid-cols-[340px_minmax(620px,1fr)_360px]">
         {showCatalogRail && (
           <WorkspaceRail label="Course Catalog">{catalog}</WorkspaceRail>
         )}
@@ -119,7 +119,7 @@ export function PlannerWorkspace({
         >
           <h2
             id="workspace-four-year-plan"
-            className="mb-3 px-1 text-sm font-semibold tracking-wide text-muted-foreground uppercase"
+            className="mb-4 px-1 text-base font-semibold text-foreground"
           >
             Four-Year Plan
           </h2>

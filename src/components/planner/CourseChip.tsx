@@ -80,7 +80,7 @@ export function CourseChip({
       style={{ transform: CSS.Translate.toString(transform) }}
       data-testid={`chip-${courseId}`}
       className={cn(
-        "group flex items-center gap-2 rounded-lg border bg-background px-2.5 py-2 text-left shadow-xs transition-colors duration-150 hover:border-primary/40 hover:bg-muted/50",
+        "group flex items-center gap-3 rounded-xl border bg-background p-3 text-left shadow-xs transition-colors duration-[var(--motion-fast)] hover:border-primary/40 hover:bg-muted/50",
         warnings.length > 0 &&
           (hasError ? "border-destructive" : "border-amber-500"),
         isDone && "opacity-70",
@@ -90,7 +90,7 @@ export function CourseChip({
       <div
         {...listeners}
         {...attributes}
-        className="flex min-w-0 flex-1 cursor-grab items-center gap-2"
+        className="flex min-w-0 flex-1 cursor-grab items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => onSelect(courseId)}
       >
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -166,7 +166,7 @@ export function CourseChip({
       <button
         type="button"
         aria-label={`Remove ${course.id}`}
-        className="pointer-events-none flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-destructive focus:pointer-events-auto focus:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+        className="pointer-events-none flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity duration-[var(--motion-fast)] hover:bg-muted hover:text-destructive focus:pointer-events-auto focus:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
         onClick={(e) => {
           e.stopPropagation();
           removeCourse(courseId);
