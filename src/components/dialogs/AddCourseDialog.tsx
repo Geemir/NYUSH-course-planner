@@ -79,15 +79,15 @@ export function AddCourseDialog() {
     >
       <DialogTrigger render={<Button variant="outline" size="sm" className="w-full" />}>
         <Sparkles />
-        Add course from Albert
+        Add custom course
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add a course with AI</DialogTitle>
+          <DialogTitle>Add a custom course</DialogTitle>
           <DialogDescription>
-            Paste the full course listing from Albert (description, term,
-            units, fulfillment text). DeepSeek extracts the structured course
-            for your catalog.
+            Official courses come from the NYU Bulletin. If a course is missing,
+            paste its listing below to create a personal catalog entry; AI
+            parsing is an optional helper.
           </DialogDescription>
         </DialogHeader>
 
@@ -177,7 +177,7 @@ export function AddCourseDialog() {
             data-testid="parse-button"
           >
             {parsing ? <Loader2 className="animate-spin" /> : <Sparkles />}
-            {parsed ? "Re-parse" : "Parse with AI"}
+            {parsed ? "Re-parse" : "Parse pasted text"}
           </Button>
           <Button onClick={handleSave} disabled={!parsed} data-testid="save-course">
             {parsed && coursesById.has(parsed.id) ? "Replace course" : "Add to catalog"}

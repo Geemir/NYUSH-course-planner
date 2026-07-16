@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, Plus, Search } from "lucide-react";
 import { AddCourseDialog } from "@/components/dialogs/AddCourseDialog";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,10 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -35,15 +39,17 @@ import { cn } from "@/lib/utils";
 import { Course, SEMESTER_IDS, semesterFullLabel } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 
-const FILTERS: { id: string; label: string }[] = [
+const QUICK_FILTERS = [
   { id: "all", label: "All courses" },
-  { id: "cs", label: "CS major" },
-  { id: "ima", label: "IMA major" },
-  { id: "core", label: "NYUSH Core" },
   { id: "cross", label: "Cross-listed" },
   { id: "custom", label: "My added courses" },
   { id: "unplanned", label: "Not planned yet" },
 ];
+
+type FilterGroup = {
+  label: string;
+  options: { id: string; label: string }[];
+};
 
 function CatalogCard({
   course,
@@ -107,7 +113,9 @@ function CatalogCard({
             </Badge>
           )}
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-            {course.offered.map((t) => t.slice(0, 2)).join("·")}
+            {course.offeringKnown === false
+              ? "Schedule varies"
+              : course.offered.map((t) => t.slice(0, 2)).join(" · ")}
           </span>
         </div>
         <span className="truncate text-sm font-medium">{course.title}</span>
@@ -172,9 +180,64 @@ export function CourseCatalog({
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
-  const { courses, customIds } = useCourseData();
+  const { courses, customIds, programs } = useCourseData();
   const { placementByCourse } = usePlanDerived();
   const activePrograms = usePlannerStore((s) => s.activePrograms);
+  const scrollParentRef = useRef<HTMLDivElement>(null);
+
+  const filterGroups = useMemo<FilterGroup[]>(() => {
+    const activeProgramSet = new Set(activePrograms);
+    const programOptions = programs
+      .filter((program) => activeProgramSet.has(program.id))
+      .map((program) => ({
+        id: `program:${program.id}`,
+        label: `${program.name} program`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const subjectOptions = [...new Set(courses.map((course) => course.department))]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+      .map((subject) => ({
+        id: `subject:${subject}`,
+        label: `${subject} subject`,
+      }));
+    const attributeOptions = [
+      ...new Set(courses.flatMap((course) => course.attributes ?? [])),
+    ]
+      .sort((a, b) => a.localeCompare(b))
+      .map((attribute) => ({
+        id: `attribute:${attribute}`,
+        label: attribute,
+      }));
+    const termOptions = [
+      courses.some(
+        (course) => course.offeringKnown !== false && course.offered.includes("fall"),
+      ) && { id: "term:fall", label: "Fall" },
+      courses.some(
+        (course) => course.offeringKnown !== false && course.offered.includes("spring"),
+      ) && { id: "term:spring", label: "Spring" },
+      courses.some((course) => course.offeringKnown === false) && {
+        id: "term:unknown",
+        label: "Schedule varies",
+      },
+    ].filter((option): option is { id: string; label: string } => Boolean(option));
+
+    return [
+      { label: "Catalog", options: QUICK_FILTERS },
+      { label: "Active programs", options: programOptions },
+      { label: "Subjects", options: subjectOptions },
+      { label: "Attributes", options: attributeOptions },
+      { label: "Typical term", options: termOptions },
+    ].filter((group) => group.options.length > 0);
+  }, [activePrograms, courses, programs]);
+
+  const filterLabel = useMemo(
+    () =>
+      filterGroups
+        .flatMap((group) => group.options)
+        .find((option) => option.id === filter)?.label ?? "All courses",
+    [filter, filterGroups],
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -183,27 +246,50 @@ export function CourseCatalog({
         if (
           q &&
           !course.id.toLowerCase().includes(q) &&
-          !course.title.toLowerCase().includes(q)
+          !course.title.toLowerCase().includes(q) &&
+          !course.department.toLowerCase().includes(q) &&
+          !course.description?.toLowerCase().includes(q)
         ) {
           return false;
         }
-        switch (filter) {
-          case "cs":
-          case "ima":
-          case "core":
-            return course.fulfills.some((f) => f.programId === filter);
-          case "cross":
-            return isActivelyCrossListed(course, activePrograms);
-          case "custom":
-            return customIds.has(course.id);
-          case "unplanned":
-            return !placementByCourse.has(course.id);
-          default:
-            return true;
+        if (filter.startsWith("program:")) {
+          const programId = filter.slice("program:".length);
+          return course.fulfills.some(
+            (fulfillment) => fulfillment.programId === programId,
+          );
         }
+        if (filter.startsWith("subject:")) {
+          return course.department === filter.slice("subject:".length);
+        }
+        if (filter.startsWith("attribute:")) {
+          return (
+            course.attributes?.includes(filter.slice("attribute:".length)) ?? false
+          );
+        }
+        if (filter === "term:unknown") return course.offeringKnown === false;
+        if (filter.startsWith("term:")) {
+          const term = filter.slice("term:".length) as "fall" | "spring";
+          return course.offeringKnown !== false && course.offered.includes(term);
+        }
+        if (filter === "cross") {
+          return isActivelyCrossListed(course, activePrograms);
+        }
+        if (filter === "custom") return customIds.has(course.id);
+        if (filter === "unplanned") return !placementByCourse.has(course.id);
+        return true;
       })
       .sort((a, b) => a.id.localeCompare(b.id));
   }, [courses, customIds, query, filter, placementByCourse, activePrograms]);
+
+  // TanStack Virtual intentionally exposes imperative measurement callbacks.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => 96,
+    overscan: 6,
+    getItemKey: (index) => filtered[index]?.id ?? index,
+  });
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -214,40 +300,76 @@ export function CourseCatalog({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search courses…"
+          aria-label="Search courses"
           className="h-9 pl-8 text-sm"
         />
       </div>
       <div className="flex items-center justify-between gap-2">
         <Select value={filter} onValueChange={(v) => setFilter(v as string)}>
-          <SelectTrigger size="sm" className="flex-1 text-sm">
-            <SelectValue>
-              {(value: string) =>
-                FILTERS.find((f) => f.id === value)?.label ?? value
-              }
-            </SelectValue>
+          <SelectTrigger
+            size="sm"
+            className="flex-1 text-sm"
+            aria-label="Filter courses"
+          >
+            <SelectValue>{filterLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {FILTERS.map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {f.label}
-              </SelectItem>
+            {filterGroups.map((group, groupIndex) => (
+              <div key={group.label}>
+                {groupIndex > 0 && <SelectSeparator />}
+                <SelectGroup>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.options.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </div>
             ))}
           </SelectContent>
         </Select>
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-          {filtered.length}/{courses.length}
-        </span>
+        <output
+          aria-live="polite"
+          aria-label="Course results"
+          className="shrink-0 text-xs tabular-nums text-muted-foreground"
+        >
+          {filtered.length} of {courses.length} courses
+        </output>
       </div>
-      <div className="flex max-h-[calc(100vh-280px)] flex-col gap-2 overflow-y-auto pr-1">
-        {filtered.map((course) => (
-          <CatalogCard
-            key={course.id}
-            course={course}
-            isCustom={customIds.has(course.id)}
-            onSelect={onSelectCourse}
-            onMenuClosed={onMenuClosed}
-          />
-        ))}
+      <div
+        ref={scrollParentRef}
+        role="list"
+        aria-label="Course catalog"
+        className="max-h-[calc(100vh-280px)] overflow-y-auto pr-1"
+      >
+        {filtered.length > 0 && (
+          <div
+            className="relative w-full"
+            style={{ height: rowVirtualizer.getTotalSize() }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const course = filtered[virtualRow.index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  ref={rowVirtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  role="listitem"
+                  className="absolute top-0 left-0 w-full pb-2"
+                  style={{ transform: `translateY(${virtualRow.start}px)` }}
+                >
+                  <CatalogCard
+                    course={course}
+                    isCustom={customIds.has(course.id)}
+                    onSelect={onSelectCourse}
+                    onMenuClosed={onMenuClosed}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
         {filtered.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">
             No courses match your search.
