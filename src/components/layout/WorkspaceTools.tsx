@@ -11,7 +11,10 @@ export function WorkspaceTools({
   children: ReactNode;
 }) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[var(--z-sticky)] flex justify-center px-4 2xl:hidden">
+    <div
+      className="pointer-events-none fixed inset-x-0 z-[var(--z-sticky)] flex justify-center px-4 2xl:hidden"
+      style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+    >
       <div
         role="toolbar"
         aria-label="Workspace tools"

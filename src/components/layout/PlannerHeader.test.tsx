@@ -44,7 +44,8 @@ describe("PlannerHeader", () => {
     );
 
     const guide = screen.getByRole("button", { name: "Guide" });
-    await user.click(guide);
+    guide.focus();
+    await user.keyboard("{Enter}");
     expect(onGuide).toHaveBeenCalledOnce();
 
     await user.click(screen.getByRole("button", { name: "Plan actions" }));

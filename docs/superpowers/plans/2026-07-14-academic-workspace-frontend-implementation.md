@@ -735,21 +735,21 @@ git commit -m "style: apply academic workspace system"
 **Interfaces:**
 - Final composition order: `CatalogProvider -> PlanDerivedProvider -> header -> inspiration -> workspace -> dialogs`.
 
-- [ ] **Step 1: Write failing composition tests**
+- [x] **Step 1: Write failing composition tests**
 
 Test that a first visit opens onboarding after hydration, Guide reopens it after completion, quote strip precedes the workspace, the header contains Guide, and eight semester surfaces render once.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `npm.cmd test -- src/components/PlannerApp.test.tsx`
 
 Expected: FAIL because new components are not integrated.
 
-- [ ] **Step 3: Integrate focused providers**
+- [x] **Step 3: Integrate focused providers**
 
 Keep server modules out of the client graph. Mount `PlanDerivedProvider` inside `CatalogProvider` and around only planner consumers. Connect Guide to onboarding `restart`, retain PlanSync, DnD overlay, course detail dialog, import/export, and click-suppression behavior.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run:
 
@@ -760,7 +760,7 @@ npm.cmd test
 
 Expected: all tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/components/PlannerApp.tsx src/components/PlannerApp.test.tsx
@@ -777,7 +777,7 @@ git commit -m "feat: integrate academic planner workspace"
 **Interfaces:**
 - Validates the final user experience in a real browser.
 
-- [ ] **Step 1: Run automated verification**
+- [x] **Step 1: Run automated verification**
 
 Run:
 
@@ -789,7 +789,7 @@ npx.cmd tsc --noEmit
 
 Expected: all commands exit 0 with no unhandled warnings.
 
-- [ ] **Step 2: Start the application and inspect wide desktop**
+- [x] **Step 2: Start the application and inspect wide desktop**
 
 Run: `npm.cmd run dev` and use the in-app browser at a viewport at least 1440px wide.
 
@@ -802,25 +802,25 @@ Verify:
 - inspiration image crop and quote contrast;
 - dynamic major options and catalog search.
 
-- [ ] **Step 3: Inspect tablet and mobile**
+- [x] **Step 3: Inspect tablet and mobile**
 
 At 1280px, verify progress sheet. Below 1024px, verify Courses and Progress sheets, focus return, no horizontal overflow, and complete Add-to-semester flow without dragging. At mobile width, verify header/Guide, stacked course rows, dialogs, and safe-area behavior.
 
-- [ ] **Step 4: Inspect onboarding and accessibility**
+- [x] **Step 4: Inspect onboarding and accessibility**
 
 Clear `nyush-planner:onboarding:v1`, reload, complete all four steps, reload again, and verify no automatic reopen. Reopen via Guide. Navigate header, catalog, semesters, sheets, dialogs, and course removal by keyboard. Verify focus, accessible names, escape behavior, color-independent warnings, and reduced-motion emulation.
 
-- [ ] **Step 5: Capture visual evidence and route verified defects back to their owning task**
+- [x] **Step 5: Capture visual evidence and route verified defects back to their owning task**
 
 Take screenshots at wide desktop, tablet, and mobile. Compare against the approved Academic Workspace spec. This verification task does not make ad hoc source edits. For each defect, return to the task that owns the exact component, add or update a failing regression test there, implement the fix, rerun that task's checks, and amend that task's commit before resuming this checklist.
 
-- [ ] **Step 6: Run production build**
+- [x] **Step 6: Run production build**
 
 Run: `npm.cmd run build` using the clean node-postgres build path documented for this repository.
 
 Expected: compilation, TypeScript, and route generation succeed without the known PGlite worker noise.
 
-- [ ] **Step 7: Record verification evidence**
+- [x] **Step 7: Record verification evidence**
 
 Update `.planning/2026-07-14-bulletin-data-ui-redesign/progress.md` with command results, tested viewport widths, keyboard/accessibility checks, screenshot paths, and any owning tasks revisited for regression fixes. Do not create an empty verification-only commit.
 

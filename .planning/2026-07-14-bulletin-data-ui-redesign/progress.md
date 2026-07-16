@@ -65,3 +65,68 @@ No application verification has been run in this design/research phase.
 | 2026-07-14 | Tried to read a non-existent `SemesterCard.tsx` | 1 | Listed planner files and switched to the actual `SemesterColumn.tsx` path |
 | 2026-07-14 | Sandboxed `git add` could not create `.git/index.lock` | 1 | Re-ran staging with narrowly scoped approved repository-write access |
 | 2026-07-14 | `git diff --cached --check` found three trailing-space hard breaks | 1 | Replaced hard breaks with blank-line-separated metadata and restaged |
+
+## Session: 2026-07-16 — Tasks 12–13 completion
+
+### Task 12: Final planner composition
+
+- **Status:** complete
+- Added test-first composition coverage for first-visit onboarding, Guide restart,
+  inspiration-before-workspace ordering, and exactly eight semester surfaces.
+- Integrated `InspirationStrip`, `useOnboarding`, and `OnboardingDialog` into
+  `PlannerApp` without changing PlanSync, import/export, drag overlay, detail
+  dialog, or click-suppression behavior.
+- Added a Guide-button ref contract so closing onboarding restores focus to the
+  visible Guide control.
+- Committed as `770f604` (`feat: integrate academic planner workspace`).
+
+### Task 13: Browser, accessibility, responsive, and production verification
+
+- **Status:** complete
+- Wide desktop at 1600×1000: confirmed 340px catalog rail, 789px timeline,
+  360px progress rail, sticky 96px rail offsets, and all eight semesters at the
+  same horizontal position in chronological DOM order.
+- Confirmed the inspiration image uses `object-fit: cover`, white quote text over
+  the overlay, dynamic major selection (19 major options), and live search over
+  810 courses (`machine learning` returned 16 results).
+- Tablet at 1280×900: confirmed catalog rail plus Degree Progress sheet, no
+  horizontal overflow, Escape dismissal, and focus return to Progress.
+- Compact layout at 800×900: confirmed both Courses and Progress sheets, no
+  horizontal overflow, focus return to Courses, and non-drag addition of
+  ARBC-SHU 101 to Fall 2025.
+- Mobile at 390×844: confirmed visible 44px Guide target, one-column 343px
+  semester cards, no horizontal overflow, responsive onboarding/course detail
+  dialogs, named header controls, and Escape focus return.
+- Completed all four onboarding steps, reloaded to confirm it did not reopen,
+  then reopened it through Guide and confirmed focus returned to Guide.
+- Existing design-rule verification covers the global reduced-motion media
+  query, minimum control sizing, token contract, and visual anti-pattern rules.
+- Browser verification found one defect: the floating mobile toolbar lacked
+  safe-area spacing. Added a failing regression test, then fixed it with
+  `calc(1rem + env(safe-area-inset-bottom))`.
+- Updated README with the authoritative Bulletin architecture, current
+  810-course/43-program fallback, environment guidance, and quick-start,
+  verification, synchronization, and production commands.
+
+### Visual evidence
+
+- `.planning/2026-07-14-bulletin-data-ui-redesign/task13-wide.png`
+- `.planning/2026-07-14-bulletin-data-ui-redesign/task13-tablet.png`
+- `.planning/2026-07-14-bulletin-data-ui-redesign/task13-mobile.png`
+
+### Final verification evidence
+
+- `npm.cmd test -- --maxWorkers=1`: **39 files, 344 tests passed**.
+- `npm.cmd run lint`: **passed**.
+- `npx.cmd tsc --noEmit`: **passed**.
+- Production build with temporary node-postgres selection: **compiled,
+  TypeScript checked, and generated all 15 routes successfully** with no PGlite
+  worker noise.
+
+### Additional errors resolved
+
+| Timestamp | Error | Attempt | Resolution |
+|-----------|-------|---------|------------|
+| 2026-07-16 | Sandboxed build could not fetch Google-hosted Geist fonts | 1 | Re-ran the build with approved network access |
+| 2026-07-16 | Default local build printed known Node 24/PGlite worker noise after successful route generation | 1 | Re-ran with the documented temporary `DATABASE_URL` node-postgres selection; clean exit 0 |
+| 2026-07-16 | Browser locator treated the Next.js Dev Tools button as a second partial `Next` match | 1 | Used exact accessible-name matching for onboarding controls |
