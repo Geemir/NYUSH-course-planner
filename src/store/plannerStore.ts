@@ -37,6 +37,8 @@ interface PlannerState {
   ) => void;
   addCustomCourse: (course: Course) => void;
   removeCustomCourse: (courseId: string) => void;
+  recordFulfillmentFact: (fact: FulfillmentFact) => void;
+  removeFulfillmentFact: (factId: string) => void;
   dismissWarning: (warningId: string) => void;
   restoreWarning: (warningId: string) => void;
   setStartYear: (year: number) => void;
@@ -165,6 +167,21 @@ export const usePlannerStore = create<PlannerState>()(
           placements: COURSES_BY_ID.has(courseId)
             ? state.placements
             : state.placements.filter((p) => p.courseId !== courseId),
+        })),
+
+      recordFulfillmentFact: (fact) =>
+        set((state) => ({
+          fulfillmentFacts: [
+            ...state.fulfillmentFacts.filter((item) => item.id !== fact.id),
+            fact,
+          ],
+        })),
+
+      removeFulfillmentFact: (factId) =>
+        set((state) => ({
+          fulfillmentFacts: state.fulfillmentFacts.filter(
+            (fact) => fact.id !== factId,
+          ),
         })),
 
       dismissWarning: (warningId) =>

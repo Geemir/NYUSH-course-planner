@@ -84,8 +84,7 @@ function FeasibilityResults({ onClose }: { onClose: () => void }) {
       <DialogHeader>
         <DialogTitle>Heuristic planning guidance</DialogTitle>
         <DialogDescription>
-          This greedy search offers guidance, not proof. An unsuccessful search
-          does not mean that no valid plan exists.
+          This is a greedy planning check, not proof that no valid schedule exists.
         </DialogDescription>
       </DialogHeader>
 
@@ -98,6 +97,36 @@ function FeasibilityResults({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="flex max-h-[55vh] flex-col gap-4 overflow-y-auto">
+        {feasibility.requirementGaps.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold">
+              Advisor or policy follow-up
+            </h3>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              These requirements cannot be represented as scheduled courses.
+              Record the supporting evidence in degree progress after confirming
+              it with your advisor.
+            </p>
+            <ul className="flex flex-col gap-2">
+              {feasibility.requirementGaps.map((gap, index) => (
+                <li
+                  key={`${gap.kind}:${gap.label}:${index}`}
+                  className="border-l-2 border-border pl-3 text-sm"
+                >
+                  <p className="font-medium">{gap.label}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {gap.kind === "manual"
+                      ? gap.sourceText
+                      : gap.kind === "waiver"
+                        ? "A documented waiver or placement decision is required."
+                        : "Choose an eligible course with an advisor."}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {feasibility.unplaceable.length > 0 && (
           <section className="flex flex-col gap-1.5">
             <h3 className="text-sm font-semibold text-destructive">
