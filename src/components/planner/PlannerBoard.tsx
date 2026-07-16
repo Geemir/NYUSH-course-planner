@@ -16,48 +16,55 @@ export function PlannerBoard({
   const startYear = usePlannerStore((s) => s.startYear);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+    <div className="flex flex-col gap-8">
       {[1, 2, 3, 4].map((year) => {
         const fallYear = startYear + year - 1;
         return (
           <section
             key={year}
             data-testid={`year-${year}`}
-            className="flex flex-col gap-2.5 rounded-2xl border bg-muted/30 p-3"
+            aria-labelledby={`year-${year}-heading`}
+            className="flex flex-col gap-3"
           >
-            <header className="flex items-center gap-2.5 px-0.5">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">
+            <header className="flex items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary font-bold text-primary-foreground shadow-sm">
                 {year}
               </span>
-              <div className="flex min-w-0 flex-col">
-                <h3 className="text-base leading-tight font-semibold">
+              <div className="flex min-w-28 flex-col gap-0.5">
+                <h2
+                  id={`year-${year}-heading`}
+                  className="text-base leading-5 font-semibold"
+                >
                   Year {year}
-                  <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-                    {YEAR_LABELS[year - 1]}
-                  </span>
-                </h3>
+                </h2>
+                <span className="text-xs text-muted-foreground">
+                  {YEAR_LABELS[year - 1]}
+                </span>
                 <span className="text-xs tabular-nums text-muted-foreground">
                   {fallYear}–{(fallYear + 1) % 100}
                 </span>
               </div>
+              <div className="h-px min-w-6 flex-1 bg-border" aria-hidden="true" />
               {year === 4 && (
                 <Badge
                   variant="outline"
-                  className="ml-auto gap-1 px-1.5 text-xs"
+                  className="gap-1 px-2 text-xs"
                 >
-                  <GraduationCap className="size-3.5" />
+                  <GraduationCap className="size-3.5" aria-hidden="true" />
                   Capstone
                 </Badge>
               )}
             </header>
-            <SemesterColumn
-              semesterId={`Y${year}F` as SemesterId}
-              onSelectCourse={onSelectCourse}
-            />
-            <SemesterColumn
-              semesterId={`Y${year}S` as SemesterId}
-              onSelectCourse={onSelectCourse}
-            />
+            <div className="flex flex-col gap-3">
+              <SemesterColumn
+                semesterId={`Y${year}F` as SemesterId}
+                onSelectCourse={onSelectCourse}
+              />
+              <SemesterColumn
+                semesterId={`Y${year}S` as SemesterId}
+                onSelectCourse={onSelectCourse}
+              />
+            </div>
           </section>
         );
       })}

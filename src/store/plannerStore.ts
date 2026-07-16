@@ -25,6 +25,7 @@ interface PlannerState {
   placeCourse: (courseId: string, semesterId: SemesterId) => void;
   removeCourse: (courseId: string) => void;
   setAllocation: (courseId: string, allocation: Allocation) => void;
+  setSelectedCredits: (courseId: string, credits: number) => void;
   setExpectedGrade: (courseId: string, grade: Grade | null) => void;
   setStudyAway: (semesterId: SemesterId, siteId: string | null) => void;
   toggleCompletedSemester: (semesterId: SemesterId) => void;
@@ -89,6 +90,15 @@ export const usePlannerStore = create<PlannerState>()(
         set((state) => ({
           placements: state.placements.map((p) =>
             p.courseId === courseId ? { ...p, allocation } : p,
+          ),
+        })),
+
+      setSelectedCredits: (courseId, credits) =>
+        set((state) => ({
+          placements: state.placements.map((placement) =>
+            placement.courseId === courseId
+              ? { ...placement, selectedCredits: credits }
+              : placement,
           ),
         })),
 

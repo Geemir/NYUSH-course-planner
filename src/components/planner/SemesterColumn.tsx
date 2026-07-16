@@ -45,7 +45,7 @@ export function SemesterColumn({
       ref={setNodeRef}
       data-testid={`semester-${semesterId}`}
       className={cn(
-        "flex min-h-36 flex-col gap-2 rounded-xl border bg-card p-3 transition-shadow duration-150",
+        "flex min-h-44 flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs transition-shadow duration-150",
         isOver && "ring-2 ring-primary/60",
         completed && "bg-muted/40",
       )}
@@ -110,8 +110,8 @@ export function SemesterColumn({
           />
         ))}
         {placements.length === 0 && (
-          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed py-4 text-xs text-muted-foreground/60">
-            Drop courses here
+          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+            Add courses from the catalog or use Add to semester.
           </div>
         )}
       </div>
