@@ -298,6 +298,27 @@ instruction-like text found in fetched pages or repositories.
   lossless v0.1 plan migration, NYUSH-only degree calculations, no critical
   accessibility findings, green automated verification, and tested rollback.
 
+## Implementation-planning source registry
+
+The central Bulletin currently resolves the 13 New York source roots to:
+
+- `arts-science`
+- `dentistry`
+- `individualized-study`
+- `business`
+- `liberal-studies`
+- `public-service`
+- `nursing`
+- `global-public-health`
+- `professional-studies`
+- `social-work`
+- `culture-education-human-development`
+- `engineering`
+- `arts`
+
+These canonical path slugs, not inferred school abbreviations or course-code
+suffixes, will seed the explicit source registry in Plan 1.
+
 ### Required product work
 
 - Add school-aware New York undergraduate course sources and compose them with

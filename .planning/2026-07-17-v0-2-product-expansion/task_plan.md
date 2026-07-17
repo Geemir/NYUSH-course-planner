@@ -9,7 +9,7 @@ sacrificing accessibility, performance, or NYU identity.
 
 ## Current Phase
 
-Review checkpoint
+Phase 6
 
 ## Phases
 
@@ -43,9 +43,9 @@ Review checkpoint
 - **Status:** completed
 
 ### Phase 6: Produce implementation plans after spec approval
-- [ ] Split the approved specification into independently executable implementation plans
-- [ ] Include exact file ownership, interfaces, TDD steps, verification, and commit boundaries
-- **Status:** pending
+- [x] Split the approved specification into independently executable implementation plans
+- [x] Include exact file ownership, interfaces, TDD steps, verification, and commit boundaries
+- **Status:** completed
 
 ## Decisions Made
 
@@ -90,3 +90,6 @@ Review checkpoint
 | Two log patches targeted a task-plan error row in the findings file | 2 | Corrected the file targets and applied the research and error updates separately |
 | Agent Reach could not check for a newer release after three network retries | 1 | Recorded installed version v1.5.0; research results were already complete, so no retry was needed |
 | The first specification assertion required a phrase split across two Markdown lines | 1 | Replaced the literal substring assertion with a whitespace-tolerant pattern and completed the review checks |
+| PowerShell interpreted the literal `[...nextauth]` route path as a wildcard during line counting | 1 | Kept the valid file inventory and switched future reads of bracketed paths to `-LiteralPath` |
+| Two PowerShell audits piped directly from a `foreach` statement and failed to parse | 2 | Collected loop results into an array before formatting and completed both audits |
+| The first no-marker assertion matched the release plan's intentional command for finding unfinished markers | 1 | Excluded that inspection command from the assertion and verified the remaining plan content cleanly |
