@@ -16,18 +16,13 @@ import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
 import type {
   CatalogProgram,
   Course,
-  FulfillmentFact,
-  PlanSnapshot,
+  PersistedPlanSnapshot,
   SpecialRule,
 } from "@/lib/types";
 import type {
   CatalogCourseRecord,
   CatalogReleaseRef,
 } from "@/lib/catalog/types";
-
-type PersistedPlanSnapshot = Omit<PlanSnapshot, "fulfillmentFacts"> & {
-  fulfillmentFacts: FulfillmentFact[];
-};
 
 // ---------------------------------------------------------------------------
 // Auth.js (NextAuth) core tables — standard adapter schema.
@@ -107,6 +102,7 @@ export const plans = pgTable(
     name: text("name").notNull().default("My 4-Year Plan"),
     isActive: boolean("isActive").notNull().default(true),
     snapshot: jsonb("snapshot").$type<PersistedPlanSnapshot>().notNull(),
+    revision: integer("revision").notNull().default(1),
     updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
     createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   },

@@ -22,11 +22,13 @@ import {
   Course,
   CourseSchema,
   PlanSnapshot,
+  PlanSnapshotV2,
+  PersistedPlanSnapshot,
   RequirementNode,
   SpecialRule,
   SpecialRuleSchema,
 } from "@/lib/types";
-import { parsePlan } from "@/lib/planIO";
+import { parsePlan, parsePlanDocument } from "@/lib/planIO";
 
 /** Either driver — both expose the same query API for our schema. */
 export type Db =
@@ -63,7 +65,7 @@ export function emptySnapshot(): PlanSnapshot {
 export async function getActivePlan(
   db: Db,
   userId: string,
-): Promise<PlanSnapshot | null> {
+): Promise<PersistedPlanSnapshot | null> {
   const rows = await db
     .select({ snapshot: schema.plans.snapshot })
     .from(schema.plans)
@@ -75,9 +77,10 @@ export async function getActivePlan(
     )
     .limit(1);
   const snapshot = rows[0]?.snapshot;
-  return snapshot
+  if (!snapshot) return null;
+  return snapshot.version === 1
     ? { ...snapshot, fulfillmentFacts: snapshot.fulfillmentFacts ?? [] }
-    : null;
+    : snapshot;
 }
 
 /**
@@ -107,6 +110,89 @@ export async function saveActivePlan(
         targetWhere: sql`${schema.plans.isActive} = true`,
         set: { snapshot: persistedSnapshot, updatedAt: new Date() },
       });
+  });
+}
+
+export interface StoredPlanEnvelope {
+  snapshot: PersistedPlanSnapshot;
+  revision: number;
+  updatedAt: string;
+}
+
+export type SavePlanResult =
+  | { status: "saved"; plan: StoredPlanEnvelope }
+  | { status: "conflict"; server: StoredPlanEnvelope };
+
+function planEnvelope(row: {
+  snapshot: PersistedPlanSnapshot;
+  revision: number;
+  updatedAt: Date;
+}): StoredPlanEnvelope {
+  const snapshot = parsePlanDocument(JSON.stringify(row.snapshot));
+  return {
+    snapshot,
+    revision: row.revision,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export async function getActivePlanEnvelope(
+  db: Db,
+  userId: string,
+): Promise<StoredPlanEnvelope | null> {
+  const rows = await db
+    .select({
+      snapshot: schema.plans.snapshot,
+      revision: schema.plans.revision,
+      updatedAt: schema.plans.updatedAt,
+    })
+    .from(schema.plans)
+    .where(and(eq(schema.plans.userId, userId), eq(schema.plans.isActive, true)))
+    .limit(1);
+  return rows[0] ? planEnvelope(rows[0]) : null;
+}
+
+/** Compare-and-swap save. A stale client never mutates the server row. */
+export async function saveActivePlanRevision(
+  db: Db,
+  userId: string,
+  snapshot: PlanSnapshotV2,
+  baseRevision: number | null,
+): Promise<SavePlanResult> {
+  return inTransaction(db, async (tx) => {
+    await lockMutableCourseReferences(
+      tx,
+      snapshot.placements.map(({ courseId }) => courseId),
+      new Set(snapshot.customCourses.map(({ id }) => id)),
+    );
+    const now = new Date();
+    if (baseRevision === null) {
+      const inserted = await tx
+        .insert(schema.plans)
+        .values({ userId, isActive: true, snapshot, revision: 1, updatedAt: now })
+        .onConflictDoNothing()
+        .returning();
+      if (inserted[0]) return { status: "saved", plan: planEnvelope(inserted[0]) };
+    } else {
+      const updated = await tx
+        .update(schema.plans)
+        .set({
+          snapshot,
+          revision: sql`${schema.plans.revision} + 1`,
+          updatedAt: now,
+        })
+        .where(and(
+          eq(schema.plans.userId, userId),
+          eq(schema.plans.isActive, true),
+          eq(schema.plans.revision, baseRevision),
+        ))
+        .returning();
+      if (updated[0]) return { status: "saved", plan: planEnvelope(updated[0]) };
+    }
+
+    const server = await getActivePlanEnvelope(tx, userId);
+    if (!server) throw new Error("Plan revision conflict without an active server plan.");
+    return { status: "conflict", server };
   });
 }
 

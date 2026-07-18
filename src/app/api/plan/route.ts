@@ -1,35 +1,48 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { parsePlan } from "@/lib/planIO";
-import { getActivePlan, saveActivePlan } from "@/lib/repository";
+import { PlanSnapshotV2Schema } from "@/lib/planIO";
+import {
+  getActivePlanEnvelope,
+  saveActivePlanRevision,
+} from "@/lib/repository";
 
-/** Returns the signed-in user's saved plan snapshot, or null if none yet. */
+const SavePlanRequestSchema = z.object({
+  snapshot: PlanSnapshotV2Schema,
+  baseRevision: z.number().int().positive().nullable(),
+}).strict();
+
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const snapshot = await getActivePlan(db, session.user.id);
-  return NextResponse.json({ snapshot });
+  return NextResponse.json(await getActivePlanEnvelope(db, session.user.id));
 }
 
-/** Saves (upserts) the user's plan. Body: { snapshot }. */
 export async function PUT(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-
-  let snapshot;
+  let input: z.infer<typeof SavePlanRequestSchema>;
   try {
-    const body = await request.json();
-    // Reuse parsePlan to validate + sanitize (drops unknown courses/programs).
-    snapshot = parsePlan(JSON.stringify(body.snapshot));
+    input = SavePlanRequestSchema.parse(await request.json());
   } catch {
-    return NextResponse.json({ error: "invalid snapshot" }, { status: 400 });
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
-
-  await saveActivePlan(db, session.user.id, snapshot);
-  return NextResponse.json({ ok: true });
+  const result = await saveActivePlanRevision(
+    db,
+    session.user.id,
+    input.snapshot,
+    input.baseRevision,
+  );
+  if (result.status === "conflict") {
+    return NextResponse.json(
+      { error: "revision_conflict", server: result.server },
+      { status: 409 },
+    );
+  }
+  return NextResponse.json(result);
 }

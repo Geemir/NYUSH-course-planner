@@ -10,14 +10,16 @@ import {
   emptySnapshot,
   ensureCatalogSeeded,
   getActivePlan,
+  getActivePlanEnvelope,
   getAllCourses,
   saveActivePlan,
+  saveActivePlanRevision,
   upsertCourses,
   upsertRule,
   type Db,
 } from "@/lib/repository";
 import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
-import type { CatalogProgram, Course } from "@/lib/types";
+import type { CatalogProgram, Course, PlanSnapshotV2 } from "@/lib/types";
 
 let db: Db;
 let userId: string;
@@ -132,6 +134,64 @@ describe("plan repository", () => {
     });
 
     expect(await getActivePlan(db, inactiveUserId)).toBeNull();
+  });
+});
+
+describe("revision-aware plan repository", () => {
+  const v2 = (startYear: number): PlanSnapshotV2 => ({
+    version: 2,
+    catalogReleaseId: "release",
+    placements: [],
+    studyAway: {},
+    completedSemesters: [],
+    programProfile: {
+      coreProgramId: "core",
+      primaryMajorId: "cs",
+      secondMajorId: null,
+      minorIds: [],
+    },
+    unresolvedProgramIds: [],
+    customCourses: [],
+    fulfillmentFacts: [],
+    dismissedWarnings: [],
+    startYear,
+  });
+
+  it("inserts revision 1, increments matching updates, and preserves stale conflicts", async () => {
+    const isolated = await isolatedRepository();
+    try {
+      await isolated.db.insert(schema.users).values({ id: "revision-user", email: "revision@nyu.edu" });
+      const first = await saveActivePlanRevision(isolated.db, "revision-user", v2(2026), null);
+      expect(first).toMatchObject({ status: "saved", plan: { revision: 1, snapshot: { startYear: 2026 } } });
+      const second = await saveActivePlanRevision(isolated.db, "revision-user", v2(2027), 1);
+      expect(second).toMatchObject({ status: "saved", plan: { revision: 2, snapshot: { startYear: 2027 } } });
+      const stale = await saveActivePlanRevision(isolated.db, "revision-user", v2(2030), 1);
+      expect(stale).toMatchObject({ status: "conflict", server: { revision: 2, snapshot: { startYear: 2027 } } });
+      expect(await getActivePlanEnvelope(isolated.db, "revision-user")).toMatchObject({ revision: 2, snapshot: { startYear: 2027 } });
+    } finally {
+      await isolated.client.close();
+    }
+  });
+
+  it("isolates users and reads a v1 row verbatim at revision 1", async () => {
+    const isolated = await isolatedRepository();
+    try {
+      await isolated.db.insert(schema.users).values([
+        { id: "v1-user", email: "v1@nyu.edu" },
+        { id: "other-user", email: "other@nyu.edu" },
+      ]);
+      const legacy = { ...emptySnapshot(), fulfillmentFacts: [], activePrograms: ["core", "unknown"], startYear: 2024 };
+      await isolated.db.insert(schema.plans).values({ userId: "v1-user", snapshot: legacy });
+      expect(await getActivePlanEnvelope(isolated.db, "v1-user")).toMatchObject({
+        revision: 1,
+        snapshot: { version: 1, activePrograms: ["core", "unknown"], startYear: 2024 },
+      });
+      expect(await getActivePlanEnvelope(isolated.db, "other-user")).toBeNull();
+      const replaced = await saveActivePlanRevision(isolated.db, "v1-user", v2(2028), 1);
+      expect(replaced).toMatchObject({ status: "saved", plan: { revision: 2, snapshot: { version: 2, startYear: 2028 } } });
+    } finally {
+      await isolated.client.close();
+    }
   });
 });
 
