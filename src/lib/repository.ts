@@ -2,13 +2,19 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "@/db/schema";
-import { getActiveCatalog, type CatalogDb } from "@/lib/catalogRepository";
+import {
+  getActiveCatalog,
+  getActiveReleaseCatalog,
+  type CatalogDb,
+} from "@/lib/catalogRepository";
 import {
   BulletinCatalogResponseSchema,
   CATALOG_FALLBACK,
-  CatalogResponseSchema,
+  ComposedBulletinCatalogResponseSchema,
+  PublicCatalogResponseSchema,
   type BulletinCatalogResponse,
-  type CatalogResponse,
+  type ComposedBulletinCatalogResponse,
+  type PublicCatalogResponse,
 } from "@/lib/data";
 import {
   CatalogProgram,
@@ -437,7 +443,15 @@ export function getActiveRules(db: Db): Promise<SpecialRule[]> {
 /** Reads one schema-validated active Bulletin candidate and its active rules. */
 export async function readActiveCatalogResponse(
   db: Db,
-): Promise<BulletinCatalogResponse | null> {
+): Promise<BulletinCatalogResponse | ComposedBulletinCatalogResponse | null> {
+  const releaseCatalog = await getActiveReleaseCatalog(db as CatalogDb);
+  if (releaseCatalog) {
+    const rules = await getActiveRules(db);
+    return ComposedBulletinCatalogResponseSchema.parse({
+      ...releaseCatalog,
+      rules,
+    });
+  }
   const active = await getActiveCatalog(db as CatalogDb);
   if (!active) return null;
   const rules = await getActiveRules(db);
@@ -460,12 +474,12 @@ export async function readActiveCatalogResponse(
 export async function catalogResponseWithFallback(
   read: () => Promise<unknown | null>,
   onError?: (error: unknown) => void,
-): Promise<CatalogResponse> {
+): Promise<PublicCatalogResponse> {
   try {
     const response = await read();
     return response === null
       ? CATALOG_FALLBACK
-      : CatalogResponseSchema.parse(response);
+      : PublicCatalogResponseSchema.parse(response);
   } catch (error) {
     onError?.(error);
     return CATALOG_FALLBACK;
@@ -473,7 +487,7 @@ export async function catalogResponseWithFallback(
 }
 
 /** Public catalog read: active Bulletin snapshot, otherwise the coherent LKG. */
-export function getCatalogResponse(db: Db): Promise<CatalogResponse> {
+export function getCatalogResponse(db: Db): Promise<PublicCatalogResponse> {
   return catalogResponseWithFallback(
     () => readActiveCatalogResponse(db),
     (error) => console.error("[catalog] failed to read active catalog:", error),

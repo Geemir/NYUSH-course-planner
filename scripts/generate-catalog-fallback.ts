@@ -3,9 +3,8 @@ import { rename, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, resolve } from "node:path";
 import {
-  BulletinCatalogResponseSchema,
-  CatalogResponseSchema,
-  type CatalogResponse,
+  PublicCatalogResponseSchema,
+  type PublicCatalogResponse,
 } from "@/lib/data";
 
 export const CATALOG_FALLBACK_PATH = resolve(
@@ -55,11 +54,13 @@ function stableValue(value: unknown): unknown {
 /** Validates and serializes a deterministic fallback without mutating input. */
 export function serializeCatalogFallback(input: unknown): string {
   assertNonemptyCatalog(input);
-  const parsed = CatalogResponseSchema.parse(input);
-  const sorted: CatalogResponse = {
+  const parsed = PublicCatalogResponseSchema.parse(input);
+  const courseIdentity = (course: (typeof parsed.courses)[number]) =>
+    "stableId" in course ? course.stableId : course.id;
+  const sorted: PublicCatalogResponse = {
     ...parsed,
     courses: [...parsed.courses].sort((left, right) =>
-      left.id.localeCompare(right.id),
+      courseIdentity(left).localeCompare(courseIdentity(right)),
     ),
     programs: [...parsed.programs].sort((left, right) =>
       left.id.localeCompare(right.id),
@@ -67,7 +68,7 @@ export function serializeCatalogFallback(input: unknown): string {
     rules: [...parsed.rules].sort((left, right) =>
       left.id.localeCompare(right.id),
     ),
-  } as CatalogResponse;
+  } as PublicCatalogResponse;
   return `${JSON.stringify(stableValue(sorted), null, 2)}\n`;
 }
 
@@ -112,10 +113,11 @@ export async function generateCatalogFallback(): Promise<void> {
       "No active Bulletin catalog exists; the last-known-good fallback was not changed.",
     );
   }
-  const validated = BulletinCatalogResponseSchema.parse(active);
+  const validated = PublicCatalogResponseSchema.parse(active);
   await writeCatalogFallback(validated);
+  const catalogId = "release" in validated ? validated.release.id : validated.snapshot.id;
   process.stdout.write(
-    `Wrote ${validated.courses.length} courses and ${validated.programs.length} programs from ${validated.snapshot.id} to ${CATALOG_FALLBACK_PATH}.\n`,
+    `Wrote ${validated.courses.length} courses and ${validated.programs.length} programs from ${catalogId} to ${CATALOG_FALLBACK_PATH}.\n`,
   );
 }
 

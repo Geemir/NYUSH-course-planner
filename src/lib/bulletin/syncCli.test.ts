@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 import type { SyncResult } from "@/lib/bulletin/sync";
-import { runBulletinSyncCli } from "../../../scripts/sync-bulletin";
+import {
+  runBulletinSyncCli,
+  sourceIdsFromArgs,
+} from "../../../scripts/sync-bulletin";
 
 const result = (outcome: SyncResult["outcome"]): SyncResult => ({
   outcome,
@@ -18,6 +21,48 @@ const result = (outcome: SyncResult["outcome"]): SyncResult => ({
 });
 
 describe("Bulletin synchronization CLI", () => {
+  it("validates and deduplicates explicit source selections before execution", () => {
+    expect(
+      sourceIdsFromArgs([
+        "--source=nyu-new-york-business",
+        "--source=nyu-new-york-business",
+        "--source=nyu-new-york-engineering",
+      ]),
+    ).toEqual([
+      "nyu-new-york-business",
+      "nyu-new-york-engineering",
+    ]);
+    expect(() => sourceIdsFromArgs(["--source=unknown-school"])).toThrow(
+      /unknown/i,
+    );
+  });
+
+  it("prints one safe source row and the composed release summary", async () => {
+    const stdout = vi.fn();
+    const exitCode = await runBulletinSyncCli({
+      execute: async () => ({
+        releaseId: "release-test",
+        complete: true,
+        sourceResults: [
+          {
+            sourceId: "nyu-new-york-business",
+            status: "published",
+            snapshotId: "stern-snapshot",
+            retainedSnapshotId: null,
+            diagnostics: [],
+          },
+        ],
+      }),
+      stdout,
+      stderr: vi.fn(),
+    });
+    expect(exitCode).toBe(0);
+    expect(stdout.mock.calls).toEqual([
+      ["nyu-new-york-business: published snapshot=stern-snapshot"],
+      ["release=release-test complete=true"],
+    ]);
+  });
+
   it.each(["published", "no-op"] as const)(
     "returns zero and prints safe IDs/counts for %s",
     async (outcome) => {

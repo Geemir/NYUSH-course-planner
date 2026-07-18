@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/adminAuth";
 import { createBulletinFetch } from "@/lib/bulletin/fetch";
-import {
-  BulletinSyncInProgressError,
-  syncBulletin,
-} from "@/lib/bulletin/sync";
+import { syncCatalogSources } from "@/lib/bulletin/syncAll";
+import { CATALOG_SOURCES } from "@/lib/bulletin/sourceRegistry";
 
 const fetcher = createBulletinFetch({
   timeoutMs: 15_000,
@@ -14,24 +13,51 @@ const fetcher = createBulletinFetch({
 });
 
 /** Starts one complete Bulletin synchronization for an authenticated admin. */
-export async function POST() {
+const SyncRequestSchema = z
+  .object({
+    sourceIds: z
+      .array(
+        z.string().refine(
+          (sourceId) =>
+            CATALOG_SOURCES.some(
+              (source) => source.enabled && source.id === sourceId,
+            ),
+          "Unknown or disabled catalog source",
+        ),
+      )
+      .optional(),
+  })
+  .strict();
+
+export async function POST(request: Request) {
   const gate = await requireAdmin();
   if (!("ok" in gate)) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   try {
-    const result = await syncBulletin({
-      fetcher,
+    const body = SyncRequestSchema.parse(await request.json());
+    const result = await syncCatalogSources({
+      sourceIds: body.sourceIds,
+      fetchPage: fetcher,
       db,
-      now: () => new Date(),
     });
+    if (
+      result.sourceResults.some((source) =>
+        source.diagnostics.includes("source-locked"),
+      )
+    ) {
+      return NextResponse.json(
+        { error: "bulletin source sync already in progress", result },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof BulletinSyncInProgressError) {
+    if (error instanceof z.ZodError || error instanceof SyntaxError) {
       return NextResponse.json(
-        { error: "bulletin sync already in progress" },
-        { status: 409 },
+        { error: "invalid bulletin sync request" },
+        { status: 400 },
       );
     }
     return NextResponse.json(

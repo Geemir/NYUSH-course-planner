@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/adminAuth";
-import { getCatalogStatus } from "@/lib/catalogRepository";
+import {
+  getActiveCatalogRelease,
+  getCatalogSourceStatuses,
+} from "@/lib/catalogRepository";
 
 /** Returns the active Bulletin snapshot and recent synchronization outcomes. */
 export async function GET() {
@@ -11,7 +14,11 @@ export async function GET() {
   }
 
   try {
-    return NextResponse.json(await getCatalogStatus(db));
+    const [release, sources] = await Promise.all([
+      getActiveCatalogRelease(db),
+      getCatalogSourceStatuses(db),
+    ]);
+    return NextResponse.json({ release, sources });
   } catch {
     return NextResponse.json(
       { error: "bulletin status unavailable" },

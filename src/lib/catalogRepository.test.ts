@@ -20,6 +20,7 @@ import {
   composeCatalogRelease,
   getActiveCatalog,
   getActiveCatalogRelease,
+  getActiveReleaseCatalog,
   getCatalogSourceStatuses,
   getCatalogStatus,
   publishSourceCandidate,
@@ -444,6 +445,14 @@ describe("multi-source catalog releases", () => {
     await expect(getActiveCatalogRelease(db)).resolves.toMatchObject({
       id: release.id,
       sourceSnapshotIds: release.sourceSnapshotIds,
+    });
+    await expect(getActiveReleaseCatalog(db)).resolves.toMatchObject({
+      release: { id: release.id },
+      courses: expect.arrayContaining([
+        expect.objectContaining({ sourceId: "nyu-shanghai" }),
+        expect.objectContaining({ sourceId: "nyu-new-york-business" }),
+      ]),
+      programs: [],
     });
     await expect(getCatalogSourceStatuses(db)).resolves.toEqual(
       expect.arrayContaining([

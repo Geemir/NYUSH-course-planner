@@ -11,7 +11,10 @@ import {
   type SnapshotValidationReport,
 } from "@/lib/bulletin/validateSnapshot";
 import {
+  CatalogProgramSchema,
   CatalogCandidateSchema,
+  CourseSchema,
+  type CatalogProgram,
   type CatalogCandidate,
 } from "@/lib/types";
 import {
@@ -592,6 +595,91 @@ export async function getActiveCatalogRelease(
     sourceSnapshotIds: release.sourceSnapshotIds,
     publishedAt: release.publishedAt.toISOString(),
   });
+}
+
+export interface ActiveReleaseCatalog {
+  release: CatalogReleaseRef;
+  courses: ReturnType<typeof CatalogCourseRecordSchema.parse>[];
+  programs: CatalogProgram[];
+}
+
+/** Reads only snapshots explicitly referenced by the active release. */
+export async function getActiveReleaseCatalog(
+  db: CatalogDb,
+): Promise<ActiveReleaseCatalog | null> {
+  const release = await getActiveCatalogRelease(db);
+  if (!release) return null;
+  const memberships = await db
+    .select({
+      sourceId: schema.catalogReleaseSource.sourceId,
+      snapshotId: schema.catalogReleaseSource.snapshotId,
+    })
+    .from(schema.catalogReleaseSource)
+    .where(eq(schema.catalogReleaseSource.releaseId, release.id));
+  const membershipMap = Object.fromEntries(
+    memberships.map((row) => [row.sourceId, row.snapshotId]),
+  );
+  const releaseEntries = Object.entries(release.sourceSnapshotIds);
+  if (
+    memberships.length !== releaseEntries.length ||
+    releaseEntries.some(
+      ([sourceId, snapshotId]) => membershipMap[sourceId] !== snapshotId,
+    )
+  ) {
+    throw new CatalogPublicationError(
+      "Active release membership does not match its sealed source map.",
+    );
+  }
+  const snapshotIds = memberships.map((row) => row.snapshotId);
+  const courseRows = snapshotIds.length
+    ? await db
+        .select({
+          snapshotId: schema.catalogCourse.snapshotId,
+          sourceId: schema.catalogCourse.sourceId,
+          data: schema.catalogCourse.data,
+        })
+        .from(schema.catalogCourse)
+        .where(inArray(schema.catalogCourse.snapshotId, snapshotIds))
+        .orderBy(asc(schema.catalogCourse.stableId))
+    : [];
+  const courses = courseRows.map((row) => {
+    const parsed = CatalogCourseRecordSchema.safeParse(row.data);
+    if (parsed.success) {
+      if (
+        parsed.data.sourceId !== row.sourceId ||
+        parsed.data.sourceSnapshotId !== row.snapshotId ||
+        membershipMap[parsed.data.sourceId] !== parsed.data.sourceSnapshotId
+      ) {
+        throw new CatalogPublicationError(
+          "A release course has orphaned source provenance.",
+        );
+      }
+      return parsed.data;
+    }
+    const course = CourseSchema.parse(row.data);
+    return CatalogCourseRecordSchema.parse({
+      stableId: `${row.sourceId}:${course.id}`,
+      sourceId: row.sourceId,
+      sourceSnapshotId: row.snapshotId,
+      code: course.id,
+      subject: course.department,
+      level: "undergraduate",
+      catalogOfferingTerms: course.offered,
+      catalogOfferingText: course.offeringText ?? null,
+      course,
+      crossListedStableIds: [],
+    });
+  });
+  const shanghaiSnapshotId = membershipMap["nyu-shanghai"];
+  const programRows = shanghaiSnapshotId
+    ? await db
+        .select({ data: schema.catalogProgram.data })
+        .from(schema.catalogProgram)
+        .where(eq(schema.catalogProgram.snapshotId, shanghaiSnapshotId))
+        .orderBy(asc(schema.catalogProgram.programId))
+    : [];
+  const programs = programRows.map((row) => CatalogProgramSchema.parse(row.data));
+  return { release, courses, programs };
 }
 
 /** Atomically activates an exact, source-complete set of healthy snapshots. */

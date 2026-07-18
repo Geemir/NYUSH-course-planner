@@ -35,6 +35,8 @@ npm run lint                 # ESLint
 npx tsc --noEmit             # TypeScript check
 npm run build                # optimized production build
 npm run bulletin:sync        # fetch, validate, and publish Bulletin data
+npm run bulletin:sync -- --source=nyu-new-york-arts-science
+npm run bulletin:sync -- --source=nyu-new-york-business --source=nyu-new-york-engineering
 npm run catalog:generate-fallback
 ```
 
@@ -56,23 +58,33 @@ npm run catalog:generate-fallback
 
 ## Official Bulletin data
 
-The source of truth is the official
+Degree requirements come only from the official
 [NYU Shanghai Undergraduate Bulletin](https://bulletins.nyu.edu/undergraduate/shanghai/).
+Study-away course inventory comes from the configured undergraduate school
+sections of the [New York Bulletin](https://bulletins.nyu.edu/undergraduate/).
 The synchronization pipeline:
 
-1. Discovers Shanghai major, minor, Core, and subject pages.
+1. Discovers Shanghai major, minor, Core, and subject pages plus course pages
+   owned by each configured New York school. New York program pages are never
+   imported as NYUSH degree requirements.
 2. Archives source documents and parses program requirements, course details,
    descriptions, credits, attributes, and source provenance.
 3. Normalizes references while preserving unresolved official references for
    audit instead of fabricating courses.
 4. Validates the complete candidate snapshot with fail-closed coverage and
    referential-integrity checks.
-5. Atomically activates the immutable snapshot only after validation succeeds.
+5. Activates each immutable source snapshot independently, then atomically
+   composes a release from one healthy snapshot per enabled source.
 
 Official Bulletin content is trusted first-party data and publishes
 automatically after validation. A failed fetch, parse, validation, or activation
-leaves the prior active snapshot untouched. Re-running an unchanged source is a
-no-op based on its content hash.
+leaves that source's prior healthy snapshot and the current release untouched.
+Re-running an unchanged source is a no-op based on its content hash.
+
+New York Bulletin text such as “typically offered” is catalog evidence, not a
+promise of semester availability, seats, eligibility, or NYUSH degree
+fulfillment. The expanded New York catalog currently requires a database-backed
+deployment; the checked-in fallback remains a bounded NYUSH recovery catalog.
 
 ```powershell
 npm run bulletin:sync

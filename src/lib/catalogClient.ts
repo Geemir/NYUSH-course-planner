@@ -1,6 +1,5 @@
 import {
-  CatalogResponseSchema,
-  type CatalogResponse,
+  PublicCatalogResponseSchema,
 } from "@/lib/data";
 import type { PlannerProgram } from "@/lib/requirements";
 import type { Course, SpecialRule } from "@/lib/types";
@@ -17,7 +16,12 @@ const PROGRAM_COLORS = [
 export type ClientPlannerProgram = PlannerProgram & { color: string };
 
 export interface ClientCatalogValue {
-  snapshot: CatalogResponse["snapshot"];
+  snapshot: {
+    id: string;
+    kind: "bootstrap-legacy" | "bulletin" | "bulletin-release";
+    sourceHash: string;
+    publishedAt?: string;
+  };
   courses: Course[];
   programs: PlannerProgram[];
   rules: SpecialRule[];
@@ -25,7 +29,20 @@ export interface ClientCatalogValue {
 
 /** Parse one coherent API/fallback response before exposing it to client engines. */
 export function catalogValueFromResponse(input: unknown): ClientCatalogValue {
-  const response = CatalogResponseSchema.parse(input);
+  const response = PublicCatalogResponseSchema.parse(input);
+  if ("release" in response) {
+    return {
+      snapshot: {
+        id: response.release.id,
+        kind: "bulletin-release",
+        sourceHash: response.release.id,
+        publishedAt: response.release.publishedAt,
+      },
+      courses: response.courses.map((record) => record.course),
+      programs: response.programs,
+      rules: response.rules,
+    };
+  }
   return response.snapshot.kind === "bulletin"
     ? {
         snapshot: response.snapshot,

@@ -13,6 +13,10 @@ import {
   type SpecialRule,
   SpecialRuleSchema,
 } from "@/lib/types";
+import {
+  CatalogCourseRecordSchema,
+  CatalogReleaseRefSchema,
+} from "@/lib/catalog/types";
 
 const SnapshotMetadataSchema = z
   .object({
@@ -137,7 +141,61 @@ export const BulletinCatalogResponseSchema = z
     });
   });
 
+export const ComposedBulletinCatalogResponseSchema = z
+  .object({
+    release: CatalogReleaseRefSchema,
+    courses: z.array(CatalogCourseRecordSchema).min(1),
+    programs: z.array(CatalogProgramSchema).min(1),
+    rules: z.array(SpecialRuleSchema),
+  })
+  .strict()
+  .superRefine((response, context) => {
+    addCatalogCoherenceIssues(
+      {
+        courses: response.courses.map((record) => record.course),
+        programs: response.programs,
+        rules: response.rules,
+      },
+      context,
+    );
+    const stableIds = response.courses.map((record) => record.stableId);
+    if (new Set(stableIds).size !== stableIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Composed catalog course stable IDs must be unique",
+        path: ["courses"],
+      });
+    }
+    response.courses.forEach((record, index) => {
+      if (
+        response.release.sourceSnapshotIds[record.sourceId] !==
+        record.sourceSnapshotId
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Course provenance must belong to the composed release",
+          path: ["courses", index, "sourceSnapshotId"],
+        });
+      }
+    });
+    const shanghaiSnapshotId = response.release.sourceSnapshotIds["nyu-shanghai"];
+    response.programs.forEach((program, index) => {
+      if (program.provenance.snapshotId !== shanghaiSnapshotId) {
+        context.addIssue({
+          code: "custom",
+          message: "NYUSH program provenance must match the Shanghai release member",
+          path: ["programs", index, "provenance", "snapshotId"],
+        });
+      }
+    });
+  });
+
 export const CatalogResponseSchema = z.union([
+  BulletinCatalogResponseSchema,
+  BootstrapCatalogResponseSchema,
+]);
+export const PublicCatalogResponseSchema = z.union([
+  ComposedBulletinCatalogResponseSchema,
   BulletinCatalogResponseSchema,
   BootstrapCatalogResponseSchema,
 ]);
@@ -145,10 +203,14 @@ export const CatalogResponseSchema = z.union([
 export type BulletinCatalogResponse = z.infer<
   typeof BulletinCatalogResponseSchema
 >;
+export type ComposedBulletinCatalogResponse = z.infer<
+  typeof ComposedBulletinCatalogResponseSchema
+>;
 export type BootstrapCatalogResponse = z.infer<
   typeof BootstrapCatalogResponseSchema
 >;
 export type CatalogResponse = z.infer<typeof CatalogResponseSchema>;
+export type PublicCatalogResponse = z.infer<typeof PublicCatalogResponseSchema>;
 
 /** Checked-in, validated last-known-good catalog used when DB reads fail. */
 export const CATALOG_FALLBACK: CatalogResponse = CatalogResponseSchema.parse(
