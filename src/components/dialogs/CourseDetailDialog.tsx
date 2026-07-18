@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ExternalLink, PenLine } from "lucide-react";
 import { useCatalog } from "@/components/CatalogProvider";
 import { EditCourseForm } from "@/components/dialogs/EditCourseForm";
+import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -42,6 +43,7 @@ export function CourseDetailDialog({
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [retryKey, setRetryKey] = useState(0);
   const [editing, setEditing] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const placeCourse = usePlannerStore((state) => state.placeCourse);
   const removeCourse = usePlannerStore((state) => state.removeCourse);
@@ -135,7 +137,7 @@ export function CourseDetailDialog({
               {placementInput && <Row label={placement ? "Semester" : "Add to semester"}><Select value={placement?.semesterId ?? null} onValueChange={(value) => placeCourse(placementId ?? placementInput, value as SemesterId)}><SelectTrigger size="sm" className="w-full"><SelectValue placeholder="Choose a semester…">{(value: SemesterId | null) => value ? semesterFullLabel(value, startYear) : "Choose a semester…"}</SelectValue></SelectTrigger><SelectContent>{SEMESTER_IDS.map((semesterId) => <SelectItem key={semesterId} value={semesterId}>{semesterFullLabel(semesterId, startYear)}</SelectItem>)}</SelectContent></Select></Row>}
               {placement && placementId && <Row label="Expected grade (optional)"><Select value={placement.expectedGrade ?? "none"} onValueChange={(value) => setExpectedGrade(placementId, value === "none" ? null : value as Grade)}><SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Not set</SelectItem>{GRADES.map((grade) => <SelectItem key={grade} value={grade}>{grade}</SelectItem>)}</SelectContent></Select></Row>}
               {placement && placementId && course.fulfills.length > 0 && <Row label="Requirement allocation"><Select value={placement.allocation} onValueChange={(value) => setAllocation(placementId, value as Allocation)}><SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Automatic — use confirmed planner rules</SelectItem>{derived.activeProgramObjs.filter((program) => course.fulfills.some((item) => item.programId === program.id)).map((program) => <SelectItem key={program.id} value={program.id}>{program.shortName} only</SelectItem>)}{derived.activeProgramObjs.filter((program) => course.fulfills.some((item) => item.programId === program.id)).length > 1 && <SelectItem value="split">Both programs (when permitted)</SelectItem>}</SelectContent></Select><p className="mt-1 text-xs text-muted-foreground">Current automatic recipients: {derived.effectiveMajors(course.id).join(", ") || "none confirmed"}.{derived.allocation.budget ? ` Double-count budget: ${derived.allocation.budget.used}/${derived.allocation.budget.limit}.` : ""}</p></Row>}
-              {record && <Button type="button" variant="ghost" size="sm" data-correction-entry={record.stableId}><AlertCircle />Report catalog issue</Button>}
+              {record && <Button type="button" variant="ghost" size="sm" data-correction-entry={record.stableId} onClick={() => setReporting(true)}><AlertCircle />Report catalog issue</Button>}
             </div>
             <DialogFooter>
               {isCustom && <Button variant="outline" size="sm" onClick={() => setEditing(true)}><PenLine />Edit course</Button>}
@@ -145,6 +147,12 @@ export function CourseDetailDialog({
           </>}
         </>}
       </DialogContent>
+      {record && <ReportIssueDialog open={reporting} onOpenChange={setReporting} context={{
+        target: { kind: "course", stableId: record.stableId }, catalogReleaseId: bootstrap.release.id,
+        sourceId: record.sourceId, sourceSnapshotId: record.sourceSnapshotId, schoolName: source?.schoolName,
+        sourceUrl: course?.provenance?.sourceUrl, displayedValue: `${record.code} — ${record.course.title}`,
+        label: `${record.code} · ${record.course.title}`,
+      }} />}
     </Dialog>
   );
 }

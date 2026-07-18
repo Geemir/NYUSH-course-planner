@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import {
+  AlertCircle,
   CheckCircle2,
   Circle,
   ExternalLink,
   GraduationCap,
   ShieldCheck,
 } from "lucide-react";
+import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import {
   Accordion,
   AccordionContent,
@@ -162,6 +165,7 @@ function CategoryRow({
   category: CategoryProgress;
   program: ClientPlannerProgram;
 }) {
+  const [reporting, setReporting] = useState(false);
   const { placementByCourse, coursesById } = usePlanDerived();
   const completedSemesters = usePlannerStore((state) => state.completedSemesters);
   const startYear = usePlannerStore((state) => state.startYear);
@@ -249,16 +253,18 @@ function CategoryRow({
       </ul>
 
       {sourceUrl && (
-        <a
-          href={sourceUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary"
-        >
-          View requirement in NYU Bulletin
-          <ExternalLink className="size-3" />
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <a href={sourceUrl} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary">View requirement in NYU Bulletin<ExternalLink className="size-3" /></a>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setReporting(true)}><AlertCircle />Report requirement issue</Button>
+        </div>
       )}
+      {sourceUrl && <ReportIssueDialog open={reporting} onOpenChange={setReporting} context={{
+        target: { kind: "requirement", programId: program.id, requirementId: category.categoryId },
+        catalogReleaseId: null, sourceUrl,
+        sourceSnapshotId: "provenance" in program ? program.provenance.snapshotId : undefined,
+        displayedValue: `${program.name}: ${category.name} — ${unitsLabel(category)}`,
+        label: `${program.name} · ${category.name}`,
+      }} />}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CourseDetailDialog } from "@/components/dialogs/CourseDetailDialog";
 import type { CatalogClient } from "@/lib/catalogClient";
@@ -59,6 +60,7 @@ describe("CourseDetailDialog", () => {
   });
 
   it("hydrates once, reuses cache, batches known stable prerequisites, and renders trust signals", async () => {
+    const user = userEvent.setup();
     const getCourse = vi.fn(async () => record());
     const api = client(getCourse);
     const view = render(<CourseDetailDialog stableId="stern:TEST-UA 1" onClose={() => undefined} client={api} />);
@@ -71,6 +73,10 @@ describe("CourseDetailDialog", () => {
     expect(screen.getByRole("link", { name: /Open official Bulletin/ }).getAttribute("href")).toContain("bulletins.nyu.edu");
     expect(screen.getByText(/Not currently mapped to an NYUSH requirement/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Report catalog issue" }).getAttribute("data-correction-entry")).toBe("stern:TEST-UA 1");
+    await user.click(screen.getByRole("button", { name: "Report catalog issue" }));
+    expect(screen.getByRole("heading", { name: "Report an issue" })).toBeDefined();
+    expect(screen.getByText("TEST-UA 1 · New York Seminar")).toBeDefined();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
     view.rerender(<CourseDetailDialog stableId={null} onClose={() => undefined} client={api} />);
     view.rerender(<CourseDetailDialog stableId="stern:TEST-UA 1" onClose={() => undefined} client={api} />);
     await screen.findByRole("heading", { name: /New York Seminar/ });

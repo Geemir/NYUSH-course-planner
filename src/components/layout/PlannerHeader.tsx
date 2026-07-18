@@ -2,7 +2,9 @@
 
 import { useRef, useState, type RefObject } from "react";
 import {
+  AlertCircle,
   BookOpen,
+  CircleHelp,
   Download,
   GraduationCap,
   LogIn,
@@ -14,6 +16,8 @@ import {
   Sun,
   Upload,
 } from "lucide-react";
+import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
+import { MyReportsSheet } from "@/components/corrections/MyReportsSheet";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -66,6 +70,8 @@ export function PlannerHeader({
   const { resolvedTheme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const catalogPrograms = programs.filter(
     (program): program is CatalogProgram => "auditAuthority" in program,
   );
@@ -142,6 +148,17 @@ export function PlannerHeader({
             <BookOpen aria-hidden="true" />
             Guide
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="ghost" className="h-11 px-3" aria-label="Help" />}>
+              <CircleHelp aria-hidden="true" /><span className="hidden xl:inline">Help</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Planner support</DropdownMenuLabel>
+              <DropdownMenuItem className="min-h-11" onClick={() => setReportOpen(true)}><AlertCircle aria-hidden="true" />Report another issue</DropdownMenuItem>
+              <DropdownMenuItem className="min-h-11" onClick={() => setReportsOpen(true)}><BookOpen aria-hidden="true" />My reports</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -229,6 +246,8 @@ export function PlannerHeader({
         profile={programProfile}
         onSave={setProgramProfile}
       />
+      <ReportIssueDialog open={reportOpen} onOpenChange={setReportOpen} context={{ target: { kind: "other", area: "planner" }, catalogReleaseId: bootstrap?.release?.id ?? null, label: "NYUSH Degree Planner", displayedValue: "General catalog or degree-planning issue" }} onSubmitted={() => setReportsOpen(true)} />
+      <MyReportsSheet open={reportsOpen} onOpenChange={setReportsOpen} />
     </header>
   );
 }

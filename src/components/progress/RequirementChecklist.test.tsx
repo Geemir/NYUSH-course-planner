@@ -203,6 +203,9 @@ describe("RequirementChecklist", () => {
         .getAttribute("href"),
     ).toBe(SOURCE_URL);
     expect(screen.getByText(course.id)).toBeDefined();
+    await user.click(screen.getByRole("button", { name: "Report requirement issue" }));
+    expect(screen.getByRole("heading", { name: "Report an issue" })).toBeDefined();
+    expect(screen.getByText("Humanities · Foundations")).toBeDefined();
   });
 
   it("records and removes manual evidence without changing planned courses", async () => {

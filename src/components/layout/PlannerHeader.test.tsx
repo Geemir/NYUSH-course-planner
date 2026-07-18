@@ -78,6 +78,15 @@ describe("PlannerHeader", () => {
     );
   });
 
+  it("offers reporting and report history from Help", async () => {
+    const user = userEvent.setup();
+    render(<PlannerHeader onGuide={() => undefined} onImportFile={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Report another issue" })).toBeDefined();
+    expect(within(menu).getByRole("menuitem", { name: "My reports" })).toBeDefined();
+  });
+
   it("shows Program Profile, entry year, credits, theme, and account controls", () => {
     render(
       <PlannerHeader onGuide={() => undefined} onImportFile={() => undefined} />,
