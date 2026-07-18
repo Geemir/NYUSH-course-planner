@@ -360,6 +360,29 @@ describe("syncBulletin", () => {
     await releaseBulletinSyncLock(db, secondOwner);
   });
 
+  it("allows different sources to synchronize while rejecting duplicate source work", async () => {
+    const stern = getCatalogSource("nyu-new-york-business");
+    await db
+      .insert(schema.catalogSource)
+      .values({
+        id: stern.id,
+        schoolName: stern.schoolName,
+        campus: stern.campus,
+        bulletinRoot: stern.bulletinRoot,
+        enabled: stern.enabled,
+      })
+      .onConflictDoNothing();
+
+    await acquireBulletinSyncLock(db, "shanghai-owner", now(), "nyu-shanghai");
+    await acquireBulletinSyncLock(db, "stern-owner", now(), stern.id);
+    await expect(
+      acquireBulletinSyncLock(db, "stern-second", now(), stern.id),
+    ).rejects.toBeInstanceOf(BulletinSyncInProgressError);
+
+    await releaseBulletinSyncLock(db, "stern-owner", stern.id);
+    await releaseBulletinSyncLock(db, "shanghai-owner", "nyu-shanghai");
+  });
+
   it("releases the synchronization lock when the injected clock throws", async () => {
     resetStubs();
     const brokenNow = vi.fn(() => {

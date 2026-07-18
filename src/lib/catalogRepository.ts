@@ -456,6 +456,13 @@ async function upsertCatalogSource(
     });
 }
 
+export async function ensureCatalogSource(
+  db: CatalogDb,
+  sourceId: string,
+): Promise<void> {
+  await upsertCatalogSource(db, sourceId);
+}
+
 /** Publishes one validated source without changing any other source pointer. */
 export async function publishSourceCandidate(
   db: CatalogDb,
