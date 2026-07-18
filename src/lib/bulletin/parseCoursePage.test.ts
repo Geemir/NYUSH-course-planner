@@ -6,6 +6,7 @@ import {
   parseCoursePage,
 } from "@/lib/bulletin/parseCoursePage";
 import type { BulletinSubjectSource } from "@/lib/bulletin/sourceTypes";
+import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 
 const COURSE_PAGE = readFileSync(
   fileURLToPath(new URL("./__fixtures__/course-page.html", import.meta.url)),
@@ -20,6 +21,106 @@ const META: BulletinSubjectSource = {
 };
 
 describe("parseCoursePage", () => {
+  it.each([
+    ["nyu-new-york-arts-science", "arts-science", "csci-ua", "CSCI-UA 101"],
+    ["nyu-new-york-business", "business", "acct-ub", "ACCT-UB 1"],
+    ["nyu-new-york-engineering", "engineering", "cs-uy", "CS-UY 1114"],
+  ] as const)(
+    "preserves school-aware metadata for %s",
+    (sourceId, fixtureDirectory, slug, code) => {
+      const source = getCatalogSource(sourceId);
+      const html = readFileSync(
+        fileURLToPath(
+          new URL(
+            `./__fixtures__/new-york/${fixtureDirectory}/subject-page.html`,
+            import.meta.url,
+          ),
+        ),
+        "utf8",
+      );
+      const page = parseCoursePage({
+        source,
+        sourceUrl: `${source.courseIndexUrl}${slug}/`,
+        html,
+      });
+
+      expect(page).toMatchObject({
+        sourceId,
+        schoolName: source.schoolName,
+        campus: "new-york",
+        sourceUrl: `${source.courseIndexUrl}${slug}/`,
+      });
+      expect(page.courses[0]).toMatchObject({
+        sourceId,
+        schoolName: source.schoolName,
+        campus: "new-york",
+        code,
+      });
+    },
+  );
+
+  it("keeps New York detail labels and graduate prerequisite evidence losslessly", () => {
+    const source = getCatalogSource("nyu-new-york-arts-science");
+    const html = readFileSync(
+      fileURLToPath(
+        new URL(
+          "./__fixtures__/new-york/arts-science/subject-page.html",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    const course = parseCoursePage({
+      source,
+      sourceUrl: `${source.courseIndexUrl}csci-ua/`,
+      html,
+    }).courses[0];
+
+    expect(course).toMatchObject({
+      creditText: "4 Credits",
+      prerequisiteText: "MATH-UA 120 and GRAD-GA 1001.",
+      offeringText: "Fall and Spring",
+      gradingText: "Letter graded",
+      levelText: "Undergraduate",
+      crossListTexts: ["DS-UA 101"],
+    });
+    expect(course.linkedCourseIds).toEqual(["MATH-UA 120", "GRAD-GA 1001"]);
+    expect(course.detailTextMap).toMatchObject({
+      Grading: "Letter graded",
+      "Cross-Listed With": "DS-UA 101",
+    });
+  });
+
+  it("preserves variable and absent New York credit text without inventing values", () => {
+    const stern = getCatalogSource("nyu-new-york-business");
+    const tandon = getCatalogSource("nyu-new-york-engineering");
+    const load = (directory: string) =>
+      readFileSync(
+        fileURLToPath(
+          new URL(
+            `./__fixtures__/new-york/${directory}/subject-page.html`,
+            import.meta.url,
+          ),
+        ),
+        "utf8",
+      );
+
+    expect(
+      parseCoursePage({
+        source: stern,
+        sourceUrl: `${stern.courseIndexUrl}acct-ub/`,
+        html: load("business"),
+      }).courses[0].creditText,
+    ).toBe("2-4 Credits");
+    expect(
+      parseCoursePage({
+        source: tandon,
+        sourceUrl: `${tandon.courseIndexUrl}cs-uy/`,
+        html: load("engineering"),
+      }).courses[0].creditText,
+    ).toBeNull();
+  });
+
   it("preserves course fields, linked prerequisites, attributes, and plain text", () => {
     const page = parseCoursePage(COURSE_PAGE, META);
 

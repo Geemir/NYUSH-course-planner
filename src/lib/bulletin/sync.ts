@@ -168,7 +168,11 @@ export async function syncBulletin({
         parseProgramPage(fetched.get(source.url)!, source),
       ),
       ...discovery.subjects.map((source) =>
-        parseCoursePage(fetched.get(source.url)!, source),
+        parseCoursePage({
+          source: discovery.source,
+          sourceUrl: source.url,
+          html: fetched.get(source.url)!,
+        }),
       ),
       parseProgramPage(fetched.get(CORE_SOURCE.url)!, CORE_SOURCE),
     ];

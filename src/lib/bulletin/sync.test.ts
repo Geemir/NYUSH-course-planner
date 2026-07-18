@@ -112,9 +112,9 @@ vi.mock("@/lib/bulletin/discover", () => ({
 }));
 
 vi.mock("@/lib/bulletin/parseCoursePage", () => ({
-  parseCoursePage: vi.fn((_html: string, source: { url: string }) => {
-    stubs.events.push(`parse:${source.url}`);
-    return { kind: "subject", sourceUrl: source.url };
+  parseCoursePage: vi.fn((options: { sourceUrl: string }) => {
+    stubs.events.push(`parse:${options.sourceUrl}`);
+    return { kind: "subject", sourceUrl: options.sourceUrl };
   }),
 }));
 

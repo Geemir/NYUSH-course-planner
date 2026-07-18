@@ -1,20 +1,34 @@
 import * as cheerio from "cheerio";
 import type { BulletinSubjectSource } from "@/lib/bulletin/sourceTypes";
+import type { CatalogCampus, CatalogSourceDefinition } from "@/lib/catalog/types";
 
 export interface SourceCourse {
+  sourceId?: string;
+  schoolName?: string;
+  campus?: CatalogCampus;
   code: string;
   title: string;
+  creditText?: string | null;
   creditsText?: string;
   description?: string;
   offeringText?: string;
   prerequisiteText?: string;
+  gradingText?: string | null;
+  repeatabilityText?: string | null;
+  levelText?: string | null;
+  crossListTexts?: string[];
   linkedCourseIds: string[];
   attributes: string[];
   detailTexts: string[];
+  detailTextMap?: Record<string, string>;
+  sourceUrl?: string;
 }
 
 export interface BulletinSourceDocument {
   kind: "subject";
+  sourceId?: string;
+  schoolName?: string;
+  campus?: CatalogCampus;
   slug: string;
   title: string;
   sourceUrl: string;
@@ -145,6 +159,7 @@ function liveOfferingText(selection: PageSelection): string {
 function parseCourse(
   $: LoadedPage,
   block: PageNode,
+  context?: { source: CatalogSourceDefinition; sourceUrl: string },
 ): SourceCourse {
   const selection = $(block);
   const codeText = normalizedText(
@@ -193,7 +208,7 @@ function parseCourse(
     /^prerequisite(?:s|\(s\))?$/i.test(detail.label),
   );
   const offering = details.find((detail) =>
-    /^(?:offered|offering)$/i.test(detail.label),
+    /^(?:offered|offering|typically offered)$/i.test(detail.label),
   );
   const attributeDetail = details.find((detail) =>
     /^(?:course\s+)?attributes?(?:\(s\))?$/i.test(detail.label),
@@ -211,10 +226,28 @@ function parseCourse(
     : [];
   const offeringText =
     offering?.text || (liveMarkup ? liveOfferingText(selection) : "");
+  const detailValue = (pattern: RegExp) =>
+    details.find((detail) => pattern.test(detail.label))?.text || null;
+  const crossListText = detailValue(
+    /^(?:cross[- ]?listed(?: with)?|cross listings?)$/i,
+  );
+  const detailTextMap = Object.fromEntries(
+    details
+      .filter((detail) => detail.label !== "")
+      .map((detail) => [detail.label, detail.text]),
+  );
 
   return {
+    ...(context
+      ? {
+          sourceId: context.source.id,
+          schoolName: context.source.schoolName,
+          campus: context.source.campus,
+        }
+      : {}),
     code,
     title,
+    ...(context ? { creditText: creditsText || null } : {}),
     ...(creditsText ? { creditsText } : {}),
     ...(description ? { description } : {}),
     ...(offeringText ? { offeringText } : {}),
@@ -224,7 +257,51 @@ function parseCourse(
     linkedCourseIds,
     attributes,
     detailTexts: details.map((detail) => `${detail.label}: ${detail.text}`),
+    ...(context
+      ? {
+          gradingText: detailValue(/^(?:grading|grading basis)$/i),
+          repeatabilityText: detailValue(/^repeatability$/i),
+          levelText: detailValue(/^(?:academic level|course level|level)$/i),
+          crossListTexts: crossListText
+            ? crossListText.split(/[;,]/).map(normalizedText).filter(Boolean)
+            : [],
+          detailTextMap,
+          sourceUrl: context.sourceUrl,
+        }
+      : {}),
   };
+}
+
+export interface ParseCoursePageOptions {
+  source: CatalogSourceDefinition;
+  sourceUrl: string;
+  html: string;
+}
+
+function validConfiguredSourceUrl(
+  sourceUrl: string,
+  source: CatalogSourceDefinition,
+): { slug: string } | undefined {
+  try {
+    const url = new URL(sourceUrl);
+    const index = new URL(source.courseIndexUrl);
+    const remainder = url.pathname
+      .slice(index.pathname.length)
+      .replace(/\/+$/, "");
+    if (
+      url.origin !== index.origin ||
+      !url.pathname.startsWith(index.pathname) ||
+      url.search !== "" ||
+      url.hash !== "" ||
+      remainder === "" ||
+      remainder.includes("/")
+    ) {
+      return undefined;
+    }
+    return { slug: remainder.toLowerCase() };
+  } catch {
+    return undefined;
+  }
 }
 
 function hasShanghaiBreadcrumb($: LoadedPage, sourceUrl: string): boolean {
@@ -255,19 +332,33 @@ function hasShanghaiBreadcrumb($: LoadedPage, sourceUrl: string): boolean {
     });
 }
 
+export function parseCoursePage(options: ParseCoursePageOptions): BulletinSourceDocument;
 export function parseCoursePage(
   html: string,
   sourceMeta: BulletinSubjectSource,
+): BulletinSourceDocument;
+export function parseCoursePage(
+  input: string | ParseCoursePageOptions,
+  legacySourceMeta?: BulletinSubjectSource,
 ): BulletinSourceDocument {
+  const configured = typeof input === "object" ? input : undefined;
+  const html = configured?.html ?? input as string;
+  const sourceMeta = legacySourceMeta;
   const $ = cheerio.load(html);
   const heading = normalizedText($("h1").first().text());
-  if (
-    !validSourceMeta(sourceMeta) ||
-    heading !== normalizedText(sourceMeta.title) ||
-    !hasShanghaiBreadcrumb($, sourceMeta.url)
-  ) {
+  const configuredMeta = configured
+    ? validConfiguredSourceUrl(configured.sourceUrl, configured.source)
+    : undefined;
+  const legacyValid =
+    sourceMeta &&
+    validSourceMeta(sourceMeta) &&
+    heading === normalizedText(sourceMeta.title) &&
+    hasShanghaiBreadcrumb($, sourceMeta.url);
+  if (heading === "" || (!configuredMeta && !legacyValid)) {
     throw new BulletinParseError(
-      "The Shanghai subject page identity could not be verified.",
+      configured
+        ? "The configured subject page identity could not be verified."
+        : "The Shanghai subject page identity could not be verified.",
     );
   }
 
@@ -278,7 +369,10 @@ export function parseCoursePage(
     );
   }
 
-  const courses = blocks.map((block) => parseCourse($, block));
+  const context = configured
+    ? { source: configured.source, sourceUrl: configured.sourceUrl }
+    : undefined;
+  const courses = blocks.map((block) => parseCourse($, block, context));
   const codes = new Set<string>();
   for (const course of courses) {
     if (codes.has(course.code)) {
@@ -291,9 +385,16 @@ export function parseCoursePage(
 
   return {
     kind: "subject",
-    slug: sourceMeta.slug,
-    title: sourceMeta.title,
-    sourceUrl: sourceMeta.url,
+    ...(configured
+      ? {
+          sourceId: configured.source.id,
+          schoolName: configured.source.schoolName,
+          campus: configured.source.campus,
+        }
+      : {}),
+    slug: configuredMeta?.slug ?? sourceMeta!.slug,
+    title: configured ? heading : sourceMeta!.title,
+    sourceUrl: configured?.sourceUrl ?? sourceMeta!.url,
     courses,
   };
 }
