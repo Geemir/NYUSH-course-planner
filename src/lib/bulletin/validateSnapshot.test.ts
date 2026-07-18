@@ -7,6 +7,7 @@ import type {
   SourceTableRow,
 } from "@/lib/bulletin/parseProgramPage";
 import type { BulletinDiscovery } from "@/lib/bulletin/sourceTypes";
+import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 import {
   assertPublishable,
   BulletinValidationError,
@@ -20,6 +21,8 @@ const SUBJECT_URL =
   "https://bulletins.nyu.edu/undergraduate/shanghai/courses/math-shu/";
 
 const discovery: BulletinDiscovery = {
+  sourceId: "nyu-shanghai",
+  source: getCatalogSource("nyu-shanghai"),
   majors: [
     {
       kind: "major",
@@ -37,6 +40,12 @@ const discovery: BulletinDiscovery = {
       url: SUBJECT_URL,
     },
   ],
+  programUrls: [PROGRAM_URL],
+  courseIndexUrls: [
+    "https://bulletins.nyu.edu/undergraduate/shanghai/courses/",
+  ],
+  coursePageUrls: [SUBJECT_URL],
+  discoveredUrls: [PROGRAM_URL, SUBJECT_URL],
 };
 
 function row(

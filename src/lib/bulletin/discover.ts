@@ -1,18 +1,14 @@
 import * as cheerio from "cheerio";
-import {
-  BULLETIN_ORIGIN,
-  BULLETIN_SHANGHAI_PATH,
-  COURSE_INDEX_URL,
-  PROGRAM_INDEX_URL,
-  SITEMAP_URL,
-} from "@/lib/bulletin/constants";
+import { BULLETIN_ORIGIN, SITEMAP_URL } from "@/lib/bulletin/constants";
 import type { BulletinFetch } from "@/lib/bulletin/fetch";
+import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 import type {
   BulletinDiscovery,
   BulletinProgramKind,
   BulletinProgramSource,
   BulletinSubjectSource,
 } from "@/lib/bulletin/sourceTypes";
+import type { CatalogSourceDefinition } from "@/lib/catalog/types";
 
 export class BulletinDiscoveryError extends Error {
   constructor(message: string) {
@@ -21,10 +17,7 @@ export class BulletinDiscoveryError extends Error {
   }
 }
 
-const PROGRAM_PATH = `${BULLETIN_SHANGHAI_PATH}programs/`;
-const COURSE_PATH = `${BULLETIN_SHANGHAI_PATH}courses/`;
-const DEGREE_CREDENTIAL =
-  /(?:\bbachelor(?:'s)?\b|\bB\.?\s*[AS]\.?\b)/i;
+const DEGREE_CREDENTIAL = /(?:\bbachelor(?:'s)?\b|\bB\.?\s*[AS]\.?\b)/i;
 const SUBJECT_CODE = /\b[A-Z]{2,}(?:-[A-Z]{2,})\b/;
 
 function normalizedText(value: string): string {
@@ -33,14 +26,15 @@ function normalizedText(value: string): string {
 
 function hasIndexIdentity(html: string, identity: "Programs" | "Courses") {
   const $ = cheerio.load(html);
-  const expected = new Set([
-    identity.toLowerCase(),
-    `nyu shanghai ${identity.toLowerCase()}`,
-    ...(identity === "Courses" ? ["course inventory a-z"] : []),
-  ]);
   return $("h1")
     .toArray()
-    .some((heading) => expected.has(normalizedText($(heading).text()).toLowerCase()));
+    .some((heading) => {
+      const text = normalizedText($(heading).text()).toLowerCase();
+      if (identity === "Courses") {
+        return text === "course inventory a-z" || /(?:^|\s)courses$/.test(text);
+      }
+      return text === "programs" || text === "nyu shanghai programs";
+    });
 }
 
 function programKind(text: string): BulletinProgramKind | undefined {
@@ -49,180 +43,173 @@ function programKind(text: string): BulletinProgramKind | undefined {
   return undefined;
 }
 
-function canonicalSourceUrl(
+function childUrl(
   href: string,
   indexUrl: string,
   requiredPath: string,
-): { slug: string; url: string } {
+): { slug: string; url: string } | undefined {
   let url: URL;
   try {
     url = new URL(href, indexUrl);
   } catch {
-    throw new BulletinDiscoveryError(
-      "A Bulletin index contained a source URL outside the allowlist.",
-    );
+    return undefined;
   }
-
-  const isAllowed =
-    url.protocol === "https:" &&
-    url.hostname === new URL(BULLETIN_ORIGIN).hostname &&
-    url.port === "" &&
-    url.username === "" &&
-    url.password === "" &&
-    url.pathname.startsWith(requiredPath);
+  const bulletinHost = new URL(BULLETIN_ORIGIN).hostname;
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== bulletinHost ||
+    url.port !== "" ||
+    url.username !== "" ||
+    url.password !== "" ||
+    !url.pathname.startsWith(requiredPath)
+  ) {
+    return undefined;
+  }
   const remainder = url.pathname.slice(requiredPath.length).replace(/\/+$/, "");
-
-  if (!isAllowed || remainder === "" || remainder.includes("/")) {
-    throw new BulletinDiscoveryError(
-      "A Bulletin index contained a source URL outside the allowlist.",
-    );
-  }
-
+  if (remainder === "" || remainder.includes("/")) return undefined;
   const slug = remainder.toLowerCase();
-  return {
-    slug,
-    url: `${BULLETIN_ORIGIN}${requiredPath}${slug}/`,
-  };
+  return { slug, url: `${BULLETIN_ORIGIN}${requiredPath}${slug}/` };
 }
 
-function parsePrograms(html: string): BulletinProgramSource[] {
+function parsePrograms(
+  html: string,
+  source: CatalogSourceDefinition,
+): BulletinProgramSource[] {
   if (!hasIndexIdentity(html, "Programs")) {
     throw new BulletinDiscoveryError(
       "The Bulletin programs index identity could not be verified.",
     );
   }
-
+  const indexUrl = `${source.bulletinRoot}programs/`;
+  const path = new URL(indexUrl).pathname;
   const $ = cheerio.load(html);
-  const sources = new Map<string, BulletinProgramSource>();
+  const programs = new Map<string, BulletinProgramSource>();
   $("a[href]").each((_index, anchor) => {
     const title = normalizedText($(anchor).text());
     const kind = programKind(title);
     if (!kind) return;
-
-    const source = canonicalSourceUrl(
-      $(anchor).attr("href") ?? "",
-      PROGRAM_INDEX_URL,
-      PROGRAM_PATH,
-    );
-    sources.set(source.url, { ...source, kind, title });
+    const item = childUrl($(anchor).attr("href") ?? "", indexUrl, path);
+    if (!item) {
+      throw new BulletinDiscoveryError(
+        "A Bulletin index contained a source URL outside the allowlist.",
+      );
+    }
+    programs.set(item.url, { ...item, kind, title });
   });
-  return [...sources.values()].sort((left, right) =>
-    left.slug.localeCompare(right.slug),
-  );
+  return [...programs.values()].sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-function hasSubjectDetailPath(href: string): boolean {
-  try {
-    const url = new URL(href, COURSE_INDEX_URL);
-    if (!url.pathname.startsWith(COURSE_PATH)) return false;
-    const remainder = url.pathname.slice(COURSE_PATH.length);
-    return /^[a-z0-9-]+-shu\/?$/i.test(remainder);
-  } catch {
-    return false;
-  }
-}
-
-function parseSubjects(html: string): BulletinSubjectSource[] {
+function parseSubjects(
+  html: string,
+  source: CatalogSourceDefinition,
+): BulletinSubjectSource[] {
   if (!hasIndexIdentity(html, "Courses")) {
     throw new BulletinDiscoveryError(
       "The Bulletin courses index identity could not be verified.",
     );
   }
-
+  const path = new URL(source.courseIndexUrl).pathname;
   const $ = cheerio.load(html);
-  const sources = new Map<string, BulletinSubjectSource>();
+  const subjects = new Map<string, BulletinSubjectSource>();
   $("a[href]").each((_index, anchor) => {
     const title = normalizedText($(anchor).text());
     const href = $(anchor).attr("href") ?? "";
-    const appearsToBeSubject =
-      SUBJECT_CODE.test(title) || hasSubjectDetailPath(href);
-    if (!appearsToBeSubject) return;
-
-    const source = canonicalSourceUrl(href, COURSE_INDEX_URL, COURSE_PATH);
-    sources.set(source.url, { ...source, kind: "subject", title });
+    const item = childUrl(href, source.courseIndexUrl, path);
+    if (!item || (!SUBJECT_CODE.test(title) && !/-[a-z]{2,}$/i.test(item.slug))) {
+      return;
+    }
+    subjects.set(item.url, { ...item, kind: "subject", title });
   });
-  return [...sources.values()].sort((left, right) =>
-    left.slug.localeCompare(right.slug),
-  );
+  return [...subjects.values()].sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-function sitemapUrls(xml: string): Set<string> {
+function sitemapUrls(xml: string, source: CatalogSourceDefinition): Set<string> {
   const $ = cheerio.load(xml, { xmlMode: true });
+  const rootPath = new URL(source.bulletinRoot).pathname;
   const urls = new Set<string>();
   $("loc").each((_index, loc) => {
     const value = normalizedText($(loc).text());
-    let url: URL;
     try {
-      url = new URL(value);
+      const url = new URL(value);
+      if (
+        url.protocol === "https:" &&
+        url.hostname === new URL(BULLETIN_ORIGIN).hostname &&
+        url.port === "" &&
+        url.username === "" &&
+        url.password === "" &&
+        url.pathname.startsWith(rootPath)
+      ) {
+        urls.add(value);
+      }
     } catch {
-      return;
+      // Ignore malformed sitemap entries; membership checks remain fail-closed.
     }
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== new URL(BULLETIN_ORIGIN).hostname ||
-      url.port !== "" ||
-      url.username !== "" ||
-      url.password !== "" ||
-      !url.pathname.startsWith(BULLETIN_SHANGHAI_PATH)
-    ) {
-      return;
-    }
-    urls.add(value);
   });
   return urls;
 }
 
-function assertNonEmpty(discovery: BulletinDiscovery) {
-  if (
-    discovery.majors.length === 0 ||
-    discovery.minors.length === 0 ||
-    discovery.subjects.length === 0
-  ) {
+function assertDiscovery(discovery: BulletinDiscovery) {
+  const missingPrograms =
+    discovery.source.includePrograms &&
+    (discovery.majors.length === 0 || discovery.minors.length === 0);
+  if (missingPrograms || discovery.subjects.length === 0) {
     throw new BulletinDiscoveryError(
       "A Bulletin index did not list any allowed sources.",
     );
   }
 }
 
-function assertSitemapMembership(
-  discovery: BulletinDiscovery,
-  sitemap: ReadonlySet<string>,
-) {
-  const sources = [
-    ...discovery.majors,
-    ...discovery.minors,
-    ...discovery.subjects,
-  ];
-  if (sources.some((source) => !sitemap.has(source.url))) {
+export async function discoverBulletinSource(
+  source: CatalogSourceDefinition,
+  fetcher: BulletinFetch,
+): Promise<BulletinDiscovery> {
+  const programIndexUrl = `${source.bulletinRoot}programs/`;
+  try {
+    const [programHtml, courseHtml, sitemapXml] = await Promise.all([
+      source.includePrograms ? fetcher(programIndexUrl) : Promise.resolve(""),
+      fetcher(source.courseIndexUrl),
+      fetcher(SITEMAP_URL),
+    ]);
+    const programs = source.includePrograms
+      ? parsePrograms(programHtml, source)
+      : [];
+    const subjects = parseSubjects(courseHtml, source);
+    const discovery: BulletinDiscovery = {
+      sourceId: source.id,
+      source,
+      majors: programs.filter((item) => item.kind === "major"),
+      minors: programs.filter((item) => item.kind === "minor"),
+      subjects,
+      programUrls: programs.map((item) => item.url),
+      courseIndexUrls: [source.courseIndexUrl],
+      coursePageUrls: subjects.map((item) => item.url),
+      discoveredUrls: [
+        ...(source.includePrograms ? [programIndexUrl] : []),
+        source.courseIndexUrl,
+        ...programs.map((item) => item.url),
+        ...subjects.map((item) => item.url),
+      ],
+    };
+    assertDiscovery(discovery);
+    const sitemap = sitemapUrls(sitemapXml, source);
+    if ([...programs, ...subjects].some((item) => !sitemap.has(item.url))) {
+      throw new BulletinDiscoveryError(
+        "A discovered source could not be verified in the Bulletin sitemap.",
+      );
+    }
+    return discovery;
+  } catch (error) {
+    if (error instanceof BulletinDiscoveryError) throw error;
     throw new BulletinDiscoveryError(
-      "A discovered source could not be verified in the Bulletin sitemap.",
+      source.id === "nyu-shanghai"
+        ? "Unable to fetch NYU Shanghai Bulletin indexes."
+        : `Unable to fetch ${source.schoolName} Bulletin indexes.`,
     );
   }
 }
 
-export async function discoverBulletinSources(
+export function discoverBulletinSources(
   fetcher: BulletinFetch,
 ): Promise<BulletinDiscovery> {
-  let programHtml: string;
-  let courseHtml: string;
-  let sitemapXml: string;
-  try {
-    programHtml = await fetcher(PROGRAM_INDEX_URL);
-    courseHtml = await fetcher(COURSE_INDEX_URL);
-    sitemapXml = await fetcher(SITEMAP_URL);
-  } catch {
-    throw new BulletinDiscoveryError(
-      "Unable to fetch NYU Shanghai Bulletin indexes.",
-    );
-  }
-
-  const programs = parsePrograms(programHtml);
-  const discovery: BulletinDiscovery = {
-    majors: programs.filter((source) => source.kind === "major"),
-    minors: programs.filter((source) => source.kind === "minor"),
-    subjects: parseSubjects(courseHtml),
-  };
-  assertNonEmpty(discovery);
-  assertSitemapMembership(discovery, sitemapUrls(sitemapXml));
-  return discovery;
+  return discoverBulletinSource(getCatalogSource("nyu-shanghai"), fetcher);
 }

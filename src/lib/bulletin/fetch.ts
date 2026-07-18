@@ -1,8 +1,8 @@
 import {
   BULLETIN_ORIGIN,
-  BULLETIN_SHANGHAI_PATH,
   SITEMAP_URL,
 } from "@/lib/bulletin/constants";
+import { CATALOG_SOURCES } from "@/lib/bulletin/sourceRegistry";
 
 export type BulletinFetch = (url: string) => Promise<string>;
 
@@ -29,7 +29,11 @@ function allowedRequestUrl(value: string): string {
     url.password === "";
   const isAllowedPath =
     url.pathname === new URL(SITEMAP_URL).pathname ||
-    url.pathname.startsWith(BULLETIN_SHANGHAI_PATH);
+    CATALOG_SOURCES.some(
+      (source) =>
+        source.enabled &&
+        url.pathname.startsWith(new URL(source.bulletinRoot).pathname),
+    );
 
   if (!isPublicBulletin || !isAllowedPath) {
     throw new BulletinFetchError("The requested NYU Bulletin URL is not allowed.");

@@ -11,6 +11,7 @@ import type {
   SourceTableRow,
 } from "@/lib/bulletin/parseProgramPage";
 import type { BulletinDiscovery } from "@/lib/bulletin/sourceTypes";
+import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 import {
   validateCatalogCandidate,
   type SnapshotValidationReport,
@@ -55,6 +56,8 @@ function sourceRow(
 
 function candidate(label: "A" | "B"): CatalogCandidate {
   const discovery: BulletinDiscovery = {
+    sourceId: "nyu-shanghai",
+    source: getCatalogSource("nyu-shanghai"),
     majors: [
       {
         kind: "major",
@@ -72,6 +75,12 @@ function candidate(label: "A" | "B"): CatalogCandidate {
         url: SUBJECT_URL,
       },
     ],
+    programUrls: [PROGRAM_URL],
+    courseIndexUrls: [
+      "https://bulletins.nyu.edu/undergraduate/shanghai/courses/",
+    ],
+    coursePageUrls: [SUBJECT_URL],
+    discoveredUrls: [PROGRAM_URL, SUBJECT_URL],
   };
   const subjectDocument: BulletinSourceDocument = {
     kind: "subject",

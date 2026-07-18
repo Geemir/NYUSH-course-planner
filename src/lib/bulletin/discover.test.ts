@@ -8,9 +8,11 @@ import {
 } from "@/lib/bulletin/constants";
 import {
   BulletinDiscoveryError,
+  discoverBulletinSource,
   discoverBulletinSources,
 } from "@/lib/bulletin/discover";
 import { createBulletinFetch } from "@/lib/bulletin/fetch";
+import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 
 const fixture = (name: string) =>
   readFileSync(
@@ -21,6 +23,14 @@ const fixture = (name: string) =>
 const PROGRAM_INDEX = fixture("program-index.html");
 const COURSE_INDEX = fixture("course-index.html");
 const SITEMAP = fixture("sitemap.xml");
+
+const newYorkFixture = (source: string, name: string) =>
+  readFileSync(
+    fileURLToPath(
+      new URL(`./__fixtures__/new-york/${source}/${name}`, import.meta.url),
+    ),
+    "utf8",
+  );
 
 function fixtureFetcher(overrides: ReadonlyMap<string, string> = new Map()) {
   const pages = new Map<string, string>([
@@ -192,6 +202,58 @@ describe("discoverBulletinSources", () => {
   });
 });
 
+describe("discoverBulletinSource", () => {
+  it.each([
+    ["nyu-new-york-arts-science", "arts-science", "csci-ua"],
+    ["nyu-new-york-business", "business", "acct-ub"],
+    ["nyu-new-york-engineering", "engineering", "cs-uy"],
+  ] as const)(
+    "discovers only course pages owned by %s",
+    async (sourceId, fixtureDirectory, expectedSlug) => {
+      const source = getCatalogSource(sourceId);
+      const pageUrl = `${source.courseIndexUrl}${expectedSlug}/`;
+      const sitemap = `<?xml version="1.0"?><urlset><url><loc>${pageUrl}</loc></url></urlset>`;
+      const pages = new Map([
+        [source.courseIndexUrl, newYorkFixture(fixtureDirectory, "course-index.html")],
+        [SITEMAP_URL, sitemap],
+      ]);
+      const fetcher = vi.fn(async (url: string) => pages.get(url) ?? "");
+
+      const result = await discoverBulletinSource(source, fetcher);
+
+      expect(result.sourceId).toBe(sourceId);
+      expect(result.source).toEqual(source);
+      expect(result.majors).toEqual([]);
+      expect(result.minors).toEqual([]);
+      expect(result.programUrls).toEqual([]);
+      expect(result.subjects.map((subject) => subject.slug)).toEqual([
+        expectedSlug,
+      ]);
+      expect(result.courseIndexUrls).toEqual([source.courseIndexUrl]);
+      expect(result.coursePageUrls).toEqual([pageUrl]);
+      expect(result.discoveredUrls).toEqual([source.courseIndexUrl, pageUrl]);
+      expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+        source.courseIndexUrl,
+        SITEMAP_URL,
+      ]);
+    },
+  );
+
+  it("keeps the Shanghai compatibility entry point source-aware", async () => {
+    const result = await discoverBulletinSources(fixtureFetcher());
+
+    expect(result.sourceId).toBe("nyu-shanghai");
+    expect(result.programUrls).toEqual([
+      "https://bulletins.nyu.edu/undergraduate/shanghai/programs/computer-science-bs/",
+      "https://bulletins.nyu.edu/undergraduate/shanghai/programs/computer-science-minor/",
+    ]);
+    expect(result.coursePageUrls).toEqual([
+      "https://bulletins.nyu.edu/undergraduate/shanghai/courses/csci-shu/",
+      "https://bulletins.nyu.edu/undergraduate/shanghai/courses/math-shu/",
+    ]);
+  });
+});
+
 describe("createBulletinFetch", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -211,6 +273,25 @@ describe("createBulletinFetch", () => {
       "not allowed",
     );
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it("allows configured New York source pages but rejects unconfigured undergraduate roots", async () => {
+    const request = vi.fn(async () => new Response("fixture body"));
+    vi.stubGlobal("fetch", request);
+    const fetcher = createBulletinFetch({
+      timeoutMs: 100,
+      retries: 0,
+      userAgent: "course-planner-test",
+    });
+
+    await expect(
+      fetcher(
+        "https://bulletins.nyu.edu/undergraduate/arts-science/courses/csci-ua/",
+      ),
+    ).resolves.toBe("fixture body");
+    await expect(
+      fetcher("https://bulletins.nyu.edu/undergraduate/graduate-school/courses/"),
+    ).rejects.toThrow("not allowed");
   });
 
   it("uses the configured user agent and returns successful response text", async () => {

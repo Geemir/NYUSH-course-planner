@@ -4,6 +4,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import * as schema from "@/db/schema";
 import type { BulletinDiscovery } from "@/lib/bulletin/sourceTypes";
+import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
 import type { CatalogCandidate } from "@/lib/types";
 
@@ -17,6 +18,8 @@ const CORE_URL =
   "https://bulletins.nyu.edu/undergraduate/shanghai/core-curriculum/";
 
 const discovery: BulletinDiscovery = {
+  sourceId: "nyu-shanghai",
+  source: getCatalogSource("nyu-shanghai"),
   majors: [
     {
       kind: "major",
@@ -41,6 +44,12 @@ const discovery: BulletinDiscovery = {
       url: SUBJECT_URL,
     },
   ],
+  programUrls: [PROGRAM_URL, MINOR_URL],
+  courseIndexUrls: [
+    "https://bulletins.nyu.edu/undergraduate/shanghai/courses/",
+  ],
+  coursePageUrls: [SUBJECT_URL],
+  discoveredUrls: [PROGRAM_URL, MINOR_URL, SUBJECT_URL],
 };
 
 const candidate: CatalogCandidate = {
