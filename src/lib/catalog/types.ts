@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CourseSchema } from "@/lib/types";
+import { CourseSchema, type CatalogProgram } from "@/lib/types";
 
 export const CatalogCampusSchema = z.enum(["shanghai", "new-york"]);
 export type CatalogCampus = z.infer<typeof CatalogCampusSchema>;
@@ -34,6 +34,22 @@ export const CatalogCourseRecordSchema = z
   })
   .strict();
 export type CatalogCourseRecord = z.infer<typeof CatalogCourseRecordSchema>;
+
+export interface SourceCatalogCandidate {
+  sourceId: string;
+  snapshotId: string;
+  sourceHash: string;
+  documents: unknown[];
+  courses: CatalogCourseRecord[];
+  programs: CatalogProgram[];
+  quarantinedCourses: Array<{
+    code: string;
+    reason: string;
+    sourceUrl: string;
+  }>;
+  sourceReferenceIds: string[];
+  unresolvedCourseIds: string[];
+}
 
 export const CatalogReleaseRefSchema = z
   .object({

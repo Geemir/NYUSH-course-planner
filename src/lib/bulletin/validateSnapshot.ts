@@ -12,6 +12,11 @@ import type {
   Course,
   RequirementNode,
 } from "@/lib/types";
+import type {
+  CatalogSourceDefinition,
+  SourceCatalogCandidate,
+} from "@/lib/catalog/types";
+import { catalogCourseStableId } from "@/lib/catalog/identity";
 
 export type SnapshotValidationCode =
   | "broken-executable-reference"
@@ -30,7 +35,19 @@ export type SnapshotValidationCode =
   | "source-hash-mismatch"
   | "source-row-coverage"
   | "supported-ambiguity"
-  | "unresolved-local-reference";
+  | "unresolved-local-reference"
+  | "source-id-mismatch"
+  | "stable-id-mismatch"
+  | "unexpected-program-source"
+  | "graduate-record-included"
+  | "ambiguous-record-included"
+  | "course-count-drop"
+  | "unresolved-reference-spike"
+  | "zero-subjects"
+  | "missing-course-code"
+  | "missing-credit-value"
+  | "invalid-canonical-url"
+  | "structural-selector-miss";
 
 export interface SnapshotValidationDiagnostic {
   code: SnapshotValidationCode;
@@ -851,6 +868,143 @@ export function validateCatalogCandidate(
 
   return {
     summary: validationSummary(candidate),
+    errors: sortDiagnostics(errors),
+    warnings: sortDiagnostics(warnings),
+  };
+}
+
+export interface SourceValidationOptions {
+  source: CatalogSourceDefinition;
+  expectedSubjectCount: number;
+  previousCourseCount?: number;
+  previousUnresolvedCount?: number;
+  maximumCourseDropRatio?: number;
+  maximumUnresolvedIncrease?: number;
+}
+
+function canonicalSourceCourseUrl(
+  value: string | undefined,
+  source: CatalogSourceDefinition,
+): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    const index = new URL(source.courseIndexUrl);
+    const remainder = url.pathname
+      .slice(index.pathname.length)
+      .replace(/\/+$/, "");
+    return (
+      url.origin === index.origin &&
+      url.pathname.startsWith(index.pathname) &&
+      url.search === "" &&
+      url.hash === "" &&
+      remainder !== "" &&
+      !remainder.includes("/") &&
+      value === `${index.origin}${index.pathname}${remainder}/`
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function validateSourceCatalogCandidate(
+  candidate: SourceCatalogCandidate,
+  options: SourceValidationOptions,
+): SnapshotValidationReport {
+  const { source } = options;
+  const errors: SnapshotValidationDiagnostic[] = [];
+  const warnings: SnapshotValidationDiagnostic[] = [];
+  const addError = (
+    code: SnapshotValidationCode,
+    entityId?: string,
+    sourceUrl?: string,
+  ) => errors.push({ code, ...(entityId ? { entityId } : {}), ...(sourceUrl ? { sourceUrl } : {}) });
+
+  if (candidate.sourceId !== source.id) addError("source-id-mismatch", candidate.sourceId);
+  if (source.campus === "new-york" && candidate.programs.length > 0) {
+    addError("unexpected-program-source", source.id);
+  }
+
+  const subjectDocuments = candidate.documents.filter(
+    (document): document is Record<string, unknown> =>
+      isRecord(document) && document.kind === "subject",
+  );
+  if (subjectDocuments.length === 0) addError("zero-subjects", source.id);
+  if (
+    subjectDocuments.length < options.expectedSubjectCount ||
+    subjectDocuments.some(
+      (document) => !Array.isArray(document.courses) || document.courses.length === 0,
+    )
+  ) {
+    addError("structural-selector-miss", source.id);
+  }
+  if (candidate.courses.length === 0) addError("empty-catalog", source.id);
+
+  for (const record of candidate.courses) {
+    if (record.sourceId !== source.id || record.sourceSnapshotId !== candidate.snapshotId) {
+      addError("source-id-mismatch", record.code);
+    }
+    if (record.stableId !== catalogCourseStableId(source.id, record.code)) {
+      addError("stable-id-mismatch", record.code);
+    }
+    if (record.level === "graduate") addError("graduate-record-included", record.code);
+    if (record.level === "ambiguous") addError("ambiguous-record-included", record.code);
+    if (record.code.trim() === "" || record.course.id !== record.code) {
+      addError("missing-course-code", record.stableId);
+    }
+    if (
+      !Number.isFinite(record.course.credits) ||
+      record.course.credits < 0 ||
+      (record.course.minCredits !== undefined &&
+        !Number.isFinite(record.course.minCredits)) ||
+      (record.course.maxCredits !== undefined &&
+        !Number.isFinite(record.course.maxCredits))
+    ) {
+      addError("missing-credit-value", record.code);
+    }
+    if (!canonicalSourceCourseUrl(record.course.provenance?.sourceUrl, source)) {
+      addError(
+        "invalid-canonical-url",
+        record.code,
+        record.course.provenance?.sourceUrl,
+      );
+    }
+  }
+
+  const previousCourseCount = options.previousCourseCount ?? 0;
+  const maximumDropRatio = options.maximumCourseDropRatio ?? 0.25;
+  if (
+    previousCourseCount > 0 &&
+    candidate.courses.length < previousCourseCount * (1 - maximumDropRatio)
+  ) {
+    addError("course-count-drop", source.id);
+  }
+  const previousUnresolved = options.previousUnresolvedCount ?? 0;
+  const maximumUnresolvedIncrease = options.maximumUnresolvedIncrease ?? 3;
+  if (
+    candidate.unresolvedCourseIds.length - previousUnresolved >
+    maximumUnresolvedIncrease
+  ) {
+    addError("unresolved-reference-spike", source.id);
+  }
+  candidate.quarantinedCourses.forEach((course) =>
+    warnings.push({
+      code: "supported-ambiguity",
+      entityId: course.code,
+      sourceUrl: course.sourceUrl,
+    }),
+  );
+
+  return {
+    summary: {
+      snapshotId: candidate.snapshotId,
+      sourceHash: candidate.sourceHash,
+      documentCount: candidate.documents.length,
+      courseCount: candidate.courses.length,
+      programCount: candidate.programs.length,
+      sourceRowCount: 0,
+      requirementRowCount: 0,
+    },
     errors: sortDiagnostics(errors),
     warnings: sortDiagnostics(warnings),
   };

@@ -11,9 +11,11 @@ import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 import {
   assertPublishable,
   BulletinValidationError,
+  validateSourceCatalogCandidate,
   validateCatalogCandidate,
 } from "@/lib/bulletin/validateSnapshot";
 import type { CatalogCandidate } from "@/lib/types";
+import type { SourceCatalogCandidate } from "@/lib/catalog/types";
 
 const PROGRAM_URL =
   "https://bulletins.nyu.edu/undergraduate/shanghai/programs/mathematics-bs/";
@@ -620,5 +622,130 @@ describe("assertPublishable", () => {
     );
     expect((error as Error).message).not.toContain("secret-token");
     expect((error as Error).message).not.toContain("<script>");
+  });
+});
+
+describe("validateSourceCatalogCandidate", () => {
+  function sourceCandidate(): SourceCatalogCandidate {
+    const sourceId = "nyu-new-york-arts-science";
+    const sourceUrl =
+      "https://bulletins.nyu.edu/undergraduate/arts-science/courses/csci-ua/";
+    return {
+      sourceId,
+      snapshotId: `${sourceId}-0123456789abcdef01234567`,
+      sourceHash: "0123456789abcdef0123456789abcdef",
+      documents: [
+        {
+          kind: "subject",
+          slug: "csci-ua",
+          title: "Computer Science (CSCI-UA)",
+          sourceUrl,
+          courses: [{}],
+        },
+      ],
+      courses: [
+        {
+          stableId: `${sourceId}:CSCI-UA 101`,
+          sourceId,
+          sourceSnapshotId: `${sourceId}-0123456789abcdef01234567`,
+          code: "CSCI-UA 101",
+          subject: "CSCI-UA",
+          level: "undergraduate",
+          catalogOfferingTerms: ["fall"],
+          catalogOfferingText: "Fall",
+          course: {
+            id: "CSCI-UA 101",
+            title: "Introduction to Computer Science",
+            credits: 4,
+            minCredits: 4,
+            maxCredits: 4,
+            department: "CSCI-UA",
+            prereqs: [],
+            sourceReferenceIds: [],
+            offered: [],
+            offeringKnown: false,
+            sites: ["new-york"],
+            fulfills: [],
+            equivalentTo: [],
+            attributes: [],
+            tags: [],
+            provenance: {
+              sourceUrl,
+              snapshotId: `${sourceId}-0123456789abcdef01234567`,
+              sourceHash: "document-hash",
+            },
+          },
+          crossListedStableIds: [],
+        },
+      ],
+      programs: [],
+      quarantinedCourses: [],
+      sourceReferenceIds: [],
+      unresolvedCourseIds: [],
+    };
+  }
+
+  it("accepts a coherent New York source candidate", () => {
+    const report = validateSourceCatalogCandidate(sourceCandidate(), {
+      source: getCatalogSource("nyu-new-york-arts-science"),
+      expectedSubjectCount: 1,
+    });
+    expect(report.errors).toEqual([]);
+  });
+
+  it.each([
+    ["source-id-mismatch", (input: SourceCatalogCandidate) => {
+      input.courses[0].sourceId = "nyu-new-york-business";
+    }],
+    ["stable-id-mismatch", (input: SourceCatalogCandidate) => {
+      input.courses[0].stableId = "wrong:CSCI-UA 101";
+    }],
+    ["unexpected-program-source", (input: SourceCatalogCandidate) => {
+      input.programs.push({ id: "invalid" } as SourceCatalogCandidate["programs"][number]);
+    }],
+    ["graduate-record-included", (input: SourceCatalogCandidate) => {
+      input.courses[0].level = "graduate";
+    }],
+    ["ambiguous-record-included", (input: SourceCatalogCandidate) => {
+      input.courses[0].level = "ambiguous";
+    }],
+    ["missing-course-code", (input: SourceCatalogCandidate) => {
+      input.courses[0].code = "";
+    }],
+    ["missing-credit-value", (input: SourceCatalogCandidate) => {
+      input.courses[0].course.credits = Number.NaN;
+    }],
+    ["invalid-canonical-url", (input: SourceCatalogCandidate) => {
+      input.courses[0].course.provenance!.sourceUrl = "https://example.com/course";
+    }],
+  ] as const)("reports %s", (code, mutate) => {
+    const input = sourceCandidate();
+    mutate(input);
+    const report = validateSourceCatalogCandidate(input, {
+      source: getCatalogSource("nyu-new-york-arts-science"),
+      expectedSubjectCount: 1,
+    });
+    expect(report.errors.map((error) => error.code)).toContain(code);
+  });
+
+  it("reports empty/structurally missed and anomalous source refreshes", () => {
+    const input = sourceCandidate();
+    input.documents = [];
+    input.courses = [];
+    input.unresolvedCourseIds = ["A", "B", "C", "D"];
+    const report = validateSourceCatalogCandidate(input, {
+      source: getCatalogSource("nyu-new-york-arts-science"),
+      expectedSubjectCount: 1,
+      previousCourseCount: 10,
+      previousUnresolvedCount: 0,
+    });
+    expect(report.errors.map((error) => error.code)).toEqual(
+      expect.arrayContaining([
+        "zero-subjects",
+        "structural-selector-miss",
+        "course-count-drop",
+        "unresolved-reference-spike",
+      ]),
+    );
   });
 });

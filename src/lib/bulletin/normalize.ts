@@ -8,6 +8,13 @@ import type {
   SourceTableRow,
 } from "@/lib/bulletin/parseProgramPage";
 import type { BulletinDiscovery } from "@/lib/bulletin/sourceTypes";
+import { classifyCourseLevel } from "@/lib/bulletin/classifyCourse";
+import { catalogCourseStableId, canonicalCourseCode } from "@/lib/catalog/identity";
+import type {
+  CatalogCourseRecord,
+  SourceCatalogCandidate,
+} from "@/lib/catalog/types";
+import { CatalogCourseRecordSchema } from "@/lib/catalog/types";
 import type {
   CatalogCandidate,
   CatalogCategory,
@@ -74,7 +81,7 @@ function parseCredits(course: SourceCourse): {
   minCredits: number;
   maxCredits: number;
 } {
-  const rawCredits = course.creditsText?.trim();
+  const rawCredits = (course.creditsText ?? course.creditText ?? undefined)?.trim();
   const credits = rawCredits?.match(/^\(([^()]*)\)$/)?.[1] ?? rawCredits;
   const match = credits?.match(
     /^(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?\s*(?:credits?)?$/i,
@@ -692,5 +699,144 @@ export function normalizeBulletin(
     unresolvedCourseIds: sortedSourceReferenceIds
       .filter((id) => !localCourseIds.has(id) && !isExternalNyuCourseId(id))
       .sort((left, right) => left.localeCompare(right)),
+  };
+}
+
+function sourceCatalogRecord(
+  discovery: BulletinDiscovery,
+  document: BulletinSourceDocument,
+  sourceCourse: SourceCourse,
+  snapshotId: string,
+): CatalogCourseRecord {
+  if (sourceCourse.sourceId && sourceCourse.sourceId !== discovery.sourceId) {
+    throw new BulletinNormalizationError(
+      `Bulletin course ${sourceCourse.code} does not belong to ${discovery.sourceId}.`,
+    );
+  }
+  const code = canonicalCourseCode(sourceCourse.code);
+  const catalogOffering = parseOffering(sourceCourse.offeringText);
+  const course = normalizeCourse(
+    { ...sourceCourse, code },
+    document,
+    snapshotId,
+  );
+  const crossListTexts = sourceCourse.crossListTexts ?? [];
+  course.sites = [discovery.source.campus === "new-york" ? "new-york" : "shanghai"];
+  if (discovery.source.campus === "new-york") {
+    course.offered = [];
+    course.offeringKnown = false;
+    course.fulfills = [];
+  }
+  course.attributes = [
+    ...(course.attributes ?? []),
+    ...crossListTexts.map((text) => `Cross-listed with ${text}`),
+  ];
+
+  return CatalogCourseRecordSchema.parse({
+    stableId: catalogCourseStableId(discovery.sourceId, code),
+    sourceId: discovery.sourceId,
+    sourceSnapshotId: snapshotId,
+    code,
+    subject: code.split(/\s+/, 1)[0],
+    level: "undergraduate",
+    catalogOfferingTerms: catalogOffering.offered,
+    catalogOfferingText: sourceCourse.offeringText ?? null,
+    course,
+    crossListedStableIds: crossListTexts.map((crossList) =>
+      catalogCourseStableId(discovery.sourceId, crossList),
+    ),
+  });
+}
+
+export function normalizeBulletinSource(
+  discovery: BulletinDiscovery,
+  documents: readonly BulletinDocument[],
+): SourceCatalogCandidate {
+  const orderedDocuments = canonicalDocuments(documents);
+  const sourceHashValue = candidateHash(orderedDocuments);
+  const snapshotId = `${discovery.sourceId}-${sourceHashValue.slice(0, 24)}`;
+
+  if (discovery.source.campus === "shanghai") {
+    const legacy = normalizeBulletin(discovery, orderedDocuments);
+    return {
+      sourceId: discovery.sourceId,
+      snapshotId,
+      sourceHash: sourceHashValue,
+      documents: orderedDocuments,
+      courses: legacy.courses.map((course) =>
+        CatalogCourseRecordSchema.parse({
+          stableId: catalogCourseStableId(discovery.sourceId, course.id),
+          sourceId: discovery.sourceId,
+          sourceSnapshotId: snapshotId,
+          code: canonicalCourseCode(course.id),
+          subject: course.id.split(/\s+/, 1)[0],
+          level: "undergraduate",
+          catalogOfferingTerms: [...course.offered],
+          catalogOfferingText: course.offeringText ?? null,
+          course: {
+            ...course,
+            ...(course.provenance
+              ? { provenance: { ...course.provenance, snapshotId } }
+              : {}),
+          },
+          crossListedStableIds: [],
+        }),
+      ),
+      programs: legacy.programs.map((program) => ({
+        ...program,
+        provenance: { ...program.provenance, snapshotId },
+      })),
+      quarantinedCourses: [],
+      sourceReferenceIds: legacy.sourceReferenceIds,
+      unresolvedCourseIds: legacy.unresolvedCourseIds,
+    };
+  }
+
+  const subjectDocuments = orderedDocuments.filter(
+    (document): document is BulletinSourceDocument => document.kind === "subject",
+  );
+  const courses: CatalogCourseRecord[] = [];
+  const quarantinedCourses: SourceCatalogCandidate["quarantinedCourses"] = [];
+  const references = new Set<string>();
+
+  for (const document of subjectDocuments) {
+    for (const sourceCourse of document.courses) {
+      const decision = classifyCourseLevel(sourceCourse);
+      sourceCourse.linkedCourseIds.forEach((id) => references.add(id));
+      (sourceCourse.crossListTexts ?? []).forEach((id) => references.add(id));
+      if (decision.level === "graduate") continue;
+      if (decision.level === "ambiguous") {
+        quarantinedCourses.push({
+          code: sourceCourse.code,
+          reason: decision.reason,
+          sourceUrl: sourceCourse.sourceUrl ?? document.sourceUrl,
+        });
+        continue;
+      }
+      courses.push(
+        sourceCatalogRecord(
+          discovery,
+          document,
+          sourceCourse,
+          snapshotId,
+        ),
+      );
+    }
+  }
+
+  courses.sort((left, right) => left.stableId.localeCompare(right.stableId));
+  quarantinedCourses.sort((left, right) => left.code.localeCompare(right.code));
+  const localCodes = new Set(courses.map((record) => record.code));
+  const sourceReferenceIds = [...references].sort((a, b) => a.localeCompare(b));
+  return {
+    sourceId: discovery.sourceId,
+    snapshotId,
+    sourceHash: sourceHashValue,
+    documents: orderedDocuments,
+    courses,
+    programs: [],
+    quarantinedCourses,
+    sourceReferenceIds,
+    unresolvedCourseIds: sourceReferenceIds.filter((id) => !localCodes.has(id)),
   };
 }

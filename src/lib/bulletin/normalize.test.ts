@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { normalizeBulletin } from "@/lib/bulletin/normalize";
+import {
+  normalizeBulletin,
+  normalizeBulletinSource,
+} from "@/lib/bulletin/normalize";
 import type { BulletinSourceDocument } from "@/lib/bulletin/parseCoursePage";
 import type {
   BulletinProgramDocument,
@@ -41,6 +44,22 @@ const discovery: BulletinDiscovery = {
   coursePageUrls: [SUBJECT_URL],
   discoveredUrls: [PROGRAM_URL, SUBJECT_URL],
 };
+
+function newYorkDiscovery(sourceId: string, slug: string): BulletinDiscovery {
+  const source = getCatalogSource(sourceId);
+  const pageUrl = `${source.courseIndexUrl}${slug}/`;
+  return {
+    sourceId,
+    source,
+    majors: [],
+    minors: [],
+    subjects: [{ kind: "subject", slug, title: slug.toUpperCase(), url: pageUrl }],
+    programUrls: [],
+    courseIndexUrls: [source.courseIndexUrl],
+    coursePageUrls: [pageUrl],
+    discoveredUrls: [source.courseIndexUrl, pageUrl],
+  };
+}
 
 function row(
   role: SourceTableRow["role"],
@@ -891,5 +910,133 @@ describe("normalizeBulletin", () => {
       sourceHash: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
     expect(CatalogCandidateSchema.parse(first)).toEqual(first);
+  });
+
+  it("normalizes only undergraduate New York records with catalog-only semantics", () => {
+    const nyDiscovery = newYorkDiscovery(
+      "nyu-new-york-arts-science",
+      "csci-ua",
+    );
+    const sourceUrl = nyDiscovery.coursePageUrls[0];
+    const document: BulletinSourceDocument = {
+      kind: "subject",
+      sourceId: nyDiscovery.sourceId,
+      schoolName: nyDiscovery.source.schoolName,
+      campus: "new-york",
+      slug: "csci-ua",
+      title: "Computer Science (CSCI-UA)",
+      sourceUrl,
+      courses: [
+        {
+          sourceId: nyDiscovery.sourceId,
+          schoolName: nyDiscovery.source.schoolName,
+          campus: "new-york",
+          code: "CSCI-UA 101",
+          title: "Introduction to Computer Science",
+          creditText: "2-4 Credits",
+          creditsText: "2-4 Credits",
+          description: "Computational problem solving.",
+          prerequisiteText: "MATH-UA 120",
+          offeringText: "Fall and Spring",
+          levelText: "Undergraduate",
+          crossListTexts: ["DS-UA 101"],
+          linkedCourseIds: ["MATH-UA 120"],
+          attributes: ["Computing"],
+          detailTexts: [],
+          detailTextMap: {},
+          sourceUrl,
+        },
+        {
+          sourceId: nyDiscovery.sourceId,
+          code: "CSCI-GA 1001",
+          title: "Graduate Algorithms",
+          creditsText: "3 Credits",
+          levelText: "Graduate",
+          linkedCourseIds: [],
+          attributes: [],
+          detailTexts: [],
+          sourceUrl,
+        },
+        {
+          sourceId: nyDiscovery.sourceId,
+          code: "TOPICS 101",
+          title: "Unclassified Topics",
+          creditsText: "4 Credits",
+          levelText: null,
+          linkedCourseIds: [],
+          attributes: [],
+          detailTexts: [],
+          sourceUrl,
+        },
+      ],
+    };
+
+    const candidate = normalizeBulletinSource(nyDiscovery, [document]);
+
+    expect(candidate.sourceId).toBe(nyDiscovery.sourceId);
+    expect(candidate.programs).toEqual([]);
+    expect(candidate.courses).toHaveLength(1);
+    expect(candidate.courses[0]).toMatchObject({
+      stableId: "nyu-new-york-arts-science:CSCI-UA 101",
+      sourceId: nyDiscovery.sourceId,
+      code: "CSCI-UA 101",
+      subject: "CSCI-UA",
+      level: "undergraduate",
+      catalogOfferingTerms: ["fall", "spring"],
+      catalogOfferingText: "Fall and Spring",
+      crossListedStableIds: ["nyu-new-york-arts-science:DS-UA 101"],
+      course: {
+        id: "CSCI-UA 101",
+        minCredits: 2,
+        maxCredits: 4,
+        sites: ["new-york"],
+        offeringKnown: false,
+        offered: [],
+        fulfills: [],
+        prerequisiteText: "MATH-UA 120",
+      },
+    });
+    expect(candidate.quarantinedCourses).toEqual([
+      {
+        code: "TOPICS 101",
+        reason: "no-reliable-level-signal",
+        sourceUrl,
+      },
+    ]);
+    expect(candidate.courses.map((record) => record.code)).not.toContain(
+      "CSCI-GA 1001",
+    );
+  });
+
+  it("keeps identical New York codes distinct across source-scoped identities", () => {
+    const normalizeFor = (sourceId: string) => {
+      const nyDiscovery = newYorkDiscovery(sourceId, "shared-ua");
+      const sourceUrl = nyDiscovery.coursePageUrls[0];
+      return normalizeBulletinSource(nyDiscovery, [
+        {
+          kind: "subject",
+          slug: "shared-ua",
+          title: "Shared Subject",
+          sourceUrl,
+          courses: [
+            {
+              sourceId,
+              code: "SHARED-UA 101",
+              title: "Shared Code",
+              creditsText: "4 Credits",
+              levelText: "Undergraduate",
+              linkedCourseIds: [],
+              attributes: [],
+              detailTexts: [],
+              sourceUrl,
+            },
+          ],
+        },
+      ]).courses[0].stableId;
+    };
+
+    expect(normalizeFor("nyu-new-york-arts-science")).not.toBe(
+      normalizeFor("nyu-new-york-engineering"),
+    );
   });
 });
