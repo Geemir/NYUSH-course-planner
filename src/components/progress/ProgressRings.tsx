@@ -4,7 +4,7 @@ import { Ring } from "@/components/progress/Ring";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
 import { usePlannerStore } from "@/store/plannerStore";
 
-const CREDITS_COLOR = "#3b82f6";
+const CREDITS_COLOR = "var(--nyu-violet)";
 
 export function ProgressRings() {
   const { progress, progressByProgram, activeProgramObjs, allocation } =

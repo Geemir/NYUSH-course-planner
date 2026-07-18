@@ -70,7 +70,7 @@ export function CourseChip({
       style={{ transform: CSS.Translate.toString(transform) }}
       data-testid={`chip-${placement.placementId}`}
       className={cn(
-        "group flex items-center gap-3 rounded-xl border bg-background p-3 text-left shadow-xs transition-colors duration-[var(--motion-fast)] hover:border-primary/40 hover:bg-muted/50",
+        "group flex min-h-16 items-center gap-3 rounded-xl border bg-background p-3.5 text-left transition-[border-color,background-color,opacity] duration-[var(--motion-fast)] hover:border-primary/35 hover:bg-muted/45",
         warnings.length > 0 && (hasError ? "border-destructive" : "border-amber-500"),
         isDone && "opacity-70",
         isDragging && "z-10 opacity-50",
@@ -78,7 +78,7 @@ export function CourseChip({
     >
       <div {...listeners} {...attributes} className="flex min-w-0 flex-1 cursor-grab items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={onSelect}>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="font-mono text-xs text-muted-foreground">{course.id}</span>
+          <span className="font-mono text-xs font-semibold text-primary">{course.id}</span>
           <span className="truncate text-sm leading-tight font-medium">{course.title}</span>
         </div>
         {warnings.length > 0 && (

@@ -151,7 +151,7 @@ export function PlannerApp() {
               onGuide={onboarding.restart}
               onImportFile={handleImportFile}
             />
-            <div className="px-4 pt-4 sm:px-6 sm:pt-6">
+            <div className="mx-auto w-full max-w-[var(--content-max-width)] px-4 pt-5 sm:px-6 sm:pt-7">
               <InspirationStrip />
             </div>
             <DndContext

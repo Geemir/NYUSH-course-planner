@@ -45,13 +45,13 @@ export function SemesterColumn({
       ref={setNodeRef}
       data-testid={`semester-${semesterId}`}
       className={cn(
-        "flex min-h-48 flex-col gap-4 rounded-xl border bg-card p-5 shadow-xs transition-shadow duration-[var(--motion-fast)]",
+        "flex min-h-56 flex-col gap-5 rounded-2xl border bg-card p-5 shadow-[0_4px_18px_rgb(31_24_36/5%)] transition-[border-color,box-shadow] duration-[var(--motion-fast)] sm:p-6",
         isOver && "ring-2 ring-primary/60",
         completed && "bg-muted/40",
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-base font-semibold">
+        <span className="flex items-center gap-2 text-[17px] font-semibold tracking-[-0.01em]">
           {isFall ? (
             <Leaf className="size-4 text-amber-500" />
           ) : (

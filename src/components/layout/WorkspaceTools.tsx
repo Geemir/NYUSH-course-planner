@@ -19,7 +19,7 @@ export function WorkspaceTools({
         role="toolbar"
         aria-label="Workspace tools"
         className={cn(
-          "pointer-events-auto flex items-center gap-2 rounded-xl border bg-background p-2 shadow-sm",
+          "functional-glass pointer-events-auto flex items-center gap-2 rounded-2xl p-2 shadow-[0_12px_35px_rgb(31_24_36/16%)]",
           className,
         )}
       >

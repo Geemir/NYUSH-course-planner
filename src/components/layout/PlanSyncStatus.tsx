@@ -59,7 +59,7 @@ export function PlanSyncStatus({
   return (
     <>
       <div
-        className="fixed right-4 bottom-4 z-[var(--z-sticky)] flex min-h-9 items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur sm:right-6 sm:bottom-6"
+        className="functional-glass fixed right-4 bottom-4 z-[var(--z-sticky)] flex min-h-11 items-center gap-2 rounded-full px-4 py-2 text-xs font-medium shadow-[0_10px_32px_rgb(31_24_36/14%)] sm:right-6 sm:bottom-6"
         role="status"
         aria-live="polite"
         aria-atomic="true"

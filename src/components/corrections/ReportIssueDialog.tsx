@@ -82,7 +82,7 @@ export function ReportIssueDialog({ open, onOpenChange, context, onSubmitted }: 
         <CheckCircle2 className="mx-auto size-10 text-emerald-600" />
         <DialogHeader><DialogTitle>Report submitted</DialogTitle><DialogDescription>Maintainers can now review the evidence. You can follow updates in My reports.</DialogDescription></DialogHeader>
         <Button onClick={() => changeOpen(false)}>Done</Button>
-      </div> : <form onSubmit={submit} noValidate className="space-y-5">
+      </div> : <form onSubmit={submit} noValidate className="space-y-5 rounded-xl bg-card p-1">
         <DialogHeader><DialogTitle>Report an issue</DialogTitle><DialogDescription>Flag catalog or NYUSH degree-planning information for maintainer review.</DialogDescription></DialogHeader>
         <div className="rounded-xl border bg-muted/35 p-3 text-sm">
           <p className="font-medium">{context.label}</p>

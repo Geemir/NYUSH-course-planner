@@ -181,7 +181,7 @@ function ProgramProfileSheetEditor({
           </label>
         )}
 
-        <div className="sticky bottom-0 -mx-4 mt-auto flex justify-end gap-2 border-t bg-background px-4 pt-4 pb-1">
+        <div className="sticky bottom-0 -mx-5 mt-auto flex justify-end gap-2 border-t bg-[var(--surface-raised)] px-5 pt-4 pb-1">
           <Button variant="outline" onClick={() => requestOpenChange(false)}>Cancel</Button>
           <Button disabled={!dirty || !canSave} onClick={() => { onSave(validation.normalized); onOpenChange(false); }}>Save Program Profile</Button>
         </div>

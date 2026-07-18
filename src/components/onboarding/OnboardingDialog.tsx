@@ -29,14 +29,14 @@ const GUIDE_STEPS: readonly GuideStep[] = [
     title: "Choose your program",
     description: "Start with the academic context that shapes your plan.",
     detail:
-      "Select your degree plan and entry year so the workspace can show the right requirements and semester sequence.",
+      "Set your primary major, optional second major and minors, plus entry year. The planner keeps NYUSH degree authority separate from study-away course discovery.",
     icon: GraduationCap,
   },
   {
     title: "Find courses",
     description: "Explore the Bulletin catalog with purpose.",
     detail:
-      "Search and filter courses, then use requirement context to understand where each course may fit.",
+      "Search NYU Shanghai courses and New York study-away catalogs. New York results are clearly catalog-only until availability and eligibility are confirmed.",
     icon: Search,
   },
   {
@@ -50,7 +50,7 @@ const GUIDE_STEPS: readonly GuideStep[] = [
     title: "Read your progress",
     description: "Check the plan from more than one angle.",
     detail:
-      "Compare planned and earned credits, review warnings, and treat feasibility guidance as a planning signal—not a guarantee.",
+      "Compare planned and earned credits, inspect Bulletin evidence, and use Help for reports, sync status, Undo, and My reports. Guidance is not an official NYU decision.",
     icon: ChartNoAxesCombined,
   },
 ] as const;

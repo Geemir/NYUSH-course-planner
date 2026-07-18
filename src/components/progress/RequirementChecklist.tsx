@@ -306,6 +306,7 @@ export function RequirementChecklist() {
                   ? "Source: Reviewed planner overlay — confirm advisor-dependent combinations."
                   : "Source: NYU Shanghai Bulletin requirements."}
               </p>
+              {"reviewedNotes" in program && program.reviewedNotes?.length ? <div className="mb-3 space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs"><p className="font-semibold text-primary">Maintainer-reviewed notes</p>{program.reviewedNotes.map((item) => <p key={item.overlayId}>{item.note}</p>)}</div> : null}
               <div className="flex flex-col divide-y">
                 {progress.categories.map((category) => (
                   <CategoryRow

@@ -61,7 +61,7 @@ export function MyReportsSheet({ open, onOpenChange, initialReportId }: { open: 
   return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="overflow-y-auto sm:max-w-lg">
     <SheetHeader><SheetTitle>{detail ? detail.title : "My reports"}</SheetTitle><SheetDescription>Track information you submitted to the planner maintainers.</SheetDescription></SheetHeader>
     {error && <p role="alert" className="flex gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"><AlertCircle className="size-4" />{error}</p>}
-    {detail ? <div className="space-y-5">
+    {detail ? <div className="space-y-5 rounded-xl bg-card p-3">
       <Button variant="ghost" size="sm" onClick={() => { setDetail(null); void loadList(); }}><ArrowLeft />All reports</Button>
       <div className="rounded-xl border bg-muted/30 p-4"><p className="font-medium">{correctionStatusLabel[detail.status]}</p><p className="mt-2 text-sm text-muted-foreground">{detail.description}</p>{detail.evidenceUrl && <a className="mt-2 block text-sm text-primary" href={detail.evidenceUrl} target="_blank" rel="noreferrer">Open submitted evidence</a>}</div>
       <CorrectionStatusTimeline events={detail.events} />
@@ -69,7 +69,7 @@ export function MyReportsSheet({ open, onOpenChange, initialReportId }: { open: 
       {!detail.withdrawnAt && !["applied", "rejected"].includes(detail.status) && <><Textarea aria-label="Reply to maintainers" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Add information…" /><Button onClick={sendReply} disabled={!reply.trim()}>Send reply</Button></>}</section>
       {!detail.withdrawnAt && ["submitted", "needs_information"].includes(detail.status) && <Button variant="outline" onClick={withdraw}>Withdraw report</Button>}
       <p className="text-xs text-muted-foreground">Reviewed by the NYUSH Degree Planner maintainers; this is not an official NYU decision.</p>
-    </div> : <div className="space-y-4">
+    </div> : <div className="space-y-4 rounded-xl bg-card p-3">
       <label className="grid gap-1 text-sm font-medium">Status<select className="h-11 rounded-lg border bg-background px-3 font-normal" value={status} onChange={(event) => setStatus(event.target.value as CorrectionStatus | "all")}><option value="all">All statuses</option>{Object.entries(correctionStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       {!loading && !items.length && !error && <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">You have not submitted any reports in this view.</p>}
       <div className="space-y-2">{items.map((item) => <button key={item.id} type="button" onClick={() => void openDetail(item.id)} className="w-full rounded-xl border p-4 text-left transition-colors hover:bg-muted/45"><span className="text-xs font-medium text-primary">{correctionStatusLabel[item.status]}</span><p className="mt-1 font-medium">{item.title}</p><time className="text-xs text-muted-foreground">Updated {new Date(item.updatedAt).toLocaleDateString("en-US")}</time></button>)}</div>

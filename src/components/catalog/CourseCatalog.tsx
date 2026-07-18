@@ -111,19 +111,19 @@ function CatalogCard({
       onClick={select}
       data-testid={`catalog-${item.key}`}
       className={cn(
-        "group flex cursor-grab items-start gap-3 rounded-xl border bg-background p-3.5 outline-none transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex min-h-28 cursor-grab items-start gap-3 rounded-2xl border bg-card p-4 outline-none transition-[border-color,background-color,box-shadow] duration-[var(--motion-fast)] hover:border-primary/35 hover:bg-muted/35 focus-visible:ring-3 focus-visible:ring-ring/35",
         placement && "opacity-70",
         isDragging && "z-10 opacity-50",
       )}
     >
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-xs font-medium text-muted-foreground">{course.id}</span>
+          <span className="font-mono text-xs font-semibold text-primary">{course.id}</span>
           <span className="text-xs text-muted-foreground">{course.credits} cr</span>
           {isCustom && <Badge variant="outline">Custom</Badge>}
           {isNewYork && <Badge variant="secondary">New York study-away catalog</Badge>}
         </div>
-        <h3 className="truncate text-sm font-semibold">{course.title}</h3>
+        <h3 className="truncate text-[15px] font-semibold leading-5">{course.title}</h3>
         {record && (
           <p className="text-xs text-muted-foreground">{sourceName}</p>
         )}
@@ -234,7 +234,7 @@ export function CourseCatalog({
       </div>
       <div className="relative">
         <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-        <Input value={search.query.q} onChange={(event) => search.setQuery({ q: event.target.value })} placeholder="Search by course code or title…" aria-label="Search courses" className="h-11 pl-9 text-base" />
+        <Input value={search.query.q} onChange={(event) => search.setQuery({ q: event.target.value })} placeholder="Search by course code or title…" aria-label="Search courses" className="h-13 rounded-xl bg-card pl-10 text-[15px] shadow-xs" />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <FilterSelect label="Campus" value={search.query.campuses[0] ?? "all"} onChange={(value) => search.setQuery({ campuses: value === "all" ? [] : [value as "shanghai" | "new-york"] })} options={[{ value: "all", label: "All campuses" }, { value: "shanghai", label: "Shanghai" }, { value: "new-york", label: "New York" }]} />

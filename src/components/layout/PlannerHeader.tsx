@@ -87,13 +87,13 @@ export function PlannerHeader({
   };
 
   return (
-    <header className="sticky top-0 z-[var(--z-sticky)] flex h-18 items-center gap-4 border-b bg-background px-4 sm:px-6">
+    <header className="functional-glass sticky top-0 z-[var(--z-sticky)] flex min-h-20 items-center gap-2 border-x-0 border-t-0 px-2 py-2.5 shadow-[0_8px_30px_rgb(31_24_36/8%)] sm:gap-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm sm:size-11">
           <GraduationCap className="size-5" aria-hidden="true" />
         </div>
         <div className="hidden min-w-0 flex-col sm:flex">
-          <h1 className="truncate text-base leading-5 font-semibold tracking-[-0.01em]">
+          <h1 className="truncate text-[17px] leading-5 font-semibold tracking-[-0.015em]">
             NYUSH Course Planner
           </h1>
           <span className="truncate text-xs leading-4 text-muted-foreground">
@@ -145,10 +145,11 @@ export function PlannerHeader({
             type="button"
             variant="outline"
             className="h-11 px-3"
+            aria-label="Guide"
             onClick={onGuide}
           >
             <BookOpen aria-hidden="true" />
-            Guide
+            <span className="hidden sm:inline">Guide</span><span className="sr-only sm:hidden">Guide</span>
           </Button>
 
           <DropdownMenu>

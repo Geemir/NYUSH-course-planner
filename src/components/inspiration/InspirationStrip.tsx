@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { RefreshCw } from "lucide-react";
-import academicWorkspace from "@/assets/academic-workspace.webp";
 import { Button } from "@/components/ui/button";
 import {
   INSPIRATION_QUOTES,
@@ -46,14 +45,14 @@ export function InspirationStrip() {
       className="relative isolate min-h-48 overflow-hidden rounded-xl bg-foreground text-white"
     >
       <Image
-        src={academicWorkspace}
+        src="/nyc-skyline-diane-picchiottino.jpg"
         alt=""
         fill
         sizes="100vw"
-        className="-z-20 object-cover object-center"
+        className="-z-20 object-cover object-bottom"
       />
       <div
-        className="absolute inset-0 -z-10 bg-linear-to-r from-[#21002f]/90 via-[#321044]/78 to-[#21002f]/20"
+        className="skyline-overlay absolute inset-0 -z-10"
         aria-hidden="true"
       />
 

@@ -49,7 +49,7 @@ export function Ring({
             strokeWidth={STROKE}
             strokeLinecap="round"
             strokeDasharray={arc(planned)}
-            className="transition-all duration-300 ease-out"
+            className="transition-[stroke-dashoffset] duration-[var(--motion-standard)] ease-out motion-reduce:transition-none"
           />
           <circle
             cx={SIZE / 2}
@@ -60,7 +60,7 @@ export function Ring({
             strokeWidth={STROKE}
             strokeLinecap="round"
             strokeDasharray={arc(completed)}
-            className="transition-all duration-300 ease-out"
+            className="transition-[stroke-dashoffset] duration-[var(--motion-standard)] ease-out motion-reduce:transition-none"
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
