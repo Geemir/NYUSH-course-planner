@@ -144,9 +144,11 @@ export async function applyCorrectionOverlay(db: Db, adminId: string, requestId:
     const [row] = await tx.select().from(schema.correctionRequest).where(eq(schema.correctionRequest.id, requestId)).limit(1);
     if (!row) throw new CorrectionNotFoundError();
     if (row.status !== "approved") throw new CorrectionConflictError("Only approved reports can be applied.");
+    const inputKey = input.kind === "course" ? input.stableId : input.kind === "requirement" ? `${input.programId}:${input.requirementId}` : input.kind === "program-note" ? input.programId : input.program.id;
+    if (targetKey(row.targetData) !== inputKey) throw new CorrectionConflictError("Overlay target does not match the reviewed report.");
     const existing = await tx.select({ id: schema.catalogOverlay.id }).from(schema.catalogOverlay).where(eq(schema.catalogOverlay.requestId, requestId)).limit(1);
     if (existing.length) throw new CorrectionConflictError("This report was already applied.");
-    const [overlay] = await tx.insert(schema.catalogOverlay).values({ requestId, targetKind: input.kind, targetKey: input.kind === "course" ? input.stableId : input.kind === "requirement" ? `${input.programId}:${input.requirementId}` : input.kind === "program-note" ? input.programId : input.program.id, patchType: input.kind, patchData: input, sourceReleaseId, appliedBy: adminId }).returning();
+    const [overlay] = await tx.insert(schema.catalogOverlay).values({ requestId, targetKind: input.kind, targetKey: inputKey, patchType: input.kind, patchData: input, sourceReleaseId, appliedBy: adminId }).returning();
     const now = new Date();
     const [updated] = await tx.update(schema.correctionRequest).set({ status: "applied", closedAt: now, updatedAt: now }).where(eq(schema.correctionRequest.id, requestId)).returning();
     await tx.insert(schema.correctionEvent).values({ requestId, actorUserId: adminId, eventType: "overlay_applied", fromStatus: "approved", toStatus: "applied", publicNote: "Reviewed correction applied to the planner.", metadata: { overlayId: overlay.id } });
