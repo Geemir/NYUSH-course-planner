@@ -290,6 +290,7 @@ export type CatalogCategory = z.infer<typeof CatalogCategorySchema>;
 export const CatalogProgramAuditAuthoritySchema = z.enum([
   "nyush-bulletin",
   "reviewed-nyush-overlay",
+  "raw-nyu-bulletin",
 ]);
 export type CatalogProgramAuditAuthority = z.infer<
   typeof CatalogProgramAuditAuthoritySchema
@@ -331,7 +332,10 @@ export const CatalogProgramSchema = CatalogProgramInputSchema.transform(
   (program) => ({
     ...program,
     eligibleProfileRoles:
-      program.eligibleProfileRoles ?? defaultProfileRoles(program.type),
+      program.eligibleProfileRoles ??
+      (program.auditAuthority === "raw-nyu-bulletin"
+        ? []
+        : defaultProfileRoles(program.type)),
   }),
 );
 export type CatalogProgram = z.infer<typeof CatalogProgramSchema>;
