@@ -32,6 +32,7 @@ import { CatalogCourseRecordSchema, type CatalogCourseRecord } from "@/lib/catal
 import { CATALOG_SOURCES } from "@/lib/bulletin/sourceRegistry";
 import { getActiveRules } from "@/lib/repository";
 import sitesJson from "@/data/sites.json";
+import { applyCourseOverlays } from "@/lib/corrections/overlays";
 
 export class CatalogUnavailableError extends Error {
   constructor() {
@@ -44,6 +45,10 @@ async function activeMembership(db: CatalogDb) {
   const release = await getActiveCatalogRelease(db);
   if (!release) throw new CatalogUnavailableError();
   return { release, snapshotIds: Object.values(release.sourceSnapshotIds) };
+}
+
+async function activeOverlays(db: CatalogDb) {
+  return db.select().from(schema.catalogOverlay).where(eq(schema.catalogOverlay.status, "active"));
 }
 
 function escapedLike(value: string): string {
@@ -95,7 +100,8 @@ export async function searchCatalogCourses(
     .orderBy(asc(schema.catalogCourse.code), asc(schema.catalogCourse.stableId))
     .limit(query.limit + 1);
   const hasMore = rows.length > query.limit;
-  const items = rows.slice(0, query.limit).map((row) => CatalogCourseRecordSchema.parse(row.data));
+  const overlays = await activeOverlays(db);
+  const items = rows.slice(0, query.limit).map((row) => applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), overlays).value);
   const last = items.at(-1);
   return CatalogCoursePageSchema.parse({
     releaseId: release.id,
@@ -118,7 +124,8 @@ export async function readCatalogCourse(
     .from(schema.catalogCourse)
     .where(and(inArray(schema.catalogCourse.snapshotId, snapshotIds), eq(schema.catalogCourse.stableId, stableId)))
     .limit(1);
-  return row ? CatalogCourseRecordSchema.parse(row.data) : null;
+  if (!row) return null;
+  return applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), await activeOverlays(db)).value;
 }
 
 export async function readCatalogCourseBatch(
@@ -133,7 +140,8 @@ export async function readCatalogCourseBatch(
         .from(schema.catalogCourse)
         .where(and(inArray(schema.catalogCourse.snapshotId, snapshotIds), inArray(schema.catalogCourse.stableId, requested)))
     : [];
-  const byId = new Map(rows.map((row) => [row.stableId, CatalogCourseRecordSchema.parse(row.data)]));
+  const overlays = await activeOverlays(db);
+  const byId = new Map(rows.map((row) => [row.stableId, applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), overlays).value]));
   return CatalogCourseBatchResponseSchema.parse({
     releaseId: release.id,
     items: requested.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : [])),

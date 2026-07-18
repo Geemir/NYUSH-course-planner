@@ -13,11 +13,13 @@ import {
   getCatalogSourceStatuses,
   type CatalogDb,
 } from "@/lib/catalogRepository";
+import { OverlayCarryForwardError } from "@/lib/corrections/overlays";
 
 export interface CatalogSyncResult {
   releaseId: string | null;
   sourceResults: SourceSyncResult[];
   complete: boolean;
+  publicationDiagnostics?: string[];
 }
 
 export async function syncCatalogSources(options: {
@@ -80,6 +82,16 @@ export async function syncCatalogSources(options: {
   ) {
     return { releaseId: activeRelease.id, sourceResults, complete: true };
   }
-  const release = await composeCatalogRelease(options.db, membership);
-  return { releaseId: release.id, sourceResults, complete: true };
+  try {
+    const release = await composeCatalogRelease(options.db, membership);
+    return { releaseId: release.id, sourceResults, complete: true };
+  } catch (error) {
+    if (!(error instanceof OverlayCarryForwardError)) throw error;
+    return {
+      releaseId: activeRelease?.id ?? null,
+      sourceResults,
+      complete: false,
+      publicationDiagnostics: error.diagnostics,
+    };
+  }
 }

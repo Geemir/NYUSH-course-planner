@@ -24,6 +24,7 @@ import {
   type SourceCatalogCandidate,
 } from "@/lib/catalog/types";
 import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
+import { applyCourseOverlays, applyProgramOverlays, reconcileCatalogOverlays } from "@/lib/corrections/overlays";
 
 export type CatalogDb =
   | NodePgDatabase<typeof schema>
@@ -679,7 +680,12 @@ export async function getActiveReleaseCatalog(
         .orderBy(asc(schema.catalogProgram.programId))
     : [];
   const programs = programRows.map((row) => CatalogProgramSchema.parse(row.data));
-  return { release, courses, programs };
+  const overlays = await db.select().from(schema.catalogOverlay).where(eq(schema.catalogOverlay.status, "active"));
+  return {
+    release,
+    courses: courses.map((course) => applyCourseOverlays(course, overlays).value),
+    programs: applyProgramOverlays(programs, overlays).value,
+  };
 }
 
 /** Atomically activates an exact, source-complete set of healthy snapshots. */
@@ -730,9 +736,24 @@ export async function composeCatalogRelease(
     }
   }
 
+  const [candidateCourseRows, candidateProgramRows, activeOverlays] = await Promise.all([
+    db.select({ data: schema.catalogCourse.data }).from(schema.catalogCourse).where(inArray(schema.catalogCourse.snapshotId, snapshotIds)),
+    db.select({ data: schema.catalogProgram.data }).from(schema.catalogProgram).where(inArray(schema.catalogProgram.snapshotId, snapshotIds)),
+    db.select().from(schema.catalogOverlay).where(eq(schema.catalogOverlay.status, "active")),
+  ]);
+  const reconciliation = reconcileCatalogOverlays(
+    candidateCourseRows.map((row) => CatalogCourseRecordSchema.parse(row.data)),
+    candidateProgramRows.map((row) => CatalogProgramSchema.parse(row.data)),
+    activeOverlays,
+  );
+
   const id = releaseId(canonicalMembership);
   const publishedAt = new Date();
   await db.transaction(async (tx) => {
+    if (reconciliation.supersededOverlayIds.length > 0) {
+      await tx.update(schema.catalogOverlay).set({ status: "superseded", supersededAt: publishedAt })
+        .where(inArray(schema.catalogOverlay.id, reconciliation.supersededOverlayIds));
+    }
     await tx
       .update(schema.catalogRelease)
       .set({ status: "retired" })

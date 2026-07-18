@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CATALOG_SOURCES } from "@/lib/bulletin/sourceRegistry";
+import { OverlayCarryForwardError } from "@/lib/corrections/overlays";
 
 const stubs = vi.hoisted(() => ({
   sync: vi.fn(),
@@ -121,5 +122,18 @@ describe("syncCatalogSources", () => {
       "nyu-new-york-engineering",
     ]);
     expect(stubs.compose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the previous release and exposes overlay conflicts for review", async () => {
+    stubs.activeRelease.mockResolvedValue({ id: "release-current", sourceSnapshotIds: {}, publishedAt: new Date().toISOString() });
+    stubs.compose.mockRejectedValue(new OverlayCarryForwardError(["overlay-1: course disappeared"]));
+
+    const result = await syncCatalogSources({ sourceIds: ["nyu-shanghai"], fetchPage, db });
+
+    expect(result).toMatchObject({
+      releaseId: "release-current",
+      complete: false,
+      publicationDiagnostics: ["overlay-1: course disappeared"],
+    });
   });
 });

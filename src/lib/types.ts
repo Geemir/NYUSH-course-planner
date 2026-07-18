@@ -326,6 +326,8 @@ const CatalogProgramInputSchema = z.object({
   provenance: CatalogProvenanceSchema,
   auditAuthority: CatalogProgramAuditAuthoritySchema.default("nyush-bulletin"),
   eligibleProfileRoles: z.array(CatalogProgramProfileRoleSchema).optional(),
+  reviewedOverlayIds: z.array(z.string().min(1)).optional(),
+  reviewedNotes: z.array(z.object({ note: z.string().min(1), sourceUrl: z.string().url(), overlayId: z.string().min(1) }).strict()).optional(),
 });
 
 export const CatalogProgramSchema = CatalogProgramInputSchema.transform(

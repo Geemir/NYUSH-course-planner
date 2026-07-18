@@ -1,6 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
+import { eq } from "drizzle-orm";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import {
@@ -116,5 +117,31 @@ describe("active release catalog queries", () => {
     expect(bootstrap.sources).toHaveLength(2);
     expect(bootstrap.filters.subjects.map((item) => item.subject)).toEqual(["ACCT-UB", "CSCI-SHU"]);
     expect(bootstrap).not.toHaveProperty("courses");
+  });
+
+  it("composes reviewed overlays while leaving the snapshot row immutable", async () => {
+    const stableId = "nyu-shanghai:CSCI-SHU 101";
+    await db.insert(schema.users).values({ id: "overlay-student", email: "overlay@example.edu" });
+    await db.insert(schema.correctionRequest).values({
+      id: "overlay-request", userId: "overlay-student", targetKind: "course",
+      targetData: { kind: "course", stableId }, issueType: "incorrect_course_information",
+      catalogReleaseId: releaseId, contextData: {}, title: "Course title is incorrect",
+      description: "The published course title needs a reviewed correction.", status: "applied",
+    });
+    await db.insert(schema.catalogOverlay).values({
+      id: "overlay-course-title", requestId: "overlay-request", targetKind: "course", targetKey: stableId,
+      patchType: "course", patchData: { kind: "course", stableId, changes: { title: "Reviewed Computer Science" } },
+      sourceReleaseId: releaseId, appliedBy: "overlay-student", appliedAt: new Date("2026-07-18T00:00:00Z"),
+    });
+
+    const detail = await readCatalogCourse(db, stableId);
+    expect(detail).toMatchObject({ reviewedOverlayIds: ["overlay-course-title"], course: { title: "Reviewed Computer Science" } });
+    expect(detail?.overlayProvenance?.[0]).toMatchObject({ kind: "reviewed-overlay", referenceId: "overlay-course-title" });
+    const [raw] = await db.select({ data: schema.catalogCourse.data }).from(schema.catalogCourse).where(eq(schema.catalogCourse.stableId, stableId));
+    expect((raw.data as CatalogCourseRecord).course.title).toBe("Computer Science");
+
+    await db.delete(schema.catalogOverlay).where(eq(schema.catalogOverlay.id, "overlay-course-title"));
+    await db.delete(schema.correctionRequest).where(eq(schema.correctionRequest.id, "overlay-request"));
+    await db.delete(schema.users).where(eq(schema.users.id, "overlay-student"));
   });
 });

@@ -31,6 +31,8 @@ export const CatalogCourseRecordSchema = z
     catalogOfferingText: z.string().min(1).nullable(),
     course: CourseSchema,
     crossListedStableIds: z.array(z.string().min(1)),
+    reviewedOverlayIds: z.array(z.string().min(1)).optional(),
+    overlayProvenance: z.array(z.object({ kind: z.literal("reviewed-overlay"), referenceId: z.string().min(1), appliedAt: z.string().optional() }).strict()).optional(),
   })
   .strict();
 export type CatalogCourseRecord = z.infer<typeof CatalogCourseRecordSchema>;
