@@ -475,7 +475,7 @@ export const FulfillmentFactsSchema = z
   .optional()
   .default([]);
 
-export interface PlanSnapshot {
+export interface PlanSnapshotV1 {
   version: 1;
   placements: Placement[];
   studyAway: Partial<Record<SemesterId, string>>;
@@ -490,6 +490,31 @@ export interface PlanSnapshot {
   /** Calendar year of the student's first fall semester (e.g. 2025). */
   startYear: number;
 }
+
+/** Backwards-compatible name used by v1 engines until store migration lands. */
+export type PlanSnapshot = PlanSnapshotV1;
+
+export interface PlanPlacementV2 extends Placement {
+  placementId: string;
+  catalogCourseId?: string;
+  titleSnapshot?: string;
+}
+
+export interface PlanSnapshotV2 {
+  version: 2;
+  catalogReleaseId: string | null;
+  placements: PlanPlacementV2[];
+  studyAway: Partial<Record<SemesterId, string>>;
+  completedSemesters: SemesterId[];
+  programProfile: import("@/lib/programProfile").ProgramProfile;
+  unresolvedProgramIds: string[];
+  customCourses: Course[];
+  fulfillmentFacts: FulfillmentFact[];
+  dismissedWarnings: string[];
+  startYear: number;
+}
+
+export type PersistedPlanSnapshot = PlanSnapshotV1 | PlanSnapshotV2;
 
 // ---------------------------------------------------------------------------
 // Derived results (never stored — computed by lib/validation, lib/progress)

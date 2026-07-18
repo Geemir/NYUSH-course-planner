@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parsePlan } from "@/lib/planIO";
+import {
+  exportPlan,
+  parsePlan,
+  parsePlanDocument,
+} from "@/lib/planIO";
 
 const basePlan = {
   version: 1,
@@ -66,5 +70,42 @@ describe("parsePlan", () => {
     };
 
     expect(() => parsePlan(JSON.stringify(plan))).toThrow();
+  });
+
+  it("retains unknown course and program references structurally", () => {
+    const parsed = parsePlanDocument(JSON.stringify({
+      ...basePlan,
+      placements: [{ courseId: "UNKNOWN 1", semesterId: "Y1F", allocation: "auto" }],
+      activePrograms: ["unknown-program"],
+    }));
+    expect(parsed.version).toBe(1);
+    if (parsed.version === 1) {
+      expect(parsed.placements[0].courseId).toBe("UNKNOWN 1");
+      expect(parsed.activePrograms).toEqual(["unknown-program"]);
+    }
+  });
+
+  it("parses and exports plan v2 with source-scoped placement identity", () => {
+    const v2 = {
+      version: 2 as const,
+      catalogReleaseId: "release",
+      placements: [{
+        placementId: "placement-1",
+        courseId: "TEST-UA 1",
+        catalogCourseId: "stern:TEST-UA 1",
+        titleSnapshot: "Test",
+        semesterId: "Y1F" as const,
+        allocation: "auto",
+      }],
+      studyAway: {}, completedSemesters: [],
+      programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
+      unresolvedProgramIds: ["unknown"], customCourses: [], fulfillmentFacts: [],
+      dismissedWarnings: [], startYear: 2026,
+    };
+    expect(parsePlanDocument(exportPlan(v2))).toEqual(v2);
+  });
+
+  it("rejects unknown document versions", () => {
+    expect(() => parsePlanDocument(JSON.stringify({ version: 3 }))).toThrow();
   });
 });
