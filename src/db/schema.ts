@@ -1,5 +1,7 @@
 import {
   boolean,
+  doublePrecision,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -18,6 +20,10 @@ import type {
   PlanSnapshot,
   SpecialRule,
 } from "@/lib/types";
+import type {
+  CatalogCourseRecord,
+  CatalogReleaseRef,
+} from "@/lib/catalog/types";
 
 type PersistedPlanSnapshot = Omit<PlanSnapshot, "fulfillmentFacts"> & {
   fulfillmentFacts: FulfillmentFact[];
@@ -156,10 +162,24 @@ export const rules = pgTable("rule", {
 // repeated official IDs remain available in every historical publication.
 // ---------------------------------------------------------------------------
 
+export const catalogSource = pgTable("catalogSource", {
+  id: text("id").primaryKey(),
+  schoolName: text("schoolName").notNull(),
+  campus: text("campus", { enum: ["shanghai", "new-york"] }).notNull(),
+  bulletinRoot: text("bulletinRoot").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const catalogSnapshot = pgTable(
   "catalogSnapshot",
   {
     id: text("id").primaryKey(),
+    sourceId: text("sourceId")
+      .notNull()
+      .default("nyu-shanghai")
+      .references(() => catalogSource.id),
     sourceHash: text("sourceHash").notNull(),
     status: text("status", {
       enum: ["building", "active", "retired", "failed"],
@@ -172,6 +192,7 @@ export const catalogSnapshot = pgTable(
     documentCount: integer("documentCount").notNull(),
     courseCount: integer("courseCount").notNull(),
     programCount: integer("programCount").notNull(),
+    quarantinedCount: integer("quarantinedCount").notNull().default(0),
     sourceReferenceIds: jsonb("sourceReferenceIds")
       .$type<string[]>()
       .notNull(),
@@ -186,9 +207,10 @@ export const catalogSnapshot = pgTable(
     completedAt: timestamp("completedAt", { mode: "date" }),
   },
   (snapshot) => [
-    uniqueIndex("catalog_snapshot_one_active")
-      .on(snapshot.status)
+    uniqueIndex("catalog_snapshot_one_active_per_source")
+      .on(snapshot.sourceId)
       .where(sql`${snapshot.status} = 'active'`),
+    index("catalog_snapshot_source_status").on(snapshot.sourceId, snapshot.status),
   ],
 );
 
@@ -213,10 +235,34 @@ export const catalogCourse = pgTable(
       .notNull()
       .references(() => catalogSnapshot.id, { onDelete: "cascade" }),
     courseId: text("courseId").notNull(),
-    data: jsonb("data").$type<Course>().notNull(),
+    stableId: text("stableId").notNull(),
+    sourceId: text("sourceId").notNull(),
+    code: text("code").notNull(),
+    subject: text("subject").notNull(),
+    title: text("title").notNull(),
+    minCredits: doublePrecision("minCredits").notNull(),
+    maxCredits: doublePrecision("maxCredits").notNull(),
+    level: text("level", {
+      enum: ["undergraduate", "graduate", "ambiguous"],
+    }).notNull(),
+    catalogOfferingTerms: jsonb("catalogOfferingTerms")
+      .$type<string[]>()
+      .notNull(),
+    searchText: text("searchText").notNull(),
+    data: jsonb("data").$type<Course | CatalogCourseRecord>().notNull(),
   },
   (course) => [
     primaryKey({ columns: [course.snapshotId, course.courseId] }),
+    uniqueIndex("catalog_course_snapshot_stable").on(
+      course.snapshotId,
+      course.stableId,
+    ),
+    index("catalog_course_source_subject_code").on(
+      course.sourceId,
+      course.subject,
+      course.code,
+      course.stableId,
+    ),
   ],
 );
 
@@ -231,6 +277,45 @@ export const catalogProgram = pgTable(
   },
   (program) => [
     primaryKey({ columns: [program.snapshotId, program.programId] }),
+  ],
+);
+
+export const catalogRelease = pgTable(
+  "catalogRelease",
+  {
+    id: text("id").primaryKey(),
+    status: text("status", { enum: ["building", "active", "retired"] })
+      .notNull()
+      .default("building"),
+    sourceSnapshotIds: jsonb("sourceSnapshotIds")
+      .$type<CatalogReleaseRef["sourceSnapshotIds"]>()
+      .notNull(),
+    publishedAt: timestamp("publishedAt", { mode: "date" }),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (release) => [
+    uniqueIndex("catalog_release_one_active")
+      .on(release.status)
+      .where(sql`${release.status} = 'active'`),
+  ],
+);
+
+export const catalogReleaseSource = pgTable(
+  "catalogReleaseSource",
+  {
+    releaseId: text("releaseId")
+      .notNull()
+      .references(() => catalogRelease.id, { onDelete: "cascade" }),
+    sourceId: text("sourceId")
+      .notNull()
+      .references(() => catalogSource.id),
+    snapshotId: text("snapshotId")
+      .notNull()
+      .references(() => catalogSnapshot.id),
+  },
+  (membership) => [
+    primaryKey({ columns: [membership.releaseId, membership.sourceId] }),
+    index("catalog_release_source_snapshot").on(membership.snapshotId),
   ],
 );
 

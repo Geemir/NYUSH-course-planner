@@ -17,12 +17,17 @@ import {
   type SnapshotValidationReport,
 } from "@/lib/bulletin/validateSnapshot";
 import {
+  composeCatalogRelease,
   getActiveCatalog,
+  getActiveCatalogRelease,
+  getCatalogSourceStatuses,
   getCatalogStatus,
+  publishSourceCandidate,
   publishCatalogCandidate,
   type CatalogDb,
 } from "@/lib/catalogRepository";
 import type { CatalogCandidate } from "@/lib/types";
+import type { SourceCatalogCandidate } from "@/lib/catalog/types";
 
 let client: PGlite;
 let db: CatalogDb;
@@ -336,3 +341,208 @@ describe("catalog snapshot publication", () => {
     expect(status.recent[0].validationReport).toEqual(report);
   });
 });
+
+function sourceCandidate(
+  sourceId: "nyu-shanghai" | "nyu-new-york-business",
+  suffix: string,
+): SourceCatalogCandidate {
+  const source = getCatalogSource(sourceId);
+  const code = sourceId === "nyu-shanghai" ? "TEST-SHU 101" : "ACCT-UB 1";
+  const slug = sourceId === "nyu-shanghai" ? "test-shu" : "acct-ub";
+  const sourceUrl = `${source.courseIndexUrl}${slug}/`;
+  const snapshotId = `${sourceId}-snapshot-${suffix}`;
+  return {
+    sourceId,
+    snapshotId,
+    sourceHash: `${sourceId}-hash-${suffix}`,
+    documents: [{ kind: "subject", slug, title: slug, sourceUrl, courses: [{}] }],
+    courses: [
+      {
+        stableId: `${sourceId}:${code}`,
+        sourceId,
+        sourceSnapshotId: snapshotId,
+        code,
+        subject: code.split(" ")[0],
+        level: "undergraduate",
+        catalogOfferingTerms: [],
+        catalogOfferingText: null,
+        course: {
+          id: code,
+          title: `Course ${suffix}`,
+          credits: 4,
+          minCredits: 4,
+          maxCredits: 4,
+          department: code.split(" ")[0],
+          prereqs: [],
+          sourceReferenceIds: [],
+          offered: sourceId === "nyu-shanghai" ? ["fall"] : [],
+          offeringKnown: sourceId === "nyu-shanghai",
+          sites: [source.campus],
+          fulfills: [],
+          equivalentTo: [],
+          attributes: [],
+          tags: [],
+          provenance: { sourceUrl, snapshotId, sourceHash: "document-hash" },
+        },
+        crossListedStableIds: [],
+      },
+    ],
+    programs: [],
+    quarantinedCourses: [],
+    sourceReferenceIds: [],
+    unresolvedCourseIds: [],
+  };
+}
+
+function sourceReport(input: SourceCatalogCandidate): SnapshotValidationReport {
+  return {
+    summary: {
+      snapshotId: input.snapshotId,
+      sourceHash: input.sourceHash,
+      documentCount: input.documents.length,
+      courseCount: input.courses.length,
+      programCount: input.programs.length,
+      sourceRowCount: 0,
+      requirementRowCount: 0,
+    },
+    errors: [],
+    warnings: [],
+  };
+}
+
+describe("multi-source catalog releases", () => {
+  it("publishes sources independently and composes an exact active release", async () => {
+    const shanghai = sourceCandidate("nyu-shanghai", "a");
+    const stern = sourceCandidate("nyu-new-york-business", "a");
+
+    await expect(
+      publishSourceCandidate(db, shanghai, sourceReport(shanghai)),
+    ).resolves.toMatchObject({ status: "published", snapshotId: shanghai.snapshotId });
+    await expect(
+      publishSourceCandidate(db, stern, sourceReport(stern)),
+    ).resolves.toMatchObject({ status: "published", snapshotId: stern.snapshotId });
+
+    const activeSnapshots = await db
+      .select({ sourceId: schema.catalogSnapshot.sourceId })
+      .from(schema.catalogSnapshot)
+      .where(eq(schema.catalogSnapshot.status, "active"));
+    expect(activeSnapshots).toEqual(
+      expect.arrayContaining([
+        { sourceId: "nyu-shanghai" },
+        { sourceId: "nyu-new-york-business" },
+      ]),
+    );
+
+    const release = await composeCatalogRelease(db, {
+      "nyu-shanghai": shanghai.snapshotId,
+      "nyu-new-york-business": stern.snapshotId,
+    });
+    expect(release.sourceSnapshotIds).toEqual({
+      "nyu-shanghai": shanghai.snapshotId,
+      "nyu-new-york-business": stern.snapshotId,
+    });
+    await expect(getActiveCatalogRelease(db)).resolves.toMatchObject({
+      id: release.id,
+      sourceSnapshotIds: release.sourceSnapshotIds,
+    });
+    await expect(getCatalogSourceStatuses(db)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: "nyu-shanghai", activeSnapshotId: shanghai.snapshotId }),
+        expect.objectContaining({ sourceId: "nyu-new-york-business", activeSnapshotId: stern.snapshotId }),
+      ]),
+    );
+  });
+
+  it("backfills a v0.1 Shanghai snapshot into an active one-source release", async () => {
+    const rehearsal = new PGlite();
+    const applySql = async (fileName: string) => {
+      const migration = readFileSync(resolve("drizzle", fileName), "utf8");
+      for (const statement of migration.split("--> statement-breakpoint")) {
+        if (statement.trim()) await rehearsal.exec(statement);
+      }
+    };
+    for (const fileName of [
+      "0000_smart_darkstar.sql",
+      "0001_futuristic_gateway.sql",
+      "0002_magenta_nuke.sql",
+      "0003_bulletin_snapshots.sql",
+    ]) {
+      await applySql(fileName);
+    }
+    const legacyCourse = {
+      id: "TEST-SHU 101",
+      title: "Legacy Course",
+      credits: 4,
+      department: "TEST-SHU",
+      offered: ["fall"],
+      sites: ["shanghai"],
+    };
+    await rehearsal.query(
+      `INSERT INTO "catalogSnapshot" ("id", "sourceHash", "status", "validationReport", "documentCount", "courseCount", "programCount", "sourceReferenceIds", "externalCourseIds", "unresolvedCourseIds") VALUES ($1, $2, 'active', $3::jsonb, 0, 1, 0, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)`,
+      ["legacy-active", "legacy-hash", JSON.stringify(sourceReport(sourceCandidate("nyu-shanghai", "legacy")))],
+    );
+    await rehearsal.query(
+      `INSERT INTO "catalogCourse" ("snapshotId", "courseId", "data") VALUES ($1, $2, $3::jsonb)`,
+      ["legacy-active", legacyCourse.id, JSON.stringify(legacyCourse)],
+    );
+
+    await applySql("0004_multi_source_catalog.sql");
+
+    const courses = await rehearsal.query<{
+      stableId: string;
+      sourceId: string;
+      code: string;
+      title: string;
+    }>(`SELECT "stableId", "sourceId", "code", "title" FROM "catalogCourse"`);
+    expect(courses.rows).toEqual([
+      {
+        stableId: "nyu-shanghai:TEST-SHU 101",
+        sourceId: "nyu-shanghai",
+        code: "TEST-SHU 101",
+        title: "Legacy Course",
+      },
+    ]);
+    const releases = await rehearsal.query<{ sourceSnapshotIds: Record<string, string> }>(
+      `SELECT "sourceSnapshotIds" FROM "catalogRelease" WHERE "status" = 'active'`,
+    );
+    expect(releases.rows[0].sourceSnapshotIds).toEqual({
+      "nyu-shanghai": "legacy-active",
+    });
+    await rehearsal.close();
+  });
+
+  it("reuses an unchanged healthy source snapshot", async () => {
+    const stern = sourceCandidate("nyu-new-york-business", "same");
+    await publishSourceCandidate(db, stern, sourceReport(stern));
+    const duplicate = { ...stern, snapshotId: `${stern.snapshotId}-duplicate` };
+    duplicate.courses = stern.courses.map((record) => ({
+      ...record,
+      sourceSnapshotId: duplicate.snapshotId,
+    }));
+
+    await expect(
+      publishSourceCandidate(db, duplicate, sourceReport(duplicate)),
+    ).resolves.toEqual({ status: "unchanged", snapshotId: stern.snapshotId });
+  });
+
+  it("rejects failed or cross-source release membership and preserves the active release", async () => {
+    const shanghai = sourceCandidate("nyu-shanghai", "healthy");
+    const stern = sourceCandidate("nyu-new-york-business", "healthy");
+    await publishSourceCandidate(db, shanghai, sourceReport(shanghai));
+    await publishSourceCandidate(db, stern, sourceReport(stern));
+    const release = await composeCatalogRelease(db, {
+      "nyu-shanghai": shanghai.snapshotId,
+      "nyu-new-york-business": stern.snapshotId,
+    });
+
+    await expect(
+      composeCatalogRelease(db, {
+        "nyu-shanghai": shanghai.snapshotId,
+        "nyu-new-york-business": shanghai.snapshotId,
+      }),
+    ).rejects.toThrow(/source|snapshot/i);
+    await expect(getActiveCatalogRelease(db)).resolves.toMatchObject({ id: release.id });
+  });
+});
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";

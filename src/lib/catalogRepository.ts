@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { z } from "zod";
@@ -13,6 +14,13 @@ import {
   CatalogCandidateSchema,
   type CatalogCandidate,
 } from "@/lib/types";
+import {
+  CatalogCourseRecordSchema,
+  CatalogReleaseRefSchema,
+  type CatalogReleaseRef,
+  type SourceCatalogCandidate,
+} from "@/lib/catalog/types";
+import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 
 export type CatalogDb =
   | NodePgDatabase<typeof schema>
@@ -57,6 +65,18 @@ const SNAPSHOT_VALIDATION_CODES = [
   "source-row-coverage",
   "supported-ambiguity",
   "unresolved-local-reference",
+  "source-id-mismatch",
+  "stable-id-mismatch",
+  "unexpected-program-source",
+  "graduate-record-included",
+  "ambiguous-record-included",
+  "course-count-drop",
+  "unresolved-reference-spike",
+  "zero-subjects",
+  "missing-course-code",
+  "missing-credit-value",
+  "invalid-canonical-url",
+  "structural-selector-miss",
 ] as const satisfies readonly SnapshotValidationCode[];
 
 const SnapshotValidationDiagnosticSchema = z
@@ -150,6 +170,7 @@ function snapshotValues(
 ) {
   return {
     id: candidate.snapshotId,
+    sourceId: "nyu-shanghai",
     sourceHash: candidate.sourceHash,
     validationReport: report,
     documentCount: candidate.documents.length,
@@ -232,6 +253,16 @@ export async function publishCatalogCandidate(
         candidate.courses.map((course) => ({
           snapshotId: candidate.snapshotId,
           courseId: course.id,
+          stableId: `nyu-shanghai:${course.id}`,
+          sourceId: "nyu-shanghai",
+          code: course.id,
+          subject: course.department,
+          title: course.title,
+          minCredits: course.minCredits ?? course.credits,
+          maxCredits: course.maxCredits ?? course.credits,
+          level: "undergraduate" as const,
+          catalogOfferingTerms: course.offered,
+          searchText: `${course.id} ${course.title}`.toLowerCase(),
           data: course,
         })),
       );
@@ -273,7 +304,12 @@ export async function publishCatalogCandidate(
     await tx
       .update(schema.catalogSnapshot)
       .set({ status: "retired" })
-      .where(eq(schema.catalogSnapshot.status, "active"));
+      .where(
+        and(
+          eq(schema.catalogSnapshot.sourceId, "nyu-shanghai"),
+          eq(schema.catalogSnapshot.status, "active"),
+        ),
+      );
     await tx
       .update(schema.catalogSnapshot)
       .set({ status: "active", completedAt: new Date() })
@@ -357,4 +393,328 @@ export async function getCatalogStatus(db: CatalogDb): Promise<CatalogStatus> {
     active: active ? statusEntry(active) : null,
     recent: rows.map(statusEntry),
   };
+}
+
+export type SourcePublicationResult =
+  | { status: "published"; snapshotId: string }
+  | { status: "unchanged"; snapshotId: string };
+
+export interface CatalogSourceStatus {
+  sourceId: string;
+  schoolName: string;
+  campus: "shanghai" | "new-york";
+  enabled: boolean;
+  activeSnapshotId: string | null;
+  activeCourseCount: number;
+  quarantinedCount: number;
+  lastFailure: string | null;
+}
+
+function assertSourceReportMatches(
+  candidate: SourceCatalogCandidate,
+  report: SnapshotValidationReport,
+) {
+  const expected = {
+    snapshotId: candidate.snapshotId,
+    sourceHash: candidate.sourceHash,
+    documentCount: candidate.documents.length,
+    courseCount: candidate.courses.length,
+    programCount: candidate.programs.length,
+    sourceRowCount: 0,
+    requirementRowCount: 0,
+  };
+  if (JSON.stringify(report.summary) !== JSON.stringify(expected)) {
+    throw new CatalogPublicationError(
+      "The validation report does not describe this source candidate.",
+    );
+  }
+}
+
+async function upsertCatalogSource(
+  db: CatalogDb,
+  sourceId: string,
+): Promise<void> {
+  const source = getCatalogSource(sourceId);
+  await db
+    .insert(schema.catalogSource)
+    .values({
+      id: source.id,
+      schoolName: source.schoolName,
+      campus: source.campus,
+      bulletinRoot: source.bulletinRoot,
+      enabled: source.enabled,
+    })
+    .onConflictDoUpdate({
+      target: schema.catalogSource.id,
+      set: {
+        schoolName: source.schoolName,
+        campus: source.campus,
+        bulletinRoot: source.bulletinRoot,
+        enabled: source.enabled,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+/** Publishes one validated source without changing any other source pointer. */
+export async function publishSourceCandidate(
+  db: CatalogDb,
+  candidate: SourceCatalogCandidate,
+  report: SnapshotValidationReport,
+): Promise<SourcePublicationResult> {
+  assertPublishable(report);
+  assertSourceReportMatches(candidate, report);
+  const source = getCatalogSource(candidate.sourceId);
+  candidate.documents.forEach(sourceUrlOf);
+  const records = candidate.courses.map((record) =>
+    CatalogCourseRecordSchema.parse(record),
+  );
+  await upsertCatalogSource(db, source.id);
+
+  const [unchanged] = await db
+    .select({ id: schema.catalogSnapshot.id })
+    .from(schema.catalogSnapshot)
+    .where(
+      and(
+        eq(schema.catalogSnapshot.sourceId, source.id),
+        eq(schema.catalogSnapshot.sourceHash, candidate.sourceHash),
+        eq(schema.catalogSnapshot.status, "active"),
+      ),
+    )
+    .limit(1);
+  if (unchanged) return { status: "unchanged", snapshotId: unchanged.id };
+
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.catalogSnapshot).values({
+      id: candidate.snapshotId,
+      sourceId: source.id,
+      sourceHash: candidate.sourceHash,
+      status: "building",
+      validationReport: report,
+      documentCount: candidate.documents.length,
+      courseCount: records.length,
+      programCount: candidate.programs.length,
+      quarantinedCount: candidate.quarantinedCourses.length,
+      sourceReferenceIds: candidate.sourceReferenceIds,
+      externalCourseIds: [],
+      unresolvedCourseIds: candidate.unresolvedCourseIds,
+    });
+    if (candidate.documents.length > 0) {
+      await tx.insert(schema.catalogSourceDocument).values(
+        candidate.documents.map((document) => ({
+          snapshotId: candidate.snapshotId,
+          sourceUrl: sourceUrlOf(document),
+          data: JSON.stringify(document),
+        })),
+      );
+    }
+    if (records.length > 0) {
+      await tx.insert(schema.catalogCourse).values(
+        records.map((record) => ({
+          snapshotId: candidate.snapshotId,
+          courseId: record.stableId,
+          stableId: record.stableId,
+          sourceId: record.sourceId,
+          code: record.code,
+          subject: record.subject,
+          title: record.course.title,
+          minCredits: record.course.minCredits ?? record.course.credits,
+          maxCredits: record.course.maxCredits ?? record.course.credits,
+          level: record.level,
+          catalogOfferingTerms: record.catalogOfferingTerms,
+          searchText: [
+            record.code,
+            record.course.title,
+            record.subject,
+            record.course.description ?? "",
+          ]
+            .join(" ")
+            .toLowerCase(),
+          data: record,
+        })),
+      );
+    }
+    if (candidate.programs.length > 0) {
+      await tx.insert(schema.catalogProgram).values(
+        candidate.programs.map((program) => ({
+          snapshotId: candidate.snapshotId,
+          programId: program.id,
+          data: program,
+        })),
+      );
+    }
+    await tx
+      .update(schema.catalogSnapshot)
+      .set({ status: "retired" })
+      .where(
+        and(
+          eq(schema.catalogSnapshot.sourceId, source.id),
+          eq(schema.catalogSnapshot.status, "active"),
+        ),
+      );
+    await tx
+      .update(schema.catalogSnapshot)
+      .set({ status: "active", completedAt: new Date() })
+      .where(eq(schema.catalogSnapshot.id, candidate.snapshotId));
+  });
+
+  return { status: "published", snapshotId: candidate.snapshotId };
+}
+
+function releaseId(sourceSnapshotIds: Record<string, string>): string {
+  const canonical = Object.entries(sourceSnapshotIds).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return `release-${createHash("sha256")
+    .update(JSON.stringify(canonical))
+    .digest("hex")
+    .slice(0, 24)}`;
+}
+
+export async function getActiveCatalogRelease(
+  db: CatalogDb,
+): Promise<CatalogReleaseRef | null> {
+  const [release] = await db
+    .select()
+    .from(schema.catalogRelease)
+    .where(eq(schema.catalogRelease.status, "active"))
+    .limit(1);
+  if (!release || !release.publishedAt) return null;
+  return CatalogReleaseRefSchema.parse({
+    id: release.id,
+    sourceSnapshotIds: release.sourceSnapshotIds,
+    publishedAt: release.publishedAt.toISOString(),
+  });
+}
+
+/** Atomically activates an exact, source-complete set of healthy snapshots. */
+export async function composeCatalogRelease(
+  db: CatalogDb,
+  sourceSnapshotIds: Record<string, string>,
+): Promise<CatalogReleaseRef> {
+  const canonicalMembership = Object.fromEntries(
+    Object.entries(sourceSnapshotIds).sort(([a], [b]) => a.localeCompare(b)),
+  );
+  if (Object.keys(canonicalMembership).length === 0) {
+    throw new CatalogPublicationError("A catalog release cannot be empty.");
+  }
+  const current = await getActiveCatalogRelease(db);
+  if (
+    current &&
+    JSON.stringify(current.sourceSnapshotIds) === JSON.stringify(canonicalMembership)
+  ) {
+    return current;
+  }
+
+  const enabledSources = await db
+    .select({ id: schema.catalogSource.id })
+    .from(schema.catalogSource)
+    .where(eq(schema.catalogSource.enabled, true));
+  const expectedIds = enabledSources.map((row) => row.id).sort();
+  if (JSON.stringify(Object.keys(canonicalMembership)) !== JSON.stringify(expectedIds)) {
+    throw new CatalogPublicationError(
+      "Catalog release membership does not cover every enabled source.",
+    );
+  }
+  const snapshotIds = Object.values(canonicalMembership);
+  const snapshots = await db
+    .select({
+      id: schema.catalogSnapshot.id,
+      sourceId: schema.catalogSnapshot.sourceId,
+      status: schema.catalogSnapshot.status,
+    })
+    .from(schema.catalogSnapshot)
+    .where(inArray(schema.catalogSnapshot.id, snapshotIds));
+  const snapshotsById = new Map(snapshots.map((row) => [row.id, row]));
+  for (const [sourceId, snapshotId] of Object.entries(canonicalMembership)) {
+    const snapshot = snapshotsById.get(snapshotId);
+    if (!snapshot || snapshot.sourceId !== sourceId || snapshot.status !== "active") {
+      throw new CatalogPublicationError(
+        "Catalog release contains an unhealthy or cross-source snapshot.",
+      );
+    }
+  }
+
+  const id = releaseId(canonicalMembership);
+  const publishedAt = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.catalogRelease)
+      .set({ status: "retired" })
+      .where(eq(schema.catalogRelease.status, "active"));
+    const [existing] = await tx
+      .select({ id: schema.catalogRelease.id })
+      .from(schema.catalogRelease)
+      .where(eq(schema.catalogRelease.id, id))
+      .limit(1);
+    if (existing) {
+      await tx
+        .update(schema.catalogRelease)
+        .set({ status: "active", publishedAt })
+        .where(eq(schema.catalogRelease.id, id));
+    } else {
+      await tx.insert(schema.catalogRelease).values({
+        id,
+        status: "active",
+        sourceSnapshotIds: canonicalMembership,
+        publishedAt,
+      });
+      await tx.insert(schema.catalogReleaseSource).values(
+        Object.entries(canonicalMembership).map(([sourceId, snapshotId]) => ({
+          releaseId: id,
+          sourceId,
+          snapshotId,
+        })),
+      );
+    }
+  });
+  return CatalogReleaseRefSchema.parse({
+    id,
+    sourceSnapshotIds: canonicalMembership,
+    publishedAt: publishedAt.toISOString(),
+  });
+}
+
+export async function getCatalogSourceStatuses(
+  db: CatalogDb,
+): Promise<CatalogSourceStatus[]> {
+  const sources = await db
+    .select()
+    .from(schema.catalogSource)
+    .orderBy(asc(schema.catalogSource.id));
+  const statuses: CatalogSourceStatus[] = [];
+  for (const source of sources) {
+    const [active] = await db
+      .select()
+      .from(schema.catalogSnapshot)
+      .where(
+        and(
+          eq(schema.catalogSnapshot.sourceId, source.id),
+          eq(schema.catalogSnapshot.status, "active"),
+        ),
+      )
+      .limit(1);
+    const [failed] = await db
+      .select({ failureSummary: schema.catalogSnapshot.failureSummary })
+      .from(schema.catalogSnapshot)
+      .where(
+        and(
+          eq(schema.catalogSnapshot.sourceId, source.id),
+          eq(schema.catalogSnapshot.status, "failed"),
+        ),
+      )
+      .orderBy(desc(schema.catalogSnapshot.startedAt))
+      .limit(1);
+    statuses.push({
+      sourceId: source.id,
+      schoolName: source.schoolName,
+      campus: source.campus,
+      enabled: source.enabled,
+      activeSnapshotId: active?.id ?? null,
+      activeCourseCount: active?.courseCount ?? 0,
+      quarantinedCount: active?.quarantinedCount ?? 0,
+      lastFailure: failed?.failureSummary ?? null,
+    });
+  }
+  return statuses;
 }

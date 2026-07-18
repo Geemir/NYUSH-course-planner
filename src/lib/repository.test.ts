@@ -421,10 +421,21 @@ describe("course catalog repository", () => {
     const courseId = "SNAPSHOT-ONLY-SHU 101";
     const snapshotId = await ensureActiveReferenceSnapshot(db);
     const snapshotUserId = "snapshot-only-reference-user";
+    const snapshotCourse = testCourse(courseId);
     await db.insert(schema.catalogCourse).values({
       snapshotId,
       courseId,
-      data: testCourse(courseId),
+      stableId: `nyu-shanghai:${courseId}`,
+      sourceId: "nyu-shanghai",
+      code: courseId,
+      subject: snapshotCourse.department,
+      title: snapshotCourse.title,
+      minCredits: snapshotCourse.minCredits ?? snapshotCourse.credits,
+      maxCredits: snapshotCourse.maxCredits ?? snapshotCourse.credits,
+      level: "undergraduate",
+      catalogOfferingTerms: snapshotCourse.offered,
+      searchText: `${courseId} ${snapshotCourse.title}`.toLowerCase(),
+      data: snapshotCourse,
     });
     await db.insert(schema.users).values({
       id: snapshotUserId,

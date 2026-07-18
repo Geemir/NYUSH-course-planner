@@ -29,6 +29,13 @@
       "when": 1784004321255,
       "tag": "0003_bulletin_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784354054557,
+      "tag": "0004_multi_source_catalog",
+      "breakpoints": true
     }
   ]
 }
