@@ -50,9 +50,14 @@ npm run catalog:generate-fallback
 - Major and entry-year selection, prerequisite/load/site warnings, study-away
   controls, requirement progress, and deterministic feasibility guidance.
 - First-visit four-step onboarding plus an always-available **Guide** button.
-- A New York academic inspiration banner with rotating interest-driven quotes.
+- A New York skyline inspiration banner with session-stable, interest-driven
+  quotes and a manual “Another thought” control.
+- Contextual course and requirement reporting, **My reports**, maintainer
+  review, in-app notifications, and typed reviewed overlays that never rewrite
+  archived Bulletin source data.
 - Light/dark themes, responsive dialogs, 44px compact touch targets, reduced
-  motion support, and safe-area-aware mobile actions.
+  motion/transparency and higher-contrast fallbacks, and safe-area-aware mobile
+  actions.
 - Signed-out plans persist locally. Signed-in NYU users receive database-backed
   plan synchronization. JSON import/export remains available in both modes.
 
@@ -98,9 +103,31 @@ npm run catalog:generate-fallback
 npm test -- src/lib/data.test.ts
 ```
 
-Future user-submitted corrections and additions should use reviewed overlays:
-request, review, approve, then apply on top of the official snapshot. They must
-not silently rewrite archived Bulletin data.
+User-submitted corrections and additions use the reviewed-overlay workflow:
+request, review, approve, then apply on top of the official snapshot. Approval
+and application are separate maintainer actions. Active overlays carry forward
+to new releases, become superseded when the Bulletin resolves them, and block a
+release when their target disappears or conflicts instead of being silently
+dropped.
+
+## NYU Academic Glass design system
+
+The interface uses the legal platform font stack (`-apple-system`,
+`BlinkMacSystemFont`, `Segoe UI`, Helvetica, Arial, sans-serif), Lucide icons,
+and NYU violet/plum/lavender semantic tokens. Apple-inspired craft is limited
+to restrained motion, careful hierarchy, and functional glass on floating or
+transient chrome. Semester cards, course rows, forms, evidence, and long-reading
+surfaces remain opaque.
+
+The glass primitive has an opaque default, uses `backdrop-filter` only when the
+browser supports it, and turns blur off for reduced-transparency preferences.
+Reduced motion, higher contrast, forced colors, coarse pointers, keyboard use,
+and 200% zoom are part of the design contract.
+
+The New York skyline photograph is by Diane Picchiottino and was provided from
+[Unsplash](https://unsplash.com/) as
+`diane-picchiottino-EZ_SHxykcgw-unsplash.jpg`; the checked-in optimized product
+asset is `public/nyc-skyline-diane-picchiottino.jpg`.
 
 ## Accounts, database, and environment
 
@@ -144,10 +171,10 @@ npm run build
 npm run start
 ```
 
-The build downloads Geist through `next/font`; the build environment therefore
-needs access to Google Fonts. On Node 24, building without `DATABASE_URL` may
-also print known PGlite worker noise after successful route generation. The
-production PostgreSQL path is the supported clean build path.
+The UI uses local platform fonts and does not download a web font during build.
+On Node 24, building without `DATABASE_URL` may print known PGlite worker noise
+after successful route generation. The production PostgreSQL path is the
+supported clean build path.
 
 ## Architecture
 
@@ -160,8 +187,9 @@ production PostgreSQL path is the supported clean build path.
 - **Deterministic engines:** allocation, prerequisites, validation, requirement
   progress, special rules, and feasibility live in `src/lib/` and are covered by
   unit/integration tests.
-- **API:** `/api/catalog`, `/api/plan`, authentication routes, and admin-only
-  Bulletin status/sync and correction-authoring utilities.
+- **API:** query-driven `/api/catalog` readers, `/api/plan`, owner-scoped
+  correction/notification routes, authentication routes, and admin-only
+  Bulletin sync plus correction review/application routes.
 
 The older Albert/FOSE and AI-assisted paste importers remain admin utilities but
 are not the primary catalog or program-requirement source.
