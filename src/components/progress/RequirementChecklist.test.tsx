@@ -163,7 +163,7 @@ describe("RequirementChecklist", () => {
     };
     usePlannerStore.setState({
       placements: [
-        { courseId: course.id, semesterId: "Y1F", allocation: "auto" },
+        { placementId: "manual-1", courseId: course.id, semesterId: "Y1F", allocation: "auto" },
       ],
       completedSemesters: [],
       fulfillmentFacts: [],

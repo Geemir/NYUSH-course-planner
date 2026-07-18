@@ -304,7 +304,13 @@ export const usePlannerStore = create<PlannerState>()(
 export function snapshotFromState(state: PlannerPresent): PlanSnapshot {
   return {
     version: 1,
-    placements: state.placements.map(({ placementId: _placementId, catalogCourseId: _catalogCourseId, titleSnapshot: _titleSnapshot, ...placement }) => placement),
+    placements: state.placements.map((placement) => ({
+      courseId: placement.courseId,
+      semesterId: placement.semesterId,
+      allocation: placement.allocation,
+      ...(placement.selectedCredits === undefined ? {} : { selectedCredits: placement.selectedCredits }),
+      ...(placement.expectedGrade === undefined ? {} : { expectedGrade: placement.expectedGrade }),
+    })),
     studyAway: state.studyAway,
     completedSemesters: state.completedSemesters,
     activePrograms: state.activePrograms,
