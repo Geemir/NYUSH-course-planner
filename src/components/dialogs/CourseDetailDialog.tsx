@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { AlertCircle, AlertTriangle, PenLine } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, ExternalLink, PenLine } from "lucide-react";
+import { useCatalog } from "@/components/CatalogProvider";
 import { EditCourseForm } from "@/components/dialogs/EditCourseForm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,324 +21,163 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCourseData } from "@/hooks/useCourseData";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
-import {
-  PROGRAMS_BY_ID,
-  SITES_BY_ID,
-  activeCrossListedMajors,
-  isActivelyCrossListed,
-} from "@/lib/clientReferenceData";
+import { createCatalogClient, type CatalogClient } from "@/lib/catalogClient";
+import type { CatalogCourseRecord } from "@/lib/catalog/types";
 import {
   GRADES,
-  Grade,
+  type Grade,
   SEMESTER_IDS,
-  SemesterId,
+  type SemesterId,
   semesterFullLabel,
 } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <div className="text-sm">{children}</div>
-    </div>
-  );
+  return <div className="space-y-1"><h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</h3><div className="text-sm">{children}</div></div>;
+}
+
+function stablePrerequisiteIds(record: CatalogCourseRecord): string[] {
+  return [...new Set(record.course.prereqs.flat().filter((id) => id.includes(":")))];
 }
 
 export function CourseDetailDialog({
+  stableId,
   courseId,
   onClose,
+  client: injectedClient,
 }: {
-  courseId: string | null;
-  onClose: () => void;
+  stableId?: string | null;
+  courseId?: string | null;
+  onClose(): void;
+  client?: CatalogClient;
 }) {
+  const catalog = useCatalog();
   const {
-    placementByCourse,
-    warningsByCourse,
-    effectiveMajors,
-    allocation,
-    coursesById,
-    customIds,
-  } = usePlanDerived();
-  const placeCourse = usePlannerStore((s) => s.placeCourse);
-  const removeCourse = usePlannerStore((s) => s.removeCourse);
-  const removeCustomCourse = usePlannerStore((s) => s.removeCustomCourse);
-  const setAllocation = usePlannerStore((s) => s.setAllocation);
-  const setExpectedGrade = usePlannerStore((s) => s.setExpectedGrade);
-  const startYear = usePlannerStore((s) => s.startYear);
-  const activePrograms = usePlannerStore((s) => s.activePrograms);
+    getRecord,
+    ensureCourses,
+    pinCourses,
+    upsertRecords,
+    bootstrap,
+    programsById,
+  } = catalog;
+  const { coursesById, customIds } = useCourseData();
+  const derived = usePlanDerived();
+  const [client] = useState(() => injectedClient ?? createCatalogClient());
+  const [record, setRecord] = useState<CatalogCourseRecord | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [retryKey, setRetryKey] = useState(0);
   const [editing, setEditing] = useState(false);
+  const controllerRef = useRef<AbortController | null>(null);
+  const placeCourse = usePlannerStore((state) => state.placeCourse);
+  const removeCourse = usePlannerStore((state) => state.removeCourse);
+  const removeCustomCourse = usePlannerStore((state) => state.removeCustomCourse);
+  const setExpectedGrade = usePlannerStore((state) => state.setExpectedGrade);
+  const startYear = usePlannerStore((state) => state.startYear);
 
-  const course = courseId ? coursesById.get(courseId) : undefined;
-  if (!course) return null;
-  const isCustom = customIds.has(course.id);
+  const cached = stableId ? getRecord(stableId) : undefined;
+  useEffect(() => {
+    if (!stableId) return;
+    let active = true;
+    let controller: AbortController | null = null;
+    const hydratePrerequisites = async (next: CatalogCourseRecord) => {
+      const prerequisiteIds = stablePrerequisiteIds(next);
+      if (prerequisiteIds.length) await ensureCourses(prerequisiteIds);
+    };
+    queueMicrotask(() => {
+      if (!active) return;
+      pinCourses([stableId]);
+      controller = new AbortController();
+      controllerRef.current = controller;
+      if (cached) {
+        setRecord(cached);
+        setStatus("ready");
+        void hydratePrerequisites(cached);
+        return;
+      }
+      setStatus("loading");
+      setRecord(null);
+      void (async () => {
+        try {
+          const next = await client.getCourse(stableId, controller!.signal);
+          if (controller!.signal.aborted) return;
+          upsertRecords([next]);
+          setRecord(next);
+          setStatus("ready");
+          await hydratePrerequisites(next);
+        } catch {
+          if (!controller!.signal.aborted) setStatus("error");
+        }
+      })();
+    });
+    return () => {
+      active = false;
+      controller?.abort();
+    };
+  }, [cached, client, ensureCourses, pinCourses, retryKey, stableId, upsertRecords]);
 
-  const placement = placementByCourse.get(course.id);
-  const warnings = warningsByCourse.get(course.id) ?? [];
-  const cross = isActivelyCrossListed(course, activePrograms);
-  const majors = activeCrossListedMajors(course, activePrograms);
-  const currentMajors = effectiveMajors(course.id)
-    .map((id) => PROGRAMS_BY_ID.get(id)?.shortName ?? id)
-    .join(" + ");
+  const course = stableId
+    ? record?.course
+    : courseId
+      ? coursesById.get(courseId)
+      : undefined;
+  const isCustom = course ? customIds.has(course.id) : false;
+  const placement = course ? derived.placementByCourse.get(course.id) : undefined;
+  const source = record
+    ? bootstrap.sources.find((item) => item.id === record.sourceId)
+    : undefined;
+  const publicationYear = new Date(bootstrap.release.publishedAt).getUTCFullYear();
+  const prerequisiteLabels = useMemo(
+    () => course?.prereqs.map((group) => group.map((id) => {
+      const linked = getRecord(id);
+      return linked ? `${linked.code} — ${linked.course.title}` : id;
+    }).join(" or ")) ?? [],
+    [course, getRecord],
+  );
 
   const close = () => {
+    controllerRef.current?.abort();
     setEditing(false);
     onClose();
   };
 
+  if (!stableId && !courseId) return null;
+
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent className={editing ? "sm:max-w-lg" : "sm:max-w-md"}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            {course.title}
-            {isCustom && (
-              <Badge
-                variant="outline"
-                className="border-primary/50 text-primary"
-              >
-                Custom
-              </Badge>
-            )}
-          </DialogTitle>
-          <DialogDescription>
-            {course.id} · {course.department} · {course.credits} credits
-          </DialogDescription>
-        </DialogHeader>
-
-        {editing ? (
-          <EditCourseForm
-            key={course.id}
-            course={course}
-            onDone={() => setEditing(false)}
-          />
-        ) : (
-          <>
-        <div className="flex flex-col gap-3.5">
-          {course.description && (
-            <p className="text-sm text-muted-foreground">{course.description}</p>
-          )}
-          <div className="flex gap-6">
-            <Row label="Offered">
-              <span className="capitalize">{course.offered.join(", ")}</span>
-            </Row>
-            <Row label="Available at">
-              <span>
-                {course.sites
-                  .map((s) => SITES_BY_ID.get(s)?.label ?? s)
-                  .join(", ")}
-              </span>
-            </Row>
-          </div>
-
-          <Row label="Prerequisites">
-            {course.prereqs.length === 0 ? (
-              <span className="text-muted-foreground">None</span>
-            ) : (
-              <ul className="list-inside list-disc">
-                {course.prereqs.map((group, i) => (
-                  <li key={i} className="font-mono text-xs">
-                    {group.join(" or ")}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Row>
-
-          <Row label="Counts toward">
-            <div className="flex flex-wrap gap-1">
-              {course.fulfills.length === 0 && (
-                <span className="text-muted-foreground">
-                  Free elective (graduation credits only)
-                </span>
-              )}
-              {course.fulfills.map((f) => {
-                const program = PROGRAMS_BY_ID.get(f.programId);
-                const category = program?.categories.find(
-                  (c) => c.id === f.categoryId,
-                );
-                return (
-                  <Badge
-                    key={`${f.programId}/${f.categoryId}`}
-                    variant="secondary"
-                    className="text-[10px]"
-                    style={{ borderColor: program?.color }}
-                  >
-                    {program?.shortName}: {category?.name}
-                  </Badge>
-                );
-              })}
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        {status === "loading" && !course && <div aria-label="Loading course details" className="space-y-3"><div className="h-7 w-2/3 animate-pulse rounded bg-muted" /><div className="h-32 animate-pulse rounded bg-muted" /></div>}
+        {status === "error" && !course && <div role="alert" className="space-y-3"><DialogHeader><DialogTitle>Course details unavailable</DialogTitle><DialogDescription>The catalog record could not be loaded. Your plan was not changed.</DialogDescription></DialogHeader><Button onClick={() => setRetryKey((value) => value + 1)}>Retry</Button></div>}
+        {course && <>
+          <DialogHeader>
+            <DialogTitle className="flex flex-wrap items-center gap-2 text-lg">{course.title}{isCustom && <Badge variant="outline">Custom</Badge>}{record && record.sourceId !== "nyu-shanghai" && <Badge variant="secondary">Catalog-only study-away course</Badge>}</DialogTitle>
+            <DialogDescription>{course.id} · {course.department} · {course.credits} credits</DialogDescription>
+          </DialogHeader>
+          {editing && isCustom ? <EditCourseForm key={course.id} course={course} onDone={() => setEditing(false)} /> : <>
+            <div className="space-y-4">
+              {course.description && <p className="text-sm leading-6 text-muted-foreground">{course.description}</p>}
+              {record && <div className="grid gap-3 rounded-xl border bg-muted/30 p-3 sm:grid-cols-2">
+                <Row label="Official source"><span>{source?.schoolName ?? record.sourceId} · {source?.campus === "new-york" ? "New York" : "Shanghai"}</span></Row>
+                <Row label="Catalog edition"><span>NYU Bulletin catalog · {publicationYear}</span></Row>
+                <Row label="Release published"><time dateTime={bootstrap.release.publishedAt}>{new Date(bootstrap.release.publishedAt).toLocaleDateString("en-US")}</time></Row>
+                <Row label="Source page">{course.provenance?.sourceUrl ? <a className="inline-flex items-center gap-1 text-primary underline" href={course.provenance.sourceUrl} target="_blank" rel="noreferrer">Open official Bulletin <ExternalLink className="size-3.5" /></a> : <span className="text-muted-foreground">Canonical URL unavailable</span>}</Row>
+              </div>}
+              {record && record.sourceId !== "nyu-shanghai" && <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-100">New York study-away catalog. Availability and registration eligibility are not confirmed; Bulletin patterns are not a current class schedule.</p>}
+              <Row label="Prerequisites">{prerequisiteLabels.length ? <ul className="list-inside list-disc space-y-1">{prerequisiteLabels.map((label) => <li key={label} className="font-mono text-xs">{label}<span className="ml-1 font-sans text-muted-foreground">(requirement only; not marked satisfied)</span></li>)}</ul> : <span className="text-muted-foreground">None listed</span>}</Row>
+              <Row label="NYUSH degree mapping">{course.fulfills.length ? <div className="flex flex-wrap gap-1">{course.fulfills.map((item) => { const program = programsById.get(item.programId); const category = program?.categories.find((entry) => entry.id === item.categoryId); return <Badge key={`${item.programId}/${item.categoryId}`} variant="secondary">{program?.shortName ?? item.programId}: {category?.name ?? item.categoryId}</Badge>; })}</div> : <span className="text-muted-foreground">Not currently mapped to an NYUSH requirement. It may still count toward graduation credits.</span>}</Row>
+              {record && <p className="text-xs text-muted-foreground">Evidence: active catalog release {bootstrap.release.id}; source snapshot {record.sourceSnapshotId}.</p>}
+              <Row label={placement ? "Semester" : "Add to semester"}><Select value={placement?.semesterId ?? null} onValueChange={(value) => placeCourse(course.id, value as SemesterId)}><SelectTrigger size="sm" className="w-full"><SelectValue placeholder="Choose a semester…">{(value: SemesterId | null) => value ? semesterFullLabel(value, startYear) : "Choose a semester…"}</SelectValue></SelectTrigger><SelectContent>{SEMESTER_IDS.map((semesterId) => <SelectItem key={semesterId} value={semesterId}>{semesterFullLabel(semesterId, startYear)}</SelectItem>)}</SelectContent></Select></Row>
+              {placement && <Row label="Expected grade (optional)"><Select value={placement.expectedGrade ?? "none"} onValueChange={(value) => setExpectedGrade(course.id, value === "none" ? null : value as Grade)}><SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Not set</SelectItem>{GRADES.map((grade) => <SelectItem key={grade} value={grade}>{grade}</SelectItem>)}</SelectContent></Select></Row>}
+              {record && <Button type="button" variant="ghost" size="sm" data-correction-entry={record.stableId}><AlertCircle />Report catalog issue</Button>}
             </div>
-          </Row>
-
-          <Row label={placement ? "Semester" : "Add to semester"}>
-            <Select
-              value={placement?.semesterId ?? null}
-              onValueChange={(value) =>
-                placeCourse(course.id, value as SemesterId)
-              }
-            >
-              <SelectTrigger size="sm" className="w-full">
-                <SelectValue placeholder="Choose a semester…">
-                  {(value: SemesterId | null) =>
-                    value ? semesterFullLabel(value, startYear) : "Choose a semester…"
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {SEMESTER_IDS.map((semesterId) => (
-                  <SelectItem key={semesterId} value={semesterId}>
-                    {semesterFullLabel(semesterId, startYear)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Row>
-
-          {placement && (
-            <Row label="Expected grade (optional)">
-              <Select
-                value={placement.expectedGrade ?? "none"}
-                onValueChange={(value) =>
-                  setExpectedGrade(
-                    course.id,
-                    value === "none" ? null : (value as Grade),
-                  )
-                }
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="w-full"
-                  data-testid="grade-select"
-                >
-                  <SelectValue>
-                    {(value: string) =>
-                      value === "none" ? "Not set" : value
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Not set</SelectItem>
-                  {GRADES.map((g) => (
-                    <SelectItem key={g} value={g}>
-                      {g}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Some special rules unlock concurrent prerequisites based on your
-                grade (e.g. an A in ICP).
-              </p>
-            </Row>
-          )}
-
-          {placement && cross && (
-            <Row label="Count toward which major?">
-              <div className="flex flex-col gap-1.5">
-                <Select
-                  value={placement.allocation}
-                  onValueChange={(value) =>
-                    setAllocation(course.id, value as string)
-                  }
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="w-full"
-                    data-testid="allocation-select"
-                  >
-                    <SelectValue>
-                      {(value: string) =>
-                        value === "auto"
-                          ? `Auto (currently ${currentMajors || "unused"})`
-                          : value === "split"
-                            ? "Both majors (double-count)"
-                            : `${PROGRAMS_BY_ID.get(value)?.shortName ?? value} only`
-                      }
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">
-                      Auto — let the planner decide
-                    </SelectItem>
-                    {majors.map((id) => (
-                      <SelectItem key={id} value={id}>
-                        {PROGRAMS_BY_ID.get(id)?.shortName ?? id} only
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="split">
-                      Both majors (double-count)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {allocation.budget && (
-                  <span className="text-xs text-muted-foreground">
-                    Double-count budget: {allocation.budget.used}/
-                    {allocation.budget.limit} used
-                  </span>
-                )}
-              </div>
-            </Row>
-          )}
-
-          {warnings.length > 0 && (
-            <Row label="Warnings">
-              <ul className="flex flex-col gap-1">
-                {warnings.map((w) => (
-                  <li key={w.id} className="flex items-start gap-1.5 text-xs">
-                    {w.severity === "error" ? (
-                      <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
-                    ) : (
-                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
-                    )}
-                    <span className="text-muted-foreground">{w.message}</span>
-                  </li>
-                ))}
-              </ul>
-            </Row>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setEditing(true)}
-            data-testid="edit-course"
-          >
-            <PenLine />
-            Edit course
-          </Button>
-          {isCustom && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                removeCustomCourse(course.id);
-                close();
-              }}
-            >
-              Delete custom course
-            </Button>
-          )}
-          {placement && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                removeCourse(course.id);
-                close();
-              }}
-            >
-              Remove from plan
-            </Button>
-          )}
-        </DialogFooter>
-          </>
-        )}
+            <DialogFooter>
+              {isCustom && <Button variant="outline" size="sm" onClick={() => setEditing(true)}><PenLine />Edit course</Button>}
+              {isCustom && <Button variant="outline" size="sm" onClick={() => { removeCustomCourse(course.id); close(); }}>Delete custom course</Button>}
+              {placement && <Button variant="destructive" size="sm" onClick={() => { removeCourse(course.id); close(); }}>Remove from plan</Button>}
+            </DialogFooter>
+          </>}
+        </>}
       </DialogContent>
     </Dialog>
   );

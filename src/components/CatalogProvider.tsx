@@ -33,6 +33,7 @@ interface CatalogValue {
   recordsByStableId: ReadonlyMap<string, CatalogCourseRecord>;
   getRecord(stableId: string): CatalogCourseRecord | undefined;
   ensureCourses(stableIds: string[]): Promise<void>;
+  pinCourses(stableIds: string[]): void;
   upsertRecords(records: CatalogCourseRecord[]): void;
   status: CatalogStatus;
   error: CatalogClientError | null;
@@ -68,6 +69,7 @@ const CatalogContext = createContext<CatalogValue>({
   recordsByStableId: new Map(),
   getRecord: () => undefined,
   ensureCourses: NOOP,
+  pinCourses: () => undefined,
   upsertRecords: () => undefined,
   status: "loading",
   error: null,
@@ -130,6 +132,7 @@ export function CatalogProvider({
   const recordsRef = useRef(recordsByStableId);
   const releaseIdRef = useRef(initialCache.releaseId);
   const requestControllers = useRef(new Set<AbortController>());
+  const detailPinnedIds = useRef(new Set<string>());
   const [status, setStatus] = useState<CatalogStatus>("loading");
   const [error, setError] = useState<CatalogClientError | null>(null);
   const reconcilePrograms = usePlannerStore((state) => state.reconcilePrograms);
@@ -156,6 +159,11 @@ export function CatalogProvider({
     (stableId: string) => recordsRef.current.get(stableId),
     [],
   );
+
+  const pinCourses = useCallback((stableIds: string[]) => {
+    stableIds.forEach((id) => detailPinnedIds.current.add(id));
+    courseCache.pin([...pinnedStableIdsRef.current, ...detailPinnedIds.current]);
+  }, [courseCache]);
 
   const ensureCourses = useCallback(async (stableIds: string[]) => {
     const missing = [...new Set(stableIds)].filter((id) => !recordsRef.current.has(id));
@@ -186,7 +194,7 @@ export function CatalogProvider({
         const next = await catalogClient.getBootstrap(controller.signal);
         if (!active) return;
         const pinnedAtBootstrap = pinnedStableIdsRef.current;
-        courseCache.pin(pinnedAtBootstrap);
+        courseCache.pin([...pinnedAtBootstrap, ...detailPinnedIds.current]);
         courseCache.setRelease(next.release.id);
         releaseIdRef.current = next.release.id;
         publishCache();
@@ -211,7 +219,7 @@ export function CatalogProvider({
   }, [catalogClient, courseCache, ensureCourses, publishCache]);
 
   useEffect(() => {
-    courseCache.pin(pinnedStableIds);
+    courseCache.pin([...pinnedStableIds, ...detailPinnedIds.current]);
     if (status === "ready") void ensureCourses(pinnedStableIds);
   }, [courseCache, ensureCourses, pinnedStableIds, status]);
 
@@ -232,6 +240,7 @@ export function CatalogProvider({
     recordsByStableId,
     getRecord,
     ensureCourses,
+    pinCourses,
     upsertRecords,
     status,
     error,
@@ -247,7 +256,7 @@ export function CatalogProvider({
     },
     loaded: status === "ready",
   }), [
-    bootstrap, ensureCourses, error, getRecord, programs, programsById,
+    bootstrap, ensureCourses, error, getRecord, pinCourses, programs, programsById,
     recordsByStableId, status, upsertRecords,
   ]);
 

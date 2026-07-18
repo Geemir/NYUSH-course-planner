@@ -202,11 +202,8 @@ export function PlannerApp() {
               returnFocusRef={guideButtonRef}
             />
             <CourseDetailDialog
-              courseId={detailSelection
-                ? "stableId" in detailSelection
-                  ? detailSelection.stableId
-                  : detailSelection.courseId
-                : null}
+              stableId={detailSelection?.kind === "bulletin" ? detailSelection.stableId : null}
+              courseId={detailSelection && detailSelection.kind !== "bulletin" ? detailSelection.courseId : null}
               onClose={() => setDetailSelection(null)}
             />
           </div>

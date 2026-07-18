@@ -41,11 +41,39 @@ export function CourseChip({
   );
   const completedSemesters = usePlannerStore((s) => s.completedSemesters);
   const activePrograms = usePlannerStore((s) => s.activePrograms);
+  const storedPlacement = usePlannerStore((state) =>
+    state.placements.find((placement) => placement.courseId === courseId),
+  );
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: `chip:${courseId}` });
 
   const course = coursesById.get(courseId);
-  if (!course) return null;
+  if (!course) {
+    const title = storedPlacement && "titleSnapshot" in storedPlacement
+      ? String(storedPlacement.titleSnapshot)
+      : "Course details loading…";
+    return (
+      <div
+        ref={setNodeRef}
+        data-testid={`chip-${courseId}`}
+        className="flex items-center gap-3 rounded-xl border border-dashed bg-background p-3 text-left"
+      >
+        <button
+          type="button"
+          {...listeners}
+          {...attributes}
+          className="min-w-0 flex-1 cursor-grab text-left"
+          onClick={() => onSelect(courseId)}
+        >
+          <span className="block font-mono text-xs text-muted-foreground">{courseId}</span>
+          <span className="block truncate text-sm font-medium">{title}</span>
+        </button>
+        <button type="button" aria-label={`Remove ${courseId}`} className="flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive" onClick={() => removeCourse(courseId)}>
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
 
   const warnings = warningsByCourse.get(courseId) ?? [];
   const hasError = warnings.some((w) => w.severity === "error");
