@@ -34,9 +34,9 @@ import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCourseData } from "@/hooks/useCourseData";
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { parsePlan } from "@/lib/planIO";
-import { SEMESTER_IDS, SemesterId } from "@/lib/types";
-import { usePlannerStore } from "@/store/plannerStore";
+import { parsePlanDocument } from "@/lib/planIO";
+import { SEMESTER_IDS, SemesterId, type PlanPlacementV2 } from "@/lib/types";
+import { usePlannerStore, type CoursePlacementInput } from "@/store/plannerStore";
 
 function DragPreview({ courseId }: { courseId: string }) {
   const { coursesById } = useCourseData();
@@ -87,29 +87,23 @@ export function PlannerApp() {
     );
   }
 
-  const courseIdFromDragId = (id: string | number): string | null => {
-    const s = String(id);
-    if (s.startsWith("catalog:")) return s.slice("catalog:".length);
-    if (s.startsWith("chip:")) return s.slice("chip:".length);
-    return null;
-  };
-
   const handleDragStart = (event: DragStartEvent) => {
-    setDragCourseId(courseIdFromDragId(event.active.id));
+    const data = event.active.data.current as { course?: CoursePlacementInput; placementId?: string; courseId?: string } | undefined;
+    setDragCourseId(data?.course?.courseId ?? data?.courseId ?? null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     setDragCourseId(null);
     justDragged.current = true;
     setTimeout(() => (justDragged.current = false), 150);
-    const courseId = courseIdFromDragId(event.active.id);
+    const data = event.active.data.current as { course?: CoursePlacementInput; placementId?: string } | undefined;
     const overId = event.over ? String(event.over.id) : null;
     if (
-      courseId &&
+      (data?.course || data?.placementId) &&
       overId &&
       (SEMESTER_IDS as readonly string[]).includes(overId)
     ) {
-      placeCourse(courseId, overId as SemesterId);
+      placeCourse(data.placementId ?? data.course!, overId as SemesterId);
     }
   };
 
@@ -123,9 +117,11 @@ export function PlannerApp() {
     setDetailSelection(selection);
   };
 
-  const handleSelectPlannedCourse = (courseId: string) => {
+  const handleSelectPlannedCourse = (placement: PlanPlacementV2) => {
     if (!canOpenDetail()) return;
-    setDetailSelection({ kind: "legacy", courseId });
+    setDetailSelection(placement.catalogCourseId
+      ? { kind: "bulletin", stableId: placement.catalogCourseId }
+      : { kind: "legacy", courseId: placement.courseId });
   };
 
   const handleMenuClosed = () => {
@@ -134,7 +130,7 @@ export function PlannerApp() {
 
   const handleImportFile = async (file: File) => {
     try {
-      const snapshot = parsePlan(await file.text());
+      const snapshot = parsePlanDocument(await file.text());
       importPlan(snapshot);
       toast.success(
         `Imported plan with ${snapshot.placements.length} courses`,

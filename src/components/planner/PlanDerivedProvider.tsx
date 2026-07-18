@@ -8,6 +8,7 @@ import {
   type PlanDerivedValue,
 } from "@/lib/derivePlan";
 import { HOME_SITE, SITES } from "@/lib/clientReferenceData";
+import { activeProgramIds } from "@/lib/programProfile";
 import { usePlannerStore } from "@/store/plannerStore";
 
 const SITE_NAMES = new Map(SITES.map((site) => [site.id, site.name]));
@@ -27,7 +28,8 @@ export function PlanDerivedProvider({ children }: { children: React.ReactNode })
   const completedSemesters = usePlannerStore(
     (state) => state.completedSemesters,
   );
-  const activePrograms = usePlannerStore((state) => state.activePrograms);
+  const programProfile = usePlannerStore((state) => state.programProfile);
+  const activePrograms = useMemo(() => activeProgramIds(programProfile), [programProfile]);
   const fulfillmentFacts = usePlannerStore((state) => state.fulfillmentFacts);
   const dismissedWarningIds = usePlannerStore(
     (state) => state.dismissedWarnings,

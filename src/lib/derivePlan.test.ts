@@ -98,4 +98,16 @@ describe("plan derivation", () => {
     const derived = derivePlan(FIXTURE_INPUT);
     expect(deriveFeasibility(FIXTURE_INPUT, derived).status).toBe("complete");
   });
+
+  it("keeps source-scoped placements distinct while engines use official code and selected credits", () => {
+    const placements = [
+      { placementId: "cas", catalogCourseId: "cas:HUMA-SHU 101", courseId: "HUMA-SHU 101", semesterId: "Y1F" as const, allocation: "auto" as const, selectedCredits: 3 },
+      { placementId: "stern", catalogCourseId: "stern:HUMA-SHU 101", courseId: "HUMA-SHU 101", semesterId: "Y1S" as const, allocation: "auto" as const, selectedCredits: 2 },
+    ];
+    const derived = derivePlan({ ...FIXTURE_INPUT, placements });
+    expect(derived.placementByCatalogId.get("cas:HUMA-SHU 101")).toMatchObject({ placementId: "cas" });
+    expect(derived.placementByCatalogId.get("stern:HUMA-SHU 101")).toMatchObject({ placementId: "stern" });
+    expect(derived.creditsBySemester.get("Y1F")).toBe(3);
+    expect(derived.creditsBySemester.get("Y1S")).toBe(2);
+  });
 });

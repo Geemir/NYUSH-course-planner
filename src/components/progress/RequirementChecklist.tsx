@@ -265,6 +265,14 @@ function CategoryRow({
 
 export function RequirementChecklist() {
   const { activeProgramObjs, progressByProgram } = usePlanDerived();
+  const profile = usePlannerStore((state) => state.programProfile);
+
+  const roleLabel = (programId: string) => {
+    if (programId === profile.coreProgramId) return "Core";
+    if (programId === profile.primaryMajorId) return "Primary major";
+    if (programId === profile.secondMajorId) return "Second major";
+    return "Minor";
+  };
 
   return (
     <Accordion>
@@ -280,12 +288,18 @@ export function RequirementChecklist() {
                   style={{ backgroundColor: program.color }}
                 />
                 {program.name}
+                <Badge variant="outline" className="text-[10px]">{roleLabel(program.id)}</Badge>
                 <span className="text-xs font-normal tabular-nums text-muted-foreground">
                   {Math.round(progress.plannedFraction * 100)}%
                 </span>
               </span>
             </AccordionTrigger>
             <AccordionContent>
+              <p className="pb-2 text-xs text-muted-foreground">
+                {"auditAuthority" in program && program.auditAuthority === "reviewed-nyush-overlay"
+                  ? "Source: Reviewed planner overlay — confirm advisor-dependent combinations."
+                  : "Source: NYU Shanghai Bulletin requirements."}
+              </p>
               <div className="flex flex-col divide-y">
                 {progress.categories.map((category) => (
                   <CategoryRow

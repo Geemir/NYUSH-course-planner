@@ -2,6 +2,7 @@
 
 import { Ring } from "@/components/progress/Ring";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
+import { usePlannerStore } from "@/store/plannerStore";
 
 const CREDITS_COLOR = "#3b82f6";
 
@@ -9,6 +10,14 @@ export function ProgressRings() {
   const { progress, progressByProgram, activeProgramObjs, allocation } =
     usePlanDerived();
   const { credits } = progress;
+  const profile = usePlannerStore((state) => state.programProfile);
+  const role = (programId: string) => programId === profile.coreProgramId
+    ? "Core"
+    : programId === profile.primaryMajorId
+      ? "Primary"
+      : programId === profile.secondMajorId
+        ? "Second"
+        : "Minor";
 
   return (
     <div className="flex flex-col gap-4">
@@ -19,7 +28,7 @@ export function ProgressRings() {
           return (
             <Ring
               key={program.id}
-              label={program.shortName}
+              label={`${role(program.id)} · ${program.shortName}`}
               color={program.color}
               planned={p.plannedFraction}
               completed={p.completedFraction}

@@ -7,10 +7,10 @@ import type {
   Course,
   FulfillmentFact,
   Grade,
-  Placement,
   PlanPlacementV2,
   PlanSnapshot,
   PlanSnapshotV2,
+  PersistedPlanSnapshot,
   SemesterId,
 } from "@/lib/types";
 import {
@@ -22,7 +22,7 @@ import {
 } from "@/store/planHistory";
 
 export interface PlannerPresent {
-  placements: Placement[];
+  placements: PlanPlacementV2[];
   studyAway: Partial<Record<SemesterId, string>>;
   completedSemesters: SemesterId[];
   activePrograms: string[];
@@ -40,11 +40,11 @@ interface PlannerState extends PlannerPresent {
   canRedo: boolean;
   undoLabel: string | null;
   redoLabel: string | null;
-  placeCourse(courseId: string, semesterId: SemesterId): void;
-  removeCourse(courseId: string): void;
-  setAllocation(courseId: string, allocation: Allocation): void;
-  setSelectedCredits(courseId: string, credits: number): void;
-  setExpectedGrade(courseId: string, grade: Grade | null): void;
+  placeCourse(course: CoursePlacementInput | string, semesterId: SemesterId): void;
+  removeCourse(placementId: string): void;
+  setAllocation(placementId: string, allocation: Allocation): void;
+  setSelectedCredits(placementId: string, credits: number): void;
+  setExpectedGrade(placementId: string, grade: Grade | null): void;
   setStudyAway(semesterId: SemesterId, siteId: string | null): void;
   toggleCompletedSemester(semesterId: SemesterId): void;
   toggleProgram(programId: string): void;
@@ -60,10 +60,38 @@ interface PlannerState extends PlannerPresent {
   dismissWarning(warningId: string): void;
   restoreWarning(warningId: string): void;
   setStartYear(year: number): void;
-  importPlan(snapshot: PlanSnapshot): void;
+  importPlan(snapshot: PersistedPlanSnapshot): void;
   reset(): void;
   undo(): void;
   redo(): void;
+}
+
+export interface CoursePlacementInput {
+  courseId: string;
+  catalogCourseId?: string;
+  titleSnapshot?: string;
+}
+
+let placementSequence = 0;
+
+function newPlacementId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  placementSequence += 1;
+  return `placement-${Date.now().toString(36)}-${placementSequence.toString(36)}`;
+}
+
+function placementIndex(placements: readonly PlanPlacementV2[], identity: string): number {
+  const exact = placements.findIndex((placement) => placement.placementId === identity);
+  if (exact >= 0) return exact;
+  const sourceScoped = placements.findIndex((placement) => placement.catalogCourseId === identity);
+  if (sourceScoped >= 0) return sourceScoped;
+  return placements.findIndex((placement) => placement.courseId === identity);
+}
+
+function withPlacementIds(placements: readonly (PlanPlacementV2 | Omit<PlanPlacementV2, "placementId">)[]): PlanPlacementV2[] {
+  return placements.map((placement) => "placementId" in placement && placement.placementId
+    ? structuredClone(placement as PlanPlacementV2)
+    : { ...structuredClone(placement), placementId: newPlacementId() });
 }
 
 function profileFromIds(ids: readonly string[]): ProgramProfile {
@@ -141,17 +169,31 @@ export const usePlannerStore = create<PlannerState>()(
       return {
         ...initialPresent,
         ...historyFields(createHistory(initialPresent)),
-        placeCourse: (courseId, semesterId) => mutate("Place course", (present) => {
-          const exists = present.placements.some((item) => item.courseId === courseId);
-          present.placements = exists
-            ? present.placements.map((item) => item.courseId === courseId ? { ...item, semesterId } : item)
-            : [...present.placements, { courseId, semesterId, allocation: "auto" }];
+        placeCourse: (course, semesterId) => mutate("Place course", (present) => {
+          const input = typeof course === "string" ? { courseId: course } : course;
+          const identity = input.catalogCourseId ?? input.courseId;
+          const index = placementIndex(present.placements, identity);
+          present.placements = index >= 0
+            ? present.placements.map((item, itemIndex) => itemIndex === index ? { ...item, semesterId } : item)
+            : [...present.placements, { ...input, placementId: newPlacementId(), semesterId, allocation: "auto" }];
           return present;
         }),
-        removeCourse: (courseId) => mutate("Remove course", (present) => ({ ...present, placements: present.placements.filter((item) => item.courseId !== courseId) })),
-        setAllocation: (courseId, allocation) => mutate("Change course allocation", (present) => ({ ...present, placements: present.placements.map((item) => item.courseId === courseId ? { ...item, allocation } : item) })),
-        setSelectedCredits: (courseId, selectedCredits) => mutate("Change course credits", (present) => ({ ...present, placements: present.placements.map((item) => item.courseId === courseId ? { ...item, selectedCredits } : item) })),
-        setExpectedGrade: (courseId, grade) => mutate("Change expected grade", (present) => ({ ...present, placements: present.placements.map((item) => item.courseId === courseId ? { ...item, expectedGrade: grade ?? undefined } : item) })),
+        removeCourse: (placementId) => mutate("Remove course", (present) => {
+          const index = placementIndex(present.placements, placementId);
+          return index < 0 ? present : { ...present, placements: present.placements.filter((_, itemIndex) => itemIndex !== index) };
+        }),
+        setAllocation: (placementId, allocation) => mutate("Change course allocation", (present) => {
+          const index = placementIndex(present.placements, placementId);
+          return index < 0 ? present : { ...present, placements: present.placements.map((item, itemIndex) => itemIndex === index ? { ...item, allocation } : item) };
+        }),
+        setSelectedCredits: (placementId, selectedCredits) => mutate("Change course credits", (present) => {
+          const index = placementIndex(present.placements, placementId);
+          return index < 0 ? present : { ...present, placements: present.placements.map((item, itemIndex) => itemIndex === index ? { ...item, selectedCredits } : item) };
+        }),
+        setExpectedGrade: (placementId, grade) => mutate("Change expected grade", (present) => {
+          const index = placementIndex(present.placements, placementId);
+          return index < 0 ? present : { ...present, placements: present.placements.map((item, itemIndex) => itemIndex === index ? { ...item, expectedGrade: grade ?? undefined } : item) };
+        }),
         setStudyAway: (semesterId, siteId) => mutate("Change study-away site", (present) => {
           if (siteId === null) delete present.studyAway[semesterId];
           else present.studyAway[semesterId] = siteId;
@@ -209,8 +251,19 @@ export const usePlannerStore = create<PlannerState>()(
         dismissWarning: (warningId) => mutate("Dismiss warning", (present) => ({ ...present, dismissedWarnings: present.dismissedWarnings.includes(warningId) ? present.dismissedWarnings : [...present.dismissedWarnings, warningId] })),
         restoreWarning: (warningId) => mutate("Restore warning", (present) => ({ ...present, dismissedWarnings: present.dismissedWarnings.filter((id) => id !== warningId) })),
         setStartYear: (startYear) => mutate("Change start year", (present) => ({ ...present, startYear })),
-        importPlan: (snapshot) => mutate("Import plan", () => ({
-          placements: snapshot.placements,
+        importPlan: (snapshot) => mutate("Import plan", () => snapshot.version === 2 ? ({
+          placements: withPlacementIds(snapshot.placements),
+          studyAway: snapshot.studyAway,
+          completedSemesters: snapshot.completedSemesters,
+          activePrograms: activeProgramIds(snapshot.programProfile),
+          programProfile: snapshot.programProfile,
+          unresolvedProgramIds: snapshot.unresolvedProgramIds,
+          customCourses: snapshot.customCourses,
+          fulfillmentFacts: snapshot.fulfillmentFacts,
+          dismissedWarnings: snapshot.dismissedWarnings,
+          startYear: snapshot.startYear,
+        }) : ({
+          placements: withPlacementIds(snapshot.placements),
           studyAway: snapshot.studyAway,
           completedSemesters: snapshot.completedSemesters,
           activePrograms: snapshot.activePrograms,
@@ -240,6 +293,7 @@ export const usePlannerStore = create<PlannerState>()(
         if (!(persisted as Partial<PlannerState>).programProfile) {
           merged.programProfile = profileFromIds(merged.activePrograms);
         }
+        merged.placements = withPlacementIds(merged.placements);
         const history = createHistory(presentFromState(merged));
         return { ...merged, ...historyFields(history) };
       },
@@ -250,7 +304,7 @@ export const usePlannerStore = create<PlannerState>()(
 export function snapshotFromState(state: PlannerPresent): PlanSnapshot {
   return {
     version: 1,
-    placements: state.placements,
+    placements: state.placements.map(({ placementId: _placementId, catalogCourseId: _catalogCourseId, titleSnapshot: _titleSnapshot, ...placement }) => placement),
     studyAway: state.studyAway,
     completedSemesters: state.completedSemesters,
     activePrograms: state.activePrograms,
@@ -261,15 +315,10 @@ export function snapshotFromState(state: PlannerPresent): PlanSnapshot {
   };
 }
 
-function isPlanPlacementV2(placement: Placement): placement is PlanPlacementV2 {
-  return "placementId" in placement && typeof placement.placementId === "string" && placement.placementId.length > 0;
-}
-
 export function snapshotV2FromState(
   state: PlannerPresent,
   catalogReleaseId: string | null,
 ): PlanSnapshotV2 | null {
-  if (!state.placements.every(isPlanPlacementV2)) return null;
   return {
     version: 2,
     catalogReleaseId,

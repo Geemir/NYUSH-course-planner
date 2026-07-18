@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
 import { cn } from "@/lib/utils";
-import { SemesterId, semesterTerm, semesterTermName } from "@/lib/types";
+import { type PlanPlacementV2, SemesterId, semesterTerm, semesterTermName } from "@/lib/types";
 import {
   MAX_SEMESTER_CREDITS,
   MIN_SEMESTER_CREDITS,
@@ -20,7 +20,7 @@ export function SemesterColumn({
   onSelectCourse,
 }: {
   semesterId: SemesterId;
-  onSelectCourse: (courseId: string) => void;
+  onSelectCourse: (placement: PlanPlacementV2) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: semesterId });
   const { placementsBySemester, creditsBySemester, coursesById } =
@@ -104,9 +104,9 @@ export function SemesterColumn({
       <div className="flex flex-1 flex-col gap-2">
         {placements.map((p) => (
           <CourseChip
-            key={p.courseId}
-            courseId={p.courseId}
-            onSelect={onSelectCourse}
+            key={"placementId" in p ? String(p.placementId) : p.courseId}
+            placement={p as PlanPlacementV2}
+            onSelect={() => onSelectCourse(p as PlanPlacementV2)}
           />
         ))}
         {placements.length === 0 && (

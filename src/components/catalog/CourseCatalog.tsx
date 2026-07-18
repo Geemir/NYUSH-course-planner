@@ -82,14 +82,21 @@ function CatalogCard({
   onMenuClosed(): void;
 }) {
   const { course, record, isCustom } = item;
-  const { placementByCourse } = usePlanDerived();
+  const { placementByCustomCourse, placementByCatalogId } = usePlanDerived();
   const placeCourse = usePlannerStore((state) => state.placeCourse);
   const removeCourse = usePlannerStore((state) => state.removeCourse);
   const startYear = usePlannerStore((state) => state.startYear);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `catalog:${course.id}`,
+    id: `catalog:${item.key}`,
+    data: {
+      course: record
+        ? { courseId: record.code, catalogCourseId: record.stableId, titleSnapshot: record.course.title.slice(0, 200) }
+        : { courseId: course.id, titleSnapshot: course.title.slice(0, 200) },
+    },
   });
-  const placement = placementByCourse.get(course.id);
+  const placement = record
+    ? placementByCatalogId.get(record.stableId)
+    : placementByCustomCourse.get(course.id);
   const isNewYork = record && record.sourceId !== "nyu-shanghai";
   const select = () => onSelect(record
     ? { kind: "bulletin", stableId: record.stableId }
@@ -147,12 +154,12 @@ function CatalogCard({
           <DropdownMenuGroup>
             <DropdownMenuLabel>{placement ? "Move to" : "Add to semester"}</DropdownMenuLabel>
             {SEMESTER_IDS.map((semesterId) => (
-              <DropdownMenuItem key={semesterId} onClick={() => placeCourse(course.id, semesterId)}>
+              <DropdownMenuItem key={semesterId} onClick={() => placeCourse(record ? { courseId: record.code, catalogCourseId: record.stableId, titleSnapshot: record.course.title.slice(0, 200) } : { courseId: course.id, titleSnapshot: course.title.slice(0, 200) }, semesterId)}>
                 {semesterFullLabel(semesterId, startYear)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
-          {placement && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => removeCourse(course.id)}>Remove from plan</DropdownMenuItem></>}
+          {placement && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => removeCourse("placementId" in placement ? String(placement.placementId) : course.id)}>Remove from plan</DropdownMenuItem></>}
         </DropdownMenuContent>
       </DropdownMenu>
     </article>
@@ -169,7 +176,7 @@ export function CourseCatalog({
   const search = useCatalogSearch();
   const catalog = useCatalog();
   const { courses, customIds, programs } = useCourseData();
-  const { placementByCourse } = usePlanDerived();
+  const { placementByCustomCourse, placementByCatalogId } = usePlanDerived();
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const [localFilter, setLocalFilter] = useState("all");
   const customCourses = courses.filter((course) => customIds.has(course.id));
@@ -183,16 +190,16 @@ export function CourseCatalog({
       }));
     }
     const bulletin = search.items
-      .filter((record) => localFilter !== "unplanned" || !placementByCourse.has(record.code))
+      .filter((record) => localFilter !== "unplanned" || !placementByCatalogId.has(record.stableId))
       .map((record) => ({ key: record.stableId, course: record.course, record, isCustom: false }));
     if (localFilter === "cross" || search.query.sourceIds.length || search.query.campuses.length) return bulletin;
     return [
       ...bulletin,
       ...customCourses
-        .filter((course) => localFilter !== "unplanned" || !placementByCourse.has(course.id))
+        .filter((course) => localFilter !== "unplanned" || !placementByCustomCourse.has(course.id))
         .map((course) => ({ key: `custom:${course.id}`, course, isCustom: true })),
     ];
-  }, [customCourses, localFilter, placementByCourse, search.items, search.query.campuses.length, search.query.sourceIds.length]);
+  }, [customCourses, localFilter, placementByCatalogId, placementByCustomCourse, search.items, search.query.campuses.length, search.query.sourceIds.length]);
 
   const sourceNames = useMemo(
     () => new Map(catalog.bootstrap.sources.map((source) => [source.id, source.schoolName])),

@@ -3,7 +3,7 @@
 import { GraduationCap } from "lucide-react";
 import { SemesterColumn } from "@/components/planner/SemesterColumn";
 import { Badge } from "@/components/ui/badge";
-import { SemesterId } from "@/lib/types";
+import { type PlanPlacementV2, SemesterId } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 
 const YEAR_LABELS = ["Freshman", "Sophomore", "Junior", "Senior"];
@@ -11,7 +11,7 @@ const YEAR_LABELS = ["Freshman", "Sophomore", "Junior", "Senior"];
 export function PlannerBoard({
   onSelectCourse,
 }: {
-  onSelectCourse: (courseId: string) => void;
+  onSelectCourse: (placement: PlanPlacementV2) => void;
 }) {
   const startYear = usePlannerStore((s) => s.startYear);
 

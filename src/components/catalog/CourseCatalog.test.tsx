@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
     status: "ready",
   },
   courseData: { courses: [] as CatalogCourseRecord["course"][], customIds: new Set<string>(), programs: [{ id: "cs", name: "Computer Science" }] },
-  derived: { placementByCourse: new Map() },
+  derived: { placementByCourse: new Map(), placementByCatalogId: new Map(), placementByCustomCourse: new Map() },
 }));
 
 vi.mock("@/hooks/useCatalogSearch", () => ({ useCatalogSearch: () => mocks.search }));

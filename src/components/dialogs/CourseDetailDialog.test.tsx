@@ -30,7 +30,7 @@ vi.mock("@/hooks/useCourseData", () => ({
   useCourseData: () => ({ coursesById: new Map(), customIds: new Set() }),
 }));
 vi.mock("@/hooks/usePlanDerived", () => ({
-  usePlanDerived: () => ({ placementByCourse: new Map() }),
+  usePlanDerived: () => ({ placementByCourse: new Map(), placementByCatalogId: new Map(), placementByCustomCourse: new Map() }),
 }));
 
 function record(): CatalogCourseRecord {

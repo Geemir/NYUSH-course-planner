@@ -71,4 +71,15 @@ describe("planner semantic history", () => {
     expect(persisted.history).toBeUndefined();
     expect(persisted.placements).toEqual([]);
   });
+
+  it("keeps same-code Bulletin records distinct by source-scoped identity", () => {
+    const store = () => usePlannerStore.getState();
+    store().placeCourse({ courseId: "MATH-UA 1", catalogCourseId: "cas:math-1", titleSnapshot: "Calculus I" }, "Y1F");
+    store().placeCourse({ courseId: "MATH-UA 1", catalogCourseId: "tandon:math-1", titleSnapshot: "Calculus for Engineers" }, "Y1S");
+    expect(store().placements).toHaveLength(2);
+    expect(new Set(store().placements.map((placement) => placement.placementId)).size).toBe(2);
+    const first = store().placements[0];
+    store().removeCourse(first.placementId);
+    expect(store().placements.map((placement) => placement.catalogCourseId)).toEqual(["tandon:math-1"]);
+  });
 });

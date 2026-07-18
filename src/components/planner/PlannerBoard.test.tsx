@@ -68,7 +68,7 @@ describe("PlannerBoard", () => {
   it("updates the selected credits for a placed variable-credit course", () => {
     usePlannerStore.setState({
       placements: [
-        { courseId: "VAR 1", semesterId: "Y1F", allocation: "auto" },
+        { placementId: "var-1", courseId: "VAR 1", semesterId: "Y1F", allocation: "auto" },
       ],
     });
 
@@ -76,6 +76,7 @@ describe("PlannerBoard", () => {
 
     expect(usePlannerStore.getState().placements).toEqual([
       {
+        placementId: "var-1",
         courseId: "VAR 1",
         semesterId: "Y1F",
         allocation: "auto",
@@ -93,9 +94,10 @@ describe("PlannerBoard", () => {
       maxCredits: 4,
     });
     const placement = {
+      placementId: "var-1",
       courseId: course.id,
       semesterId: "Y1F" as const,
-      allocation: "auto",
+      allocation: "auto" as const,
       selectedCredits: 2,
     };
     usePlannerStore.setState({ placements: [placement] });
@@ -106,7 +108,7 @@ describe("PlannerBoard", () => {
 
     render(<PlannerBoard onSelectCourse={() => undefined} />);
 
-    const chip = screen.getByTestId("chip-VAR 1");
+    const chip = screen.getByTestId("chip-var-1");
     const credits = within(chip).getByRole("combobox", {
       name: "Credits for VAR 1",
     });
@@ -118,5 +120,16 @@ describe("PlannerBoard", () => {
     const remove = within(chip).getByRole("button", { name: "Remove VAR 1" });
     expect(remove.className).not.toContain("hidden");
     expect(remove.className).toContain("group-focus-within:opacity-100");
+  });
+
+  it("keeps a placement visible when cached catalog detail is unavailable", async () => {
+    const user = userEvent.setup();
+    const placement = { placementId: "ny-away", catalogCourseId: "stern:NY-UA 1", courseId: "NY-UA 1", titleSnapshot: "Study Away Seminar", semesterId: "Y2F" as const, allocation: "auto" as const };
+    usePlannerStore.setState({ placements: [placement] });
+    derived.placementsBySemester = new Map([["Y2F", [placement]]]);
+    render(<PlannerBoard onSelectCourse={() => undefined} />);
+    expect(screen.getByText("Study Away Seminar")).toBeDefined();
+    await user.click(screen.getByRole("button", { name: "Remove NY-UA 1" }));
+    expect(usePlannerStore.getState().placements).toEqual([]);
   });
 });

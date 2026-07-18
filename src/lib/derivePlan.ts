@@ -44,6 +44,9 @@ export interface PlanDerivedValue {
   warningsBySemester: Map<SemesterId, PlanWarning[]>;
   placementsBySemester: Map<SemesterId, Placement[]>;
   placementByCourse: Map<string, Placement>;
+  placementById: Map<string, Placement>;
+  placementByCatalogId: Map<string, Placement>;
+  placementByCustomCourse: Map<string, Placement>;
   creditsBySemester: Map<SemesterId, number>;
   activeProgramObjs: ClientPlannerProgram[];
   effectiveMajors: (courseId: string) => string[];
@@ -115,6 +118,9 @@ export function derivePlan(input: PlanDerivationInput): PlanDerivedValue {
 
   const placementsBySemester = new Map<SemesterId, Placement[]>();
   const placementByCourse = new Map<string, Placement>();
+  const placementById = new Map<string, Placement>();
+  const placementByCatalogId = new Map<string, Placement>();
+  const placementByCustomCourse = new Map<string, Placement>();
   const creditsBySemester = new Map<SemesterId, number>();
   for (const placement of input.placements) {
     placementsBySemester.set(placement.semesterId, [
@@ -122,6 +128,14 @@ export function derivePlan(input: PlanDerivationInput): PlanDerivedValue {
       placement,
     ]);
     placementByCourse.set(placement.courseId, placement);
+    if ("placementId" in placement && typeof placement.placementId === "string") {
+      placementById.set(placement.placementId, placement);
+    }
+    if ("catalogCourseId" in placement && typeof placement.catalogCourseId === "string") {
+      placementByCatalogId.set(placement.catalogCourseId, placement);
+    } else {
+      placementByCustomCourse.set(placement.courseId, placement);
+    }
     const course = input.coursesById.get(placement.courseId);
     creditsBySemester.set(
       placement.semesterId,
@@ -148,6 +162,9 @@ export function derivePlan(input: PlanDerivationInput): PlanDerivedValue {
     warningsBySemester,
     placementsBySemester,
     placementByCourse,
+    placementById,
+    placementByCatalogId,
+    placementByCustomCourse,
     creditsBySemester,
     activeProgramObjs,
     effectiveMajors,

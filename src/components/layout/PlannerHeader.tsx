@@ -41,7 +41,7 @@ import {
 import { usePlanDerived } from "@/hooks/usePlanDerived";
 import { downloadPlan } from "@/lib/planIO";
 import type { CatalogProgram } from "@/lib/types";
-import { snapshotFromState, usePlannerStore } from "@/store/plannerStore";
+import { snapshotV2FromState, usePlannerStore } from "@/store/plannerStore";
 
 const START_YEARS = [2022, 2023, 2024, 2025, 2026, 2027, 2028];
 
@@ -56,7 +56,7 @@ export function PlannerHeader({
   onGuide,
   onImportFile,
 }: PlannerHeaderProps) {
-  const { programs } = useCatalog();
+  const { programs, bootstrap } = useCatalog();
   const { progress } = usePlanDerived();
   const programProfile = usePlannerStore((state) => state.programProfile);
   const setProgramProfile = usePlannerStore((state) => state.setProgramProfile);
@@ -173,7 +173,7 @@ export function PlannerHeader({
                 <DropdownMenuItem
                   className="min-h-11"
                   onClick={() =>
-                    downloadPlan(snapshotFromState(usePlannerStore.getState()))
+                    downloadPlan(snapshotV2FromState(usePlannerStore.getState(), bootstrap.release.id)!)
                   }
                 >
                   <Download aria-hidden="true" />
