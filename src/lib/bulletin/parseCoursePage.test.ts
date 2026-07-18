@@ -116,7 +116,10 @@ describe("parseCoursePage", () => {
       parseCoursePage({
         source: tandon,
         sourceUrl: `${tandon.courseIndexUrl}cs-uy/`,
-        html: load("engineering"),
+        html: load("engineering").replace(
+          '<span class="courseblockhours">4 Credits</span>',
+          "",
+        ),
       }).courses[0].creditText,
     ).toBeNull();
   });
