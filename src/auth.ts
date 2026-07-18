@@ -14,6 +14,20 @@ export interface AuthProviderEnv {
   AUTH_GOOGLE_ID?: string;
 }
 
+export function isNyuEmail(email: string | null | undefined): boolean {
+  return (email ?? "").toLowerCase().endsWith(NYU_DOMAIN);
+}
+
+export function resolveSessionRole(
+  email: string | null | undefined,
+  storedRole: "student" | "admin" | null | undefined,
+  adminEmails: ReadonlySet<string> = ADMIN_EMAILS,
+): "student" | "admin" {
+  return adminEmails.has((email ?? "").toLowerCase()) || storedRole === "admin"
+    ? "admin"
+    : "student";
+}
+
 /** Config-driven admin allowlist (comma-separated emails in ADMIN_EMAILS). */
 const ADMIN_EMAILS = new Set(
   (process.env.ADMIN_EMAILS ?? "")
@@ -77,17 +91,14 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     /** Hard gate: only @nyu.edu identities may sign in. */
     signIn({ user, profile }) {
-      const email = (user?.email ?? profile?.email ?? "").toLowerCase();
-      return email.endsWith(NYU_DOMAIN);
+      return isNyuEmail(user?.email ?? profile?.email);
     },
     session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
         const dbRole = (user as { role?: "student" | "admin" }).role;
-        const email = (session.user.email ?? "").toLowerCase();
         // Admin is granted by the ADMIN_EMAILS allowlist or a stored role.
-        session.user.role =
-          ADMIN_EMAILS.has(email) || dbRole === "admin" ? "admin" : "student";
+        session.user.role = resolveSessionRole(session.user.email, dbRole);
       }
       return session;
     },

@@ -58,6 +58,34 @@ describe("auth providers", () => {
       expect.objectContaining({ id: "nyu-email" }),
     );
   });
+
+  it("ignores E2E-like environment variables when building providers", async () => {
+    const { buildProviders } = await loadAuthModule();
+    const providers = buildProviders({
+      NODE_ENV: "production",
+      E2E_AUTH_BYPASS: "true",
+    } as Parameters<typeof buildProviders>[0]);
+
+    expect(providers).toEqual([]);
+  });
+
+  it("accepts only NYU email identities", async () => {
+    const { isNyuEmail } = await loadAuthModule();
+
+    expect(isNyuEmail("student@nyu.edu")).toBe(true);
+    expect(isNyuEmail("STUDENT@NYU.EDU")).toBe(true);
+    expect(isNyuEmail("student@example.edu")).toBe(false);
+    expect(isNyuEmail("attacker@nyu.edu.example.com")).toBe(false);
+  });
+
+  it("derives admin only from the stored role or explicit allowlist", async () => {
+    const { resolveSessionRole } = await loadAuthModule();
+    const allowlist = new Set(["maintainer@nyu.edu"]);
+
+    expect(resolveSessionRole("student@nyu.edu", "student", allowlist)).toBe("student");
+    expect(resolveSessionRole("maintainer@nyu.edu", "student", allowlist)).toBe("admin");
+    expect(resolveSessionRole("student@nyu.edu", "admin", allowlist)).toBe("admin");
+  });
 });
 
 async function loadParseCourseRoute() {
