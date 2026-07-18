@@ -18,6 +18,7 @@ export interface UsePlanSyncOptions {
   enabled: boolean;
   initialRevision?: number | null;
   initialSavedAt?: string;
+  initiallySynced?: boolean;
   fetcher?: typeof fetch;
   debounceMs?: number;
 }
@@ -28,12 +29,13 @@ export function usePlanSync({
   enabled,
   initialRevision = null,
   initialSavedAt = "",
+  initiallySynced = initialRevision !== null,
   fetcher = fetch,
   debounceMs = 800,
 }: UsePlanSyncOptions) {
   const serialized = JSON.stringify(snapshot);
   const [state, setState] = useState<PlanSyncState>(() => {
-    if (authenticated && enabled && initialRevision !== null) {
+    if (authenticated && enabled && initialRevision !== null && initiallySynced) {
       return { status: "saved", revision: initialRevision, savedAt: initialSavedAt };
     }
     return {
@@ -44,7 +46,7 @@ export function usePlanSync({
     };
   });
   const revisionRef = useRef<number | null>(initialRevision);
-  const acknowledgedRef = useRef<string | null>(initialRevision === null ? null : serialized);
+  const acknowledgedRef = useRef<string | null>(initialRevision !== null && initiallySynced ? serialized : null);
   const controllerRef = useRef<AbortController | null>(null);
   const latestRef = useRef(snapshot);
   const generationRef = useRef(0);

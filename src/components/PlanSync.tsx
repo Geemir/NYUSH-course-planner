@@ -4,16 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useCatalog } from "@/components/CatalogProvider";
 import { PlanSyncStatus } from "@/components/layout/PlanSyncStatus";
+import { ProgramProfileMigrationDialog } from "@/components/programs/ProgramProfileMigrationDialog";
 import { usePlanSync, type PlanSyncState } from "@/hooks/usePlanSync";
 import { parsePlanDocument } from "@/lib/planIO";
 import {
   migratePlanV1,
   PLAN_V2_STORAGE_KEY,
+  persistPlanMigration,
   reconcilePlanV2,
   type PlanMigrationResult,
 } from "@/lib/planMigration";
 import type { StoredPlanEnvelope } from "@/lib/repository";
-import type { PersistedPlanSnapshot, PlanSnapshotV2 } from "@/lib/types";
+import type { CatalogProgram, PersistedPlanSnapshot, PlanSnapshotV2 } from "@/lib/types";
 import {
   snapshotFromState,
   snapshotV2FromState,
@@ -22,9 +24,9 @@ import {
 
 type LoadState =
   | { status: "loading" }
-  | { status: "blocked"; message: string; migration: PlanMigrationResult }
+  | { status: "blocked"; message: string; migration: PlanMigrationResult; envelope: StoredPlanEnvelope | null; originalV1Json: string; reviewOpen: boolean }
   | { status: "error"; message: string }
-  | { status: "ready"; envelope: StoredPlanEnvelope | null; snapshot: PlanSnapshotV2 };
+  | { status: "ready"; envelope: StoredPlanEnvelope | null; snapshot: PlanSnapshotV2; initiallySynced: boolean };
 
 function downloadSnapshot(snapshot: PersistedPlanSnapshot, filename: string) {
   const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
@@ -50,9 +52,11 @@ function localV2Snapshot(): PlanSnapshotV2 | null {
 function SyncCoordinator({
   initialEnvelope,
   initialSnapshot,
+  initiallySynced,
 }: {
   initialEnvelope: StoredPlanEnvelope | null;
   initialSnapshot: PlanSnapshotV2;
+  initiallySynced: boolean;
 }) {
   const catalog = useCatalog();
   const planner = usePlannerStore();
@@ -65,6 +69,7 @@ function SyncCoordinator({
     enabled: liveSnapshot !== null,
     initialRevision: initialEnvelope?.revision ?? null,
     initialSavedAt: initialEnvelope?.updatedAt,
+    initiallySynced,
   });
 
   const handleKeepLocal = () => {
@@ -121,7 +126,9 @@ export function PlanSync() {
 
         let result: PlanMigrationResult;
         let sourceEnvelope = envelope;
+        let originalV1Json = JSON.stringify(snapshotFromState(usePlannerStore.getState()));
         if (envelope?.snapshot.version === 1) {
+          originalV1Json = JSON.stringify(envelope.snapshot);
           result = migratePlanV1(envelope.snapshot, catalog.bootstrap, records);
         } else if (confirmedLocal && !envelope) {
           result = reconcilePlanV2(confirmedLocal, catalog.bootstrap, records);
@@ -138,6 +145,9 @@ export function PlanSync() {
             status: "blocked",
             message: "Review the plan migration before cloud sync starts.",
             migration: result,
+            envelope: sourceEnvelope,
+            originalV1Json,
+            reviewOpen: true,
           });
           return;
         }
@@ -147,7 +157,11 @@ export function PlanSync() {
           hydratePlan(result.snapshot);
           hydratedRef.current = hydrationKey;
         }
-        setLoadState({ status: "ready", envelope: sourceEnvelope, snapshot: result.snapshot });
+        const initiallySynced = Boolean(
+          sourceEnvelope?.snapshot.version === 2 &&
+          JSON.stringify(sourceEnvelope.snapshot) === JSON.stringify(result.snapshot),
+        );
+        setLoadState({ status: "ready", envelope: sourceEnvelope, snapshot: result.snapshot, initiallySynced });
       } catch (error) {
         if (!active || controller.signal.aborted) return;
         setLoadState({
@@ -174,13 +188,42 @@ export function PlanSync() {
     return <PlanSyncStatus state={state} onRetry={() => setRetryKey((value) => value + 1)} />;
   }
   if (loadState.status === "blocked") {
-    return <PlanSyncStatus state={{ status: "local-only", message: loadState.message }} />;
+    const catalogPrograms = catalog.programs.filter(
+      (program): program is CatalogProgram => "auditAuthority" in program,
+    );
+    const continueMigration = (result: PlanMigrationResult) => {
+      persistPlanMigration(loadState.originalV1Json, result, window.localStorage);
+      hydratePlan(result.snapshot);
+      setLoadState({
+        status: "ready",
+        envelope: loadState.envelope,
+        snapshot: result.snapshot,
+        initiallySynced: false,
+      });
+    };
+    return (
+      <>
+        <PlanSyncStatus
+          state={{ status: "local-only", message: loadState.message }}
+          onReviewMigration={() => setLoadState({ ...loadState, reviewOpen: true })}
+        />
+        <ProgramProfileMigrationDialog
+          open={loadState.reviewOpen}
+          result={loadState.migration}
+          programs={catalogPrograms}
+          onCancel={() => setLoadState({ ...loadState, reviewOpen: false })}
+          onContinue={continueMigration}
+          onExportBackup={() => downloadSnapshot(JSON.parse(loadState.originalV1Json) as PersistedPlanSnapshot, "nyush-plan-v1-backup.json")}
+        />
+      </>
+    );
   }
   return (
     <SyncCoordinator
       key={`${loadState.envelope?.revision ?? "new"}:${loadState.snapshot.catalogReleaseId}`}
       initialEnvelope={loadState.envelope}
       initialSnapshot={loadState.snapshot}
+      initiallySynced={loadState.initiallySynced}
     />
   );
 }

@@ -32,6 +32,7 @@ describe("PlannerHeader", () => {
   beforeEach(() => {
     usePlannerStore.setState({
       activePrograms: ["core", "a"],
+      programProfile: { coreProgramId: "core", primaryMajorId: "a", secondMajorId: null, minorIds: [] },
       startYear: 2025,
     });
   });
@@ -77,20 +78,16 @@ describe("PlannerHeader", () => {
     );
   });
 
-  it("shows dynamic majors, entry year, credits, theme, and account controls", async () => {
-    const user = userEvent.setup();
+  it("shows Program Profile, entry year, credits, theme, and account controls", () => {
     render(
       <PlannerHeader onGuide={() => undefined} onImportFile={() => undefined} />,
     );
 
     expect(screen.getByText("32/128 credits")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Edit Program Profile" })).toBeDefined();
     expect(screen.getByRole("combobox", { name: "Entry year" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Toggle dark mode" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
-
-    await user.click(screen.getByRole("combobox", { name: "Degree plan" }));
-    expect(screen.getByRole("option", { name: "Major A" })).toBeDefined();
-    expect(screen.getByRole("option", { name: "Major B" })).toBeDefined();
   });
 
   it("passes a selected JSON file to the import handler", () => {

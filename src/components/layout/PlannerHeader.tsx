@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import {
   BookOpen,
   Download,
@@ -18,6 +18,8 @@ import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useCatalog } from "@/components/CatalogProvider";
+import { ProgramProfileSheet } from "@/components/programs/ProgramProfileSheet";
+import { ProgramProfileSummary, programProfileLabel } from "@/components/programs/ProgramProfileSummary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,12 +39,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
-import {
-  CUSTOM_PLAN_ID,
-  degreeOptionsFromPrograms,
-  matchDegreePlan,
-} from "@/lib/degreePlans";
 import { downloadPlan } from "@/lib/planIO";
+import type { CatalogProgram } from "@/lib/types";
 import { snapshotFromState, usePlannerStore } from "@/store/plannerStore";
 
 const START_YEARS = [2022, 2023, 2024, 2025, 2026, 2027, 2028];
@@ -60,21 +58,18 @@ export function PlannerHeader({
 }: PlannerHeaderProps) {
   const { programs } = useCatalog();
   const { progress } = usePlanDerived();
-  const activePrograms = usePlannerStore((state) => state.activePrograms);
-  const setActivePrograms = usePlannerStore(
-    (state) => state.setActivePrograms,
-  );
+  const programProfile = usePlannerStore((state) => state.programProfile);
+  const setProgramProfile = usePlannerStore((state) => state.setProgramProfile);
   const startYear = usePlannerStore((state) => state.startYear);
   const setStartYear = usePlannerStore((state) => state.setStartYear);
   const reset = usePlannerStore((state) => state.reset);
   const { resolvedTheme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const degreeOptions = degreeOptionsFromPrograms(programs);
-  const currentPlanId = matchDegreePlan(activePrograms, degreeOptions);
-  const currentPlanLabel =
-    degreeOptions.find((option) => option.id === currentPlanId)?.label ??
-    "Custom program mix";
+  const [profileOpen, setProfileOpen] = useState(false);
+  const catalogPrograms = programs.filter(
+    (program): program is CatalogProgram => "auditAuthority" in program,
+  );
+  const currentPlanLabel = programProfileLabel(programProfile, catalogPrograms);
 
   const resetPlan = () => {
     if (window.confirm("Clear the entire plan? This cannot be undone.")) {
@@ -111,33 +106,7 @@ export function PlannerHeader({
         </Badge>
 
         <div className="hidden min-w-0 items-center gap-2 lg:flex">
-          <Select
-            value={currentPlanId}
-            onValueChange={(id) => {
-              const option = degreeOptions.find((item) => item.id === id);
-              if (option) setActivePrograms(option.programs);
-            }}
-          >
-            <SelectTrigger
-              aria-label="Degree plan"
-              className="h-11 w-48 text-sm"
-            >
-              <SelectValue>{() => currentPlanLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {degreeOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-              {currentPlanId === CUSTOM_PLAN_ID && (
-                <SelectItem value={CUSTOM_PLAN_ID} disabled>
-                  Custom program mix
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-
+          <ProgramProfileSummary profile={programProfile} programs={catalogPrograms} onClick={() => setProfileOpen(true)} />
           <Select
             value={String(startYear)}
             onValueChange={(value) => setStartYear(Number(value))}
@@ -190,6 +159,10 @@ export function PlannerHeader({
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Plan actions</DropdownMenuLabel>
+                <DropdownMenuItem className="min-h-11 lg:hidden" onClick={() => setProfileOpen(true)}>
+                  <GraduationCap aria-hidden="true" />
+                  Edit Program Profile
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="min-h-11"
                   onClick={() => fileInputRef.current?.click()}
@@ -249,6 +222,13 @@ export function PlannerHeader({
           <AuthControl />
         </div>
       </nav>
+      <ProgramProfileSheet
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        programs={catalogPrograms}
+        profile={programProfile}
+        onSave={setProgramProfile}
+      />
     </header>
   );
 }

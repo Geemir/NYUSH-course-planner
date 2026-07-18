@@ -24,6 +24,7 @@ interface PlanSyncStatusProps {
   onKeepLocal?: () => void;
   onUseServer?: () => void;
   onExportBoth?: () => void;
+  onReviewMigration?: () => void;
 }
 
 function statusContent(state: Exclude<PlanSyncState, { status: "conflict" }>) {
@@ -47,6 +48,7 @@ export function PlanSyncStatus({
   onKeepLocal,
   onUseServer,
   onExportBoth,
+  onReviewMigration,
 }: PlanSyncStatusProps) {
   const visible = state.status === "conflict"
     ? { icon: AlertTriangle, label: "Plan conflict", spin: false }
@@ -69,6 +71,9 @@ export function PlanSyncStatus({
             <RefreshCw aria-hidden="true" />
             Retry
           </Button>
+        )}
+        {state.status === "local-only" && onReviewMigration && (
+          <Button variant="ghost" size="xs" onClick={onReviewMigration}>Review</Button>
         )}
       </div>
 
