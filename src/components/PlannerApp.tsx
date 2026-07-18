@@ -14,7 +14,10 @@ import {
 import { toast } from "sonner";
 import { CatalogProvider } from "@/components/CatalogProvider";
 import { PlanSync } from "@/components/PlanSync";
-import { CourseCatalog } from "@/components/catalog/CourseCatalog";
+import {
+  CourseCatalog,
+  type CatalogCourseSelection,
+} from "@/components/catalog/CourseCatalog";
 import { CourseDetailDialog } from "@/components/dialogs/CourseDetailDialog";
 import { InspirationStrip } from "@/components/inspiration/InspirationStrip";
 import { PlannerHeader } from "@/components/layout/PlannerHeader";
@@ -59,7 +62,9 @@ export function PlannerApp() {
     () => true,
     () => false,
   );
-  const [detailCourseId, setDetailCourseId] = useState<string | null>(null);
+  const [detailSelection, setDetailSelection] = useState<
+    CatalogCourseSelection | { kind: "legacy"; courseId: string } | null
+  >(null);
   const [dragCourseId, setDragCourseId] = useState<string | null>(null);
   const onboarding = useOnboarding();
   const guideButtonRef = useRef<HTMLButtonElement>(null);
@@ -108,9 +113,19 @@ export function PlannerApp() {
     }
   };
 
-  const handleSelectCourse = (courseId: string) => {
+  const canOpenDetail = () => {
     if (justDragged.current || Date.now() < suppressClicksUntil.current) return;
-    setDetailCourseId(courseId);
+    return true;
+  };
+
+  const handleSelectCatalogCourse = (selection: CatalogCourseSelection) => {
+    if (!canOpenDetail()) return;
+    setDetailSelection(selection);
+  };
+
+  const handleSelectPlannedCourse = (courseId: string) => {
+    if (!canOpenDetail()) return;
+    setDetailSelection({ kind: "legacy", courseId });
   };
 
   const handleMenuClosed = () => {
@@ -152,12 +167,12 @@ export function PlannerApp() {
               <PlannerWorkspace
                 catalog={
                   <CourseCatalog
-                    onSelectCourse={handleSelectCourse}
+                    onSelectCourse={handleSelectCatalogCourse}
                     onMenuClosed={handleMenuClosed}
                   />
                 }
                 timeline={
-                  <PlannerBoard onSelectCourse={handleSelectCourse} />
+                  <PlannerBoard onSelectCourse={handleSelectPlannedCourse} />
                 }
                 progress={
                   <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
@@ -187,8 +202,12 @@ export function PlannerApp() {
               returnFocusRef={guideButtonRef}
             />
             <CourseDetailDialog
-              courseId={detailCourseId}
-              onClose={() => setDetailCourseId(null)}
+              courseId={detailSelection
+                ? "stableId" in detailSelection
+                  ? detailSelection.stableId
+                  : detailSelection.courseId
+                : null}
+              onClose={() => setDetailSelection(null)}
             />
           </div>
         </TooltipProvider>

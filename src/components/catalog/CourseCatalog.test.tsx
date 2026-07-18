@@ -2,245 +2,120 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CourseCatalog } from "@/components/catalog/CourseCatalog";
-import { mkCourse } from "@/lib/fixtures.test-helper";
-import { usePlannerStore } from "@/store/plannerStore";
-import { render, screen, waitFor, within } from "@/test/render";
+import type { CatalogCourseRecord } from "@/lib/catalog/types";
+import { render, screen } from "@/test/render";
 
-const { catalog, derived, virtualWindow } = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
+  search: {
+    query: { q: "", campuses: [], sourceIds: [], subjects: [], levels: ["undergraduate"], catalogTerms: [], limit: 40 },
+    items: [] as CatalogCourseRecord[], status: "ready", error: null, nextCursor: null as string | null,
+    isStale: false, setQuery: vi.fn(), loadMore: vi.fn(), retry: vi.fn(),
+  },
   catalog: {
-    courses: [] as ReturnType<typeof mkCourse>[],
-    programs: [] as Array<{
-      id: string;
-      name: string;
-      shortName: string;
-      type: "major";
-      color: string;
-      categories: Array<{
-        id: string;
-        name: string;
-        isCapstone: boolean;
-        rule: { kind: "allOf"; courses: string[] };
-      }>;
-    }>,
-    customIds: new Set<string>(),
-    coursesById: new Map(),
-  },
-  derived: { placementByCourse: new Map() },
-  virtualWindow: { limit: Number.POSITIVE_INFINITY },
-}));
-
-vi.mock("@/hooks/useCourseData", () => ({
-  useCourseData: () => catalog,
-}));
-
-vi.mock("@/hooks/usePlanDerived", () => ({
-  usePlanDerived: () => derived,
-}));
-
-vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: ({ count }: { count: number }) => {
-    const visibleCount = Math.min(count, virtualWindow.limit);
-    return {
-      getTotalSize: () => count * 96,
-      getVirtualItems: () =>
-        Array.from({ length: visibleCount }, (_, index) => ({
-          index,
-          key: index,
-          start: index * 96,
-          size: 88,
-          end: index * 96 + 88,
-          lane: 0,
-        })),
-      measureElement: () => undefined,
-    };
-  },
-}));
-
-const humanities = {
-  id: "humanities",
-  name: "Humanities",
-  shortName: "HUM",
-  type: "major" as const,
-  color: "#7c3aed",
-  categories: [
-    {
-      id: "humanities-foundations",
-      name: "Foundations",
-      isCapstone: false,
-      rule: { kind: "allOf" as const, courses: ["HUMA-SHU 100"] },
+    bootstrap: {
+      release: { id: "release", publishedAt: "2026-07-18T00:00:00.000Z" },
+      sources: [{ id: "stern", schoolName: "NYU Stern", campus: "new-york", courseCount: 1, status: "healthy" }],
+      filters: { subjects: [{ subject: "TEST-UA", courseCount: 1 }], catalogTerms: ["Fall"], creditBounds: [0, 4] },
     },
-  ],
-};
+    status: "ready",
+  },
+  courseData: { courses: [] as CatalogCourseRecord["course"][], customIds: new Set<string>(), programs: [{ id: "cs", name: "Computer Science" }] },
+  derived: { placementByCourse: new Map() },
+}));
 
-const courses = [
-  mkCourse({
-    id: "HUMA-SHU 100",
-    title: "Memory and Modernity",
-    department: "Humanities",
-    description: "An introduction to archives and cultural memory.",
-    offered: ["spring"],
-    fulfills: [
-      { programId: "humanities", categoryId: "humanities-foundations" },
-    ],
+vi.mock("@/hooks/useCatalogSearch", () => ({ useCatalogSearch: () => mocks.search }));
+vi.mock("@/components/CatalogProvider", () => ({ useCatalog: () => mocks.catalog }));
+vi.mock("@/hooks/useCourseData", () => ({ useCourseData: () => mocks.courseData }));
+vi.mock("@/hooks/usePlanDerived", () => ({ usePlanDerived: () => mocks.derived }));
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getTotalSize: () => count * 142,
+    getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, key: index, start: index * 142 })),
+    measureElement: () => undefined,
   }),
-  mkCourse({
-    id: "HIST-SHU 200",
-    title: "Global History",
-    department: "History",
-    attributes: ["Core"],
-    offered: ["fall"],
-  }),
-  mkCourse({
-    id: "HIST-SHU 201",
-    title: "Oceans in History",
-    department: "History",
-    description: "Maritime networks across Asia.",
-    attributes: ["Global"],
-    offered: ["spring"],
-  }),
-  mkCourse({
-    id: "UNKN-SHU 1",
-    title: "Topics with Variable Schedule",
-    department: "History",
-    offered: [],
-    offeringKnown: false,
-  }),
-  mkCourse({
-    id: "PLAN-SHU 1",
-    title: "Planned Seminar",
-    department: "Social Science",
-    offered: ["spring"],
-  }),
-  mkCourse({
-    id: "CUST-SHU 1",
-    title: "My Custom Course",
-    department: "Independent Study",
-    offered: ["spring"],
-  }),
-];
+}));
 
-async function chooseFilter(
-  user: ReturnType<typeof userEvent.setup>,
-  label: string,
-) {
-  const trigger = screen.getByRole("combobox", { name: "Filter courses" });
-  await waitFor(() => expect(trigger.getAttribute("aria-expanded")).toBe("false"));
-  await user.click(trigger);
-  await user.click(await screen.findByRole("option", { name: label }));
+function record(): CatalogCourseRecord {
+  return {
+    stableId: "stern:TEST-UA 1", sourceId: "stern", sourceSnapshotId: "snapshot",
+    code: "TEST-UA 1", subject: "TEST-UA", level: "undergraduate",
+    catalogOfferingTerms: ["Fall"], catalogOfferingText: "Fall", crossListedStableIds: [],
+    course: { id: "TEST-UA 1", title: "New York Seminar", credits: 4, department: "TEST-UA",
+      prereqs: [], sourceReferenceIds: [], offered: [], offeringKnown: false, sites: ["newyork"],
+      fulfills: [], equivalentTo: [], attributes: [], tags: [] },
+  };
 }
 
 describe("CourseCatalog", () => {
   beforeEach(() => {
-    catalog.courses = courses;
-    catalog.programs = [humanities];
-    catalog.customIds = new Set(["CUST-SHU 1"]);
-    catalog.coursesById = new Map(courses.map((course) => [course.id, course]));
-    derived.placementByCourse = new Map([
-      [
-        "PLAN-SHU 1",
-        { courseId: "PLAN-SHU 1", semesterId: "Y1F", allocation: "auto" },
-      ],
-    ]);
-    virtualWindow.limit = Number.POSITIVE_INFINITY;
-    usePlannerStore.setState({
-      activePrograms: ["humanities"],
-      placements: [
-        { courseId: "PLAN-SHU 1", semesterId: "Y1F", allocation: "auto" },
-      ],
-      startYear: 2025,
-    });
+    mocks.search.items = [record()]; mocks.search.status = "ready"; mocks.search.nextCursor = null;
+    mocks.search.isStale = false; mocks.search.setQuery.mockClear(); mocks.search.retry.mockClear(); mocks.search.loadMore.mockClear();
+    mocks.catalog.status = "ready"; mocks.catalog.bootstrap.sources[0].status = "healthy";
+    mocks.courseData.courses = []; mocks.courseData.customIds = new Set();
   });
 
-  it("searches descriptions and subjects and filters a runtime program", async () => {
+  it("sends text and all server filter changes to the query state", async () => {
     const user = userEvent.setup();
-    render(
-      <CourseCatalog
-        onSelectCourse={() => undefined}
-        onMenuClosed={() => undefined}
-      />,
-    );
-    const search = screen.getByRole("textbox", { name: "Search courses" });
-
-    await user.type(search, "archives");
-    expect(screen.getByText("1 of 6 courses")).toBeDefined();
-    expect(screen.getByTestId("catalog-HUMA-SHU 100")).toBeDefined();
-
-    await user.clear(search);
-    await user.type(search, "History");
-    expect(screen.getByText("3 of 6 courses")).toBeDefined();
-
-    await user.clear(search);
-    await chooseFilter(user, "Humanities program");
-    expect(screen.getByText("1 of 6 courses")).toBeDefined();
-    expect(screen.getByTestId("catalog-HUMA-SHU 100")).toBeDefined();
+    render(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} />);
+    await user.type(screen.getByRole("textbox", { name: "Search courses" }), "math");
+    expect(mocks.search.setQuery).toHaveBeenLastCalledWith({ q: "h" });
+    for (const [label, option] of [["Campus", "New York"], ["School", "NYU Stern"], ["Subject", "TEST-UA"], ["Catalog term", "Fall"], ["Credits", "4 credits"], ["NYUSH fulfillment", "Computer Science"]] as const) {
+      await user.click(screen.getByRole("combobox", { name: label }));
+      await user.click(await screen.findByRole("option", { name: option }));
+    }
+    expect(mocks.search.setQuery).toHaveBeenCalledWith({ campuses: ["new-york"] });
+    expect(mocks.search.setQuery).toHaveBeenCalledWith({ sourceIds: ["stern"] });
+    expect(mocks.search.setQuery).toHaveBeenCalledWith({ subjects: ["TEST-UA"] });
+    expect(mocks.search.setQuery).toHaveBeenCalledWith({ catalogTerms: ["Fall"] });
+    expect(mocks.search.setQuery).toHaveBeenCalledWith({ minCredits: 4, maxCredits: 4 });
+    expect(mocks.search.setQuery).toHaveBeenCalledWith({ fulfillsProgramId: "cs" });
+    await user.click(screen.getByRole("button", { name: /Clear filters/ }));
+    expect(mocks.search.setQuery).toHaveBeenLastCalledWith(expect.objectContaining({ q: "", campuses: [], sourceIds: [] }));
   });
 
-  it("filters dynamic attributes and known or unknown terms", async () => {
+  it("shows New York trust copy and selects by stable ID", async () => {
+    const user = userEvent.setup(); const onSelect = vi.fn();
+    render(<CourseCatalog onSelectCourse={onSelect} onMenuClosed={() => undefined} />);
+    expect(screen.getByText("New York study-away catalog")).toBeTruthy();
+    expect(screen.getByText("Availability and registration eligibility not confirmed")).toBeTruthy();
+    expect(screen.getByText(/Bulletin catalog pattern: Fall/)).toBeTruthy();
+    await user.click(screen.getByTestId("catalog-stern:TEST-UA 1"));
+    expect(onSelect).toHaveBeenCalledWith({ kind: "bulletin", stableId: "stern:TEST-UA 1" });
+  });
+
+  it("renders loading, empty, retry, offline, and partial-health states", async () => {
     const user = userEvent.setup();
-    render(
-      <CourseCatalog
-        onSelectCourse={() => undefined}
-        onMenuClosed={() => undefined}
-      />,
-    );
-
-    await chooseFilter(user, "Core");
-    expect(screen.getByText("1 of 6 courses")).toBeDefined();
-    expect(screen.getByTestId("catalog-HIST-SHU 200")).toBeDefined();
-
-    await chooseFilter(user, "Fall");
-    expect(screen.getByText("1 of 6 courses")).toBeDefined();
-    expect(screen.queryByTestId("catalog-UNKN-SHU 1")).toBeNull();
-
-    await chooseFilter(user, "Schedule varies");
-    expect(screen.getByText("1 of 6 courses")).toBeDefined();
-    expect(
-      within(screen.getByTestId("catalog-UNKN-SHU 1")).getByText(
-        "Schedule varies",
-      ),
-    ).toBeDefined();
+    mocks.search.status = "error"; mocks.search.items = []; mocks.search.isStale = true;
+    mocks.catalog.bootstrap.sources[0].status = "stale";
+    const view = render(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} />);
+    expect(screen.getByRole("alert").textContent).toContain("temporarily unavailable");
+    expect(screen.getByText(/Offline/)).toBeTruthy();
+    expect(screen.getByText(/Some Bulletin sources/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(mocks.search.retry).toHaveBeenCalledOnce();
+    mocks.search.status = "loading"; mocks.search.isStale = false; view.rerender(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} />);
+    expect(screen.getByLabelText("Loading courses")).toBeTruthy();
+    mocks.search.status = "empty"; view.rerender(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} />);
+    expect(screen.getByText("No courses match these filters.")).toBeTruthy();
   });
 
-  it("filters courses that are not in the plan", async () => {
+  it("offers accessible manual pagination", async () => {
+    const user = userEvent.setup(); mocks.search.nextCursor = "next";
+    render(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: "Load more courses" }));
+    expect(mocks.search.loadMore).toHaveBeenCalledOnce();
+  });
+
+  it("keeps custom-course filtering local", async () => {
     const user = userEvent.setup();
-    render(
-      <CourseCatalog
-        onSelectCourse={() => undefined}
-        onMenuClosed={() => undefined}
-      />,
-    );
-
-    await chooseFilter(user, "Not planned yet");
-    expect(screen.getByText("5 of 6 courses")).toBeDefined();
-    expect(screen.queryByTestId("catalog-PLAN-SHU 1")).toBeNull();
-  });
-
-  it("renders only the virtual window while reporting the full result count", () => {
-    virtualWindow.limit = 2;
-    render(
-      <CourseCatalog
-        onSelectCourse={() => undefined}
-        onMenuClosed={() => undefined}
-      />,
-    );
-
-    expect(screen.getByText("6 of 6 courses")).toBeDefined();
-    expect(screen.getAllByTestId(/^catalog-/)).toHaveLength(2);
-  });
-
-  it("presents Albert parsing as an optional custom-course helper", async () => {
-    const user = userEvent.setup();
-    render(
-      <CourseCatalog
-        onSelectCourse={() => undefined}
-        onMenuClosed={() => undefined}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Add custom course" }));
-    expect(
-      screen.getByRole("heading", { name: "Add a custom course" }),
-    ).toBeDefined();
-    expect(screen.getByText(/Official courses come from the NYU Bulletin/)).toBeDefined();
+    const custom = { ...record().course, id: "CUSTOM 1", title: "My Custom" };
+    mocks.courseData.courses = [custom];
+    mocks.courseData.customIds = new Set([custom.id]);
+    render(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} />);
+    await user.click(screen.getByRole("combobox", { name: "Local filter" }));
+    await user.click(await screen.findByRole("option", { name: "My custom courses" }));
+    expect(screen.getByText("My Custom")).toBeTruthy();
+    expect(screen.queryByText("New York Seminar")).toBeNull();
+    expect(mocks.search.setQuery).toHaveBeenLastCalledWith({ crossListed: undefined });
   });
 });

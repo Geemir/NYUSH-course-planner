@@ -4,7 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, Plus, Search } from "lucide-react";
+import { AlertTriangle, Check, Plus, RotateCcw, Search } from "lucide-react";
+import { useCatalog } from "@/components/CatalogProvider";
 import { AddCourseDialog } from "@/components/dialogs/AddCourseDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,154 +22,140 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCatalogSearch } from "@/hooks/useCatalogSearch";
 import { useCourseData } from "@/hooks/useCourseData";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
-import {
-  PROGRAMS_BY_ID,
-  activeCrossListedMajors,
-  isActivelyCrossListed,
-} from "@/lib/clientReferenceData";
+import type { CatalogCourseRecord } from "@/lib/catalog/types";
 import { cn } from "@/lib/utils";
-import { Course, SEMESTER_IDS, semesterFullLabel } from "@/lib/types";
+import { type Course, SEMESTER_IDS, semesterFullLabel } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 
-const QUICK_FILTERS = [
-  { id: "all", label: "All courses" },
-  { id: "cross", label: "Cross-listed" },
-  { id: "custom", label: "My added courses" },
-  { id: "unplanned", label: "Not planned yet" },
-];
+export type CatalogCourseSelection =
+  | { kind: "bulletin"; stableId: string }
+  | { kind: "custom"; courseId: string };
 
-type FilterGroup = {
-  label: string;
-  options: { id: string; label: string }[];
+type DisplayItem = {
+  key: string;
+  course: Course;
+  record?: CatalogCourseRecord;
+  isCustom: boolean;
 };
 
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange(value: string): void;
+}) {
+  return (
+    <Select value={value} onValueChange={(next) => onChange(next as string)}>
+      <SelectTrigger size="sm" aria-label={label} className="h-10 min-w-32 flex-1">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function CatalogCard({
-  course,
-  isCustom,
+  item,
+  sourceName,
   onSelect,
   onMenuClosed,
 }: {
-  course: Course;
-  isCustom: boolean;
-  onSelect: (courseId: string) => void;
-  onMenuClosed: () => void;
+  item: DisplayItem;
+  sourceName: string;
+  onSelect(selection: CatalogCourseSelection): void;
+  onMenuClosed(): void;
 }) {
+  const { course, record, isCustom } = item;
   const { placementByCourse } = usePlanDerived();
-  const placeCourse = usePlannerStore((s) => s.placeCourse);
-  const removeCourse = usePlannerStore((s) => s.removeCourse);
-  const startYear = usePlannerStore((s) => s.startYear);
-  const activePrograms = usePlannerStore((s) => s.activePrograms);
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: `catalog:${course.id}` });
-
+  const placeCourse = usePlannerStore((state) => state.placeCourse);
+  const removeCourse = usePlannerStore((state) => state.removeCourse);
+  const startYear = usePlannerStore((state) => state.startYear);
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `catalog:${course.id}`,
+  });
   const placement = placementByCourse.get(course.id);
-  const crossLabel = isActivelyCrossListed(course, activePrograms)
-    ? activeCrossListedMajors(course, activePrograms)
-        .map((id) => PROGRAMS_BY_ID.get(id)?.shortName ?? id)
-        .join("/")
-    : null;
+  const isNewYork = record && record.sourceId !== "nyu-shanghai";
+  const select = () => onSelect(record
+    ? { kind: "bulletin", stableId: record.stableId }
+    : { kind: "custom", courseId: course.id });
 
   return (
-    <div
+    <article
       ref={setNodeRef}
       {...listeners}
       {...attributes}
       style={{ transform: CSS.Translate.toString(transform) }}
-      onClick={() => onSelect(course.id)}
-      data-testid={`catalog-${course.id}`}
+      onClick={select}
+      data-testid={`catalog-${item.key}`}
       className={cn(
-        "group flex cursor-grab items-center gap-3 rounded-xl border bg-background p-3 outline-none transition-colors duration-[var(--motion-fast)] hover:border-primary/40 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring",
-        placement && "opacity-60",
+        "group flex cursor-grab items-start gap-3 rounded-xl border bg-background p-3.5 outline-none transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring",
+        placement && "opacity-70",
         isDragging && "z-10 opacity-50",
       )}
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <span className="font-mono text-xs font-medium text-muted-foreground">
-            {course.id}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {course.credits}cr
-          </span>
-          {crossLabel && (
-            <Badge variant="outline" className="px-1 text-[10px]">
-              {crossLabel}
-            </Badge>
-          )}
-          {isCustom && (
-            <Badge
-              variant="outline"
-              className="border-primary/50 px-1 text-[10px] text-primary"
-            >
-              Custom
-            </Badge>
-          )}
-          <span className="text-[11px] font-medium text-muted-foreground/80">
-            {course.offeringKnown === false
-              ? "Schedule varies"
-              : course.offered.map((t) => t.slice(0, 2)).join(" · ")}
-          </span>
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-xs font-medium text-muted-foreground">{course.id}</span>
+          <span className="text-xs text-muted-foreground">{course.credits} cr</span>
+          {isCustom && <Badge variant="outline">Custom</Badge>}
+          {isNewYork && <Badge variant="secondary">New York study-away catalog</Badge>}
         </div>
-        <span className="truncate text-sm font-medium">{course.title}</span>
+        <h3 className="truncate text-sm font-semibold">{course.title}</h3>
+        {record && (
+          <p className="text-xs text-muted-foreground">{sourceName}</p>
+        )}
+        {isNewYork && (
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            Availability and registration eligibility not confirmed
+          </p>
+        )}
+        {record && record.catalogOfferingTerms.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Bulletin catalog pattern: {record.catalogOfferingTerms.join(", ")} — not a current schedule
+          </p>
+        )}
         {placement && (
-          <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-            <Check className="size-3.5" />
+          <p className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+            <Check className="size-3.5" aria-hidden="true" />
             {semesterFullLabel(placement.semesterId, startYear)}
-          </span>
+          </p>
         )}
       </div>
       <DropdownMenu onOpenChange={(open) => !open && onMenuClosed()}>
         <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-11"
-              aria-label={`Assign ${course.id} to a semester`}
-              onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
-            />
-          }
+          render={<Button variant="ghost" size="icon" className="size-11" aria-label={`Assign ${course.id} to a semester`} onClick={(event: React.MouseEvent) => event.stopPropagation()} onPointerDown={(event: React.PointerEvent) => event.stopPropagation()} />}
         >
           <Plus />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuGroup>
-            <DropdownMenuLabel>
-              {placement ? "Move to" : "Add to semester"}
-            </DropdownMenuLabel>
+            <DropdownMenuLabel>{placement ? "Move to" : "Add to semester"}</DropdownMenuLabel>
             {SEMESTER_IDS.map((semesterId) => (
-              <DropdownMenuItem
-                key={semesterId}
-                onClick={() => placeCourse(course.id, semesterId)}
-              >
+              <DropdownMenuItem key={semesterId} onClick={() => placeCourse(course.id, semesterId)}>
                 {semesterFullLabel(semesterId, startYear)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
-          {placement && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => removeCourse(course.id)}
-              >
-                Remove from plan
-              </DropdownMenuItem>
-            </>
-          )}
+          {placement && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => removeCourse(course.id)}>Remove from plan</DropdownMenuItem></>}
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </article>
   );
 }
 
@@ -176,207 +163,102 @@ export function CourseCatalog({
   onSelectCourse,
   onMenuClosed,
 }: {
-  onSelectCourse: (courseId: string) => void;
-  onMenuClosed: () => void;
+  onSelectCourse(selection: CatalogCourseSelection): void;
+  onMenuClosed(): void;
 }) {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
+  const search = useCatalogSearch();
+  const catalog = useCatalog();
   const { courses, customIds, programs } = useCourseData();
   const { placementByCourse } = usePlanDerived();
-  const activePrograms = usePlannerStore((s) => s.activePrograms);
   const scrollParentRef = useRef<HTMLDivElement>(null);
+  const [localFilter, setLocalFilter] = useState("all");
+  const customCourses = courses.filter((course) => customIds.has(course.id));
 
-  const filterGroups = useMemo<FilterGroup[]>(() => {
-    const activeProgramSet = new Set(activePrograms);
-    const programOptions = programs
-      .filter((program) => activeProgramSet.has(program.id))
-      .map((program) => ({
-        id: `program:${program.id}`,
-        label: `${program.name} program`,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-    const subjectOptions = [...new Set(courses.map((course) => course.department))]
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b))
-      .map((subject) => ({
-        id: `subject:${subject}`,
-        label: `${subject} subject`,
+  const displayItems = useMemo<DisplayItem[]>(() => {
+    if (localFilter === "custom") {
+      return customCourses.map((course) => ({
+        key: `custom:${course.id}`,
+        course,
+        isCustom: true,
       }));
-    const attributeOptions = [
-      ...new Set(courses.flatMap((course) => course.attributes ?? [])),
-    ]
-      .sort((a, b) => a.localeCompare(b))
-      .map((attribute) => ({
-        id: `attribute:${attribute}`,
-        label: attribute,
-      }));
-    const termOptions = [
-      courses.some(
-        (course) => course.offeringKnown !== false && course.offered.includes("fall"),
-      ) && { id: "term:fall", label: "Fall" },
-      courses.some(
-        (course) => course.offeringKnown !== false && course.offered.includes("spring"),
-      ) && { id: "term:spring", label: "Spring" },
-      courses.some((course) => course.offeringKnown === false) && {
-        id: "term:unknown",
-        label: "Schedule varies",
-      },
-    ].filter((option): option is { id: string; label: string } => Boolean(option));
-
+    }
+    const bulletin = search.items
+      .filter((record) => localFilter !== "unplanned" || !placementByCourse.has(record.code))
+      .map((record) => ({ key: record.stableId, course: record.course, record, isCustom: false }));
+    if (localFilter === "cross" || search.query.sourceIds.length || search.query.campuses.length) return bulletin;
     return [
-      { label: "Catalog", options: QUICK_FILTERS },
-      { label: "Active programs", options: programOptions },
-      { label: "Subjects", options: subjectOptions },
-      { label: "Attributes", options: attributeOptions },
-      { label: "Typical term", options: termOptions },
-    ].filter((group) => group.options.length > 0);
-  }, [activePrograms, courses, programs]);
+      ...bulletin,
+      ...customCourses
+        .filter((course) => localFilter !== "unplanned" || !placementByCourse.has(course.id))
+        .map((course) => ({ key: `custom:${course.id}`, course, isCustom: true })),
+    ];
+  }, [customCourses, localFilter, placementByCourse, search.items, search.query.campuses.length, search.query.sourceIds.length]);
 
-  const filterLabel = useMemo(
-    () =>
-      filterGroups
-        .flatMap((group) => group.options)
-        .find((option) => option.id === filter)?.label ?? "All courses",
-    [filter, filterGroups],
+  const sourceNames = useMemo(
+    () => new Map(catalog.bootstrap.sources.map((source) => [source.id, source.schoolName])),
+    [catalog.bootstrap.sources],
   );
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return courses
-      .filter((course) => {
-        if (
-          q &&
-          !course.id.toLowerCase().includes(q) &&
-          !course.title.toLowerCase().includes(q) &&
-          !course.department.toLowerCase().includes(q) &&
-          !course.description?.toLowerCase().includes(q)
-        ) {
-          return false;
-        }
-        if (filter.startsWith("program:")) {
-          const programId = filter.slice("program:".length);
-          return course.fulfills.some(
-            (fulfillment) => fulfillment.programId === programId,
-          );
-        }
-        if (filter.startsWith("subject:")) {
-          return course.department === filter.slice("subject:".length);
-        }
-        if (filter.startsWith("attribute:")) {
-          return (
-            course.attributes?.includes(filter.slice("attribute:".length)) ?? false
-          );
-        }
-        if (filter === "term:unknown") return course.offeringKnown === false;
-        if (filter.startsWith("term:")) {
-          const term = filter.slice("term:".length) as "fall" | "spring";
-          return course.offeringKnown !== false && course.offered.includes(term);
-        }
-        if (filter === "cross") {
-          return isActivelyCrossListed(course, activePrograms);
-        }
-        if (filter === "custom") return customIds.has(course.id);
-        if (filter === "unplanned") return !placementByCourse.has(course.id);
-        return true;
-      })
-      .sort((a, b) => a.id.localeCompare(b.id));
-  }, [courses, customIds, query, filter, placementByCourse, activePrograms]);
+  const sourceHealthIssue = catalog.bootstrap.sources.some((source) => source.status !== "healthy");
+  const clearFilters = () => search.setQuery({
+    q: "", campuses: [], sourceIds: [], subjects: [], catalogTerms: [],
+    levels: ["undergraduate"], minCredits: undefined, maxCredits: undefined,
+    fulfillsProgramId: undefined, crossListed: undefined,
+  });
+  const clearAllFilters = () => {
+    setLocalFilter("all");
+    clearFilters();
+  };
 
   // TanStack Virtual intentionally exposes imperative measurement callbacks.
   // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
-    count: filtered.length,
+    count: displayItems.length,
     getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => 96,
-    overscan: 6,
-    getItemKey: (index) => filtered[index]?.id ?? index,
+    estimateSize: () => 142,
+    overscan: 5,
+    getItemKey: (index) => displayItems[index]?.key ?? index,
   });
 
   return (
-    <div className="flex flex-col gap-2.5">
-      <AddCourseDialog />
-      <div className="relative">
-        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search courses…"
-          aria-label="Search courses"
-          className="h-11 pl-9 text-base"
-        />
-      </div>
+    <section className="flex flex-col gap-3" aria-label="Course discovery">
       <div className="flex items-center justify-between gap-2">
-        <Select value={filter} onValueChange={(v) => setFilter(v as string)}>
-          <SelectTrigger
-            size="sm"
-            className="h-11 flex-1 text-sm"
-            aria-label="Filter courses"
-          >
-            <SelectValue>{filterLabel}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {filterGroups.map((group, groupIndex) => (
-              <div key={group.label}>
-                {groupIndex > 0 && <SelectSeparator />}
-                <SelectGroup>
-                  <SelectLabel>{group.label}</SelectLabel>
-                  {group.options.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </div>
-            ))}
-          </SelectContent>
-        </Select>
-        <output
-          aria-live="polite"
-          aria-label="Course results"
-          className="shrink-0 text-xs tabular-nums text-muted-foreground"
-        >
-          {filtered.length} of {courses.length} courses
-        </output>
+        <AddCourseDialog />
+        <Button variant="ghost" size="sm" onClick={clearAllFilters}><RotateCcw />Clear filters</Button>
       </div>
-      <div
-        ref={scrollParentRef}
-        role="list"
-        aria-label="Course catalog"
-        className="max-h-[calc(100vh-280px)] overflow-y-auto pr-1"
-      >
-        {filtered.length > 0 && (
-          <div
-            className="relative w-full"
-            style={{ height: rowVirtualizer.getTotalSize() }}
-          >
+      <div className="relative">
+        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        <Input value={search.query.q} onChange={(event) => search.setQuery({ q: event.target.value })} placeholder="Search by course code or title…" aria-label="Search courses" className="h-11 pl-9 text-base" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <FilterSelect label="Campus" value={search.query.campuses[0] ?? "all"} onChange={(value) => search.setQuery({ campuses: value === "all" ? [] : [value as "shanghai" | "new-york"] })} options={[{ value: "all", label: "All campuses" }, { value: "shanghai", label: "Shanghai" }, { value: "new-york", label: "New York" }]} />
+        <FilterSelect label="School" value={search.query.sourceIds[0] ?? "all"} onChange={(value) => search.setQuery({ sourceIds: value === "all" ? [] : [value] })} options={[{ value: "all", label: "All schools" }, ...catalog.bootstrap.sources.map((source) => ({ value: source.id, label: source.schoolName }))]} />
+        <FilterSelect label="Subject" value={search.query.subjects[0] ?? "all"} onChange={(value) => search.setQuery({ subjects: value === "all" ? [] : [value] })} options={[{ value: "all", label: "All subjects" }, ...catalog.bootstrap.filters.subjects.map((subject) => ({ value: subject.subject, label: subject.subject }))]} />
+        <FilterSelect label="Catalog term" value={search.query.catalogTerms[0] ?? "all"} onChange={(value) => search.setQuery({ catalogTerms: value === "all" ? [] : [value] })} options={[{ value: "all", label: "Any catalog pattern" }, ...catalog.bootstrap.filters.catalogTerms.map((term) => ({ value: term, label: term }))]} />
+        <FilterSelect label="Credits" value={search.query.minCredits === search.query.maxCredits && search.query.minCredits !== undefined ? String(search.query.minCredits) : "all"} onChange={(value) => search.setQuery(value === "all" ? { minCredits: undefined, maxCredits: undefined } : { minCredits: Number(value), maxCredits: Number(value) })} options={[{ value: "all", label: "Any credits" }, { value: "2", label: "2 credits" }, { value: "4", label: "4 credits" }]} />
+        <FilterSelect label="NYUSH fulfillment" value={search.query.fulfillsProgramId ?? "all"} onChange={(value) => search.setQuery({ fulfillsProgramId: value === "all" ? undefined : value })} options={[{ value: "all", label: "Any NYUSH mapping" }, ...programs.map((program) => ({ value: program.id, label: program.name }))]} />
+        <FilterSelect label="Local filter" value={localFilter} onChange={(value) => { setLocalFilter(value); search.setQuery({ crossListed: value === "cross" ? true : undefined }); }} options={[{ value: "all", label: "All results" }, { value: "custom", label: "My custom courses" }, { value: "cross", label: "Cross-listed" }, { value: "unplanned", label: "Not planned yet" }]} />
+      </div>
+
+      {(search.isStale || catalog.status === "stale") && <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">Offline — showing cached course results.</p>}
+      {sourceHealthIssue && <p role="status" className="rounded-lg border p-2 text-xs text-muted-foreground"><AlertTriangle className="mr-1 inline size-3.5" />Some Bulletin sources are stale or temporarily unavailable.</p>}
+      {search.status === "loading" && <div aria-label="Loading courses" className="space-y-2">{[0, 1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-xl bg-muted" />)}</div>}
+      {search.status === "error" && <div role="alert" className="rounded-xl border p-4 text-sm">Course search is temporarily unavailable. <Button size="sm" variant="outline" onClick={() => void search.retry()}>Retry</Button></div>}
+
+      {search.status !== "loading" && (
+        <div ref={scrollParentRef} role="list" aria-label="Course catalog" className="max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+          {displayItems.length > 0 && <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const course = filtered[virtualRow.index];
-              return (
-                <div
-                  key={virtualRow.key}
-                  ref={rowVirtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  role="listitem"
-                  className="absolute top-0 left-0 w-full pb-2"
-                  style={{ transform: `translateY(${virtualRow.start}px)` }}
-                >
-                  <CatalogCard
-                    course={course}
-                    isCustom={customIds.has(course.id)}
-                    onSelect={onSelectCourse}
-                    onMenuClosed={onMenuClosed}
-                  />
-                </div>
-              );
+              const item = displayItems[virtualRow.index];
+              return <div key={virtualRow.key} ref={rowVirtualizer.measureElement} data-index={virtualRow.index} role="listitem" className="absolute top-0 left-0 w-full pb-2" style={{ transform: `translateY(${virtualRow.start}px)` }}><CatalogCard item={item} sourceName={item.record ? sourceNames.get(item.record.sourceId) ?? item.record.sourceId : "Custom course"} onSelect={onSelectCourse} onMenuClosed={onMenuClosed} /></div>;
             })}
-          </div>
-        )}
-        {filtered.length === 0 && (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No courses match your search.
-          </p>
-        )}
+          </div>}
+          {(search.status === "empty" || (search.status === "ready" && displayItems.length === 0)) && <p className="py-10 text-center text-sm text-muted-foreground">No courses match these filters.</p>}
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-3">
+        <output aria-live="polite" aria-label="Course results" className="text-xs tabular-nums text-muted-foreground">{displayItems.length} courses</output>
+        {search.nextCursor && <Button variant="outline" disabled={search.status === "loading-more"} onClick={() => void search.loadMore()}>{search.status === "loading-more" ? "Loading…" : "Load more courses"}</Button>}
       </div>
-    </div>
+    </section>
   );
 }
