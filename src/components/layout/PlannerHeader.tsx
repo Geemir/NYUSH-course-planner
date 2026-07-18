@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import { MyReportsSheet } from "@/components/corrections/MyReportsSheet";
+import { NotificationMenu } from "@/components/corrections/NotificationMenu";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -72,6 +73,7 @@ export function PlannerHeader({
   const [profileOpen, setProfileOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const catalogPrograms = programs.filter(
     (program): program is CatalogProgram => "auditAuthority" in program,
   );
@@ -154,9 +156,11 @@ export function PlannerHeader({
               <CircleHelp aria-hidden="true" /><span className="hidden xl:inline">Help</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Planner support</DropdownMenuLabel>
-              <DropdownMenuItem className="min-h-11" onClick={() => setReportOpen(true)}><AlertCircle aria-hidden="true" />Report another issue</DropdownMenuItem>
-              <DropdownMenuItem className="min-h-11" onClick={() => setReportsOpen(true)}><BookOpen aria-hidden="true" />My reports</DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Planner support</DropdownMenuLabel>
+                <DropdownMenuItem className="min-h-11" onClick={() => setReportOpen(true)}><AlertCircle aria-hidden="true" />Report another issue</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" onClick={() => setReportsOpen(true)}><BookOpen aria-hidden="true" />My reports</DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -236,7 +240,7 @@ export function PlannerHeader({
               <Moon aria-hidden="true" />
             )}
           </Button>
-          <AuthControl />
+          <AuthControl onOpenReport={(id) => { setSelectedReportId(id); setReportsOpen(true); }} />
         </div>
       </nav>
       <ProgramProfileSheet
@@ -247,17 +251,18 @@ export function PlannerHeader({
         onSave={setProgramProfile}
       />
       <ReportIssueDialog open={reportOpen} onOpenChange={setReportOpen} context={{ target: { kind: "other", area: "planner" }, catalogReleaseId: bootstrap?.release?.id ?? null, label: "NYUSH Degree Planner", displayedValue: "General catalog or degree-planning issue" }} onSubmitted={() => setReportsOpen(true)} />
-      <MyReportsSheet open={reportsOpen} onOpenChange={setReportsOpen} />
+      <MyReportsSheet open={reportsOpen} onOpenChange={(open) => { setReportsOpen(open); if (!open) setSelectedReportId(null); }} initialReportId={selectedReportId} />
     </header>
   );
 }
 
-function AuthControl() {
+function AuthControl({ onOpenReport }: { onOpenReport(id: string): void }) {
   const { data: session, status } = useSession();
   if (status === "authenticated" && session?.user) {
     const label = session.user.email ?? "Account";
     return (
       <>
+        <NotificationMenu onOpenReport={onOpenReport} />
         {session.user.role === "admin" && (
           <Button
             variant="outline"
