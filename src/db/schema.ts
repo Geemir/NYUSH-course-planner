@@ -23,6 +23,12 @@ import type {
   CatalogCourseRecord,
   CatalogReleaseRef,
 } from "@/lib/catalog/types";
+import type {
+  CorrectionIssueType,
+  CorrectionStatus,
+  CorrectionTarget,
+} from "@/lib/corrections/types";
+import type { CorrectionOverlayInput } from "@/lib/corrections/policy";
 
 // ---------------------------------------------------------------------------
 // Auth.js (NextAuth) core tables — standard adapter schema.
@@ -315,8 +321,91 @@ export const catalogReleaseSource = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Correction Hub. Source snapshots remain immutable; applied corrections are
+// separate reviewed overlays with an append-only event trail.
+// ---------------------------------------------------------------------------
+
+export const correctionRequest = pgTable("correctionRequest", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  targetKind: text("targetKind").notNull(),
+  targetData: jsonb("targetData").$type<CorrectionTarget>().notNull(),
+  issueType: text("issueType").$type<CorrectionIssueType>().notNull(),
+  catalogReleaseId: text("catalogReleaseId"),
+  contextData: jsonb("contextData").$type<Record<string, unknown>>().notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  suggestedCorrection: text("suggestedCorrection"),
+  evidenceUrl: text("evidenceUrl"),
+  status: text("status").$type<CorrectionStatus>().notNull().default("submitted"),
+  assignedTo: text("assignedTo").references(() => users.id, { onDelete: "set null" }),
+  duplicateOfId: text("duplicateOfId"),
+  withdrawnAt: timestamp("withdrawnAt", { mode: "date" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+  closedAt: timestamp("closedAt", { mode: "date" }),
+}, (request) => [
+  index("correction_owner_updated").on(request.userId, request.updatedAt),
+  index("correction_status_created").on(request.status, request.createdAt),
+  index("correction_target").on(request.targetKind),
+]);
+
+export const correctionMessage = pgTable("correctionMessage", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  requestId: text("requestId").notNull().references(() => correctionRequest.id, { onDelete: "cascade" }),
+  authorUserId: text("authorUserId").references(() => users.id, { onDelete: "set null" }),
+  visibility: text("visibility", { enum: ["public", "internal"] }).notNull().default("public"),
+  body: text("body").notNull(),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+}, (message) => [index("correction_message_request_time").on(message.requestId, message.createdAt)]);
+
+export const correctionEvent = pgTable("correctionEvent", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  requestId: text("requestId").notNull().references(() => correctionRequest.id, { onDelete: "cascade" }),
+  actorUserId: text("actorUserId").references(() => users.id, { onDelete: "set null" }),
+  eventType: text("eventType").notNull(),
+  fromStatus: text("fromStatus").$type<CorrectionStatus>(),
+  toStatus: text("toStatus").$type<CorrectionStatus>(),
+  publicNote: text("publicNote"),
+  privateNote: text("privateNote"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+}, (event) => [index("correction_event_request_time").on(event.requestId, event.createdAt)]);
+
+export const catalogOverlay = pgTable("catalogOverlay", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  requestId: text("requestId").notNull().references(() => correctionRequest.id),
+  targetKind: text("targetKind").notNull(),
+  targetKey: text("targetKey").notNull(),
+  patchType: text("patchType").notNull(),
+  patchData: jsonb("patchData").$type<CorrectionOverlayInput>().notNull(),
+  sourceReleaseId: text("sourceReleaseId"),
+  status: text("status", { enum: ["active", "superseded"] }).notNull().default("active"),
+  appliedBy: text("appliedBy").references(() => users.id, { onDelete: "set null" }),
+  appliedAt: timestamp("appliedAt", { mode: "date" }).notNull().defaultNow(),
+  supersededAt: timestamp("supersededAt", { mode: "date" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+}, (overlay) => [
+  uniqueIndex("catalog_overlay_request_unique").on(overlay.requestId),
+  index("catalog_overlay_active_target").on(overlay.status, overlay.targetKind, overlay.targetKey),
+]);
+
+export const notification = pgTable("notification", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  requestId: text("requestId").references(() => correctionRequest.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  readAt: timestamp("readAt", { mode: "date" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+}, (item) => [index("notification_user_unread").on(item.userId, item.readAt, item.createdAt)]);
+
 export type UserRow = typeof users.$inferSelect;
 export type PlanRow = typeof plans.$inferSelect;
 export type CourseRow = typeof courses.$inferSelect;
 export type RuleRow = typeof rules.$inferSelect;
 export type CatalogSnapshotRow = typeof catalogSnapshot.$inferSelect;
+export type CorrectionRequestRow = typeof correctionRequest.$inferSelect;
+export type CatalogOverlayRow = typeof catalogOverlay.$inferSelect;
