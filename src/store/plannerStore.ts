@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { COURSES_BY_ID } from "@/lib/data";
 import { reconcileProgramSelection } from "@/lib/degreePlans";
 import {
   Allocation,
@@ -163,10 +162,8 @@ export const usePlannerStore = create<PlannerState>()(
       removeCustomCourse: (courseId) =>
         set((state) => ({
           customCourses: state.customCourses.filter((c) => c.id !== courseId),
-          // Keep the placement only if a built-in course backs the same id.
-          placements: COURSES_BY_ID.has(courseId)
-            ? state.placements
-            : state.placements.filter((p) => p.courseId !== courseId),
+          // Keep unresolved placements recoverable until catalog reconciliation.
+          placements: state.placements,
         })),
 
       recordFulfillmentFact: (fact) =>

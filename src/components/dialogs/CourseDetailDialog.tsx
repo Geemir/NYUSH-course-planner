@@ -26,7 +26,7 @@ import {
   SITES_BY_ID,
   activeCrossListedMajors,
   isActivelyCrossListed,
-} from "@/lib/data";
+} from "@/lib/clientReferenceData";
 import {
   GRADES,
   Grade,

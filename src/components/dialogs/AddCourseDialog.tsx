@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useCourseData } from "@/hooks/useCourseData";
-import { PROGRAMS_BY_ID, SITES_BY_ID } from "@/lib/data";
+import { PROGRAMS_BY_ID, SITES_BY_ID } from "@/lib/clientReferenceData";
 import { Course } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 

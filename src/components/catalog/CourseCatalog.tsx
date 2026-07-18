@@ -34,7 +34,7 @@ import {
   PROGRAMS_BY_ID,
   activeCrossListedMajors,
   isActivelyCrossListed,
-} from "@/lib/data";
+} from "@/lib/clientReferenceData";
 import { cn } from "@/lib/utils";
 import { Course, SEMESTER_IDS, semesterFullLabel } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";

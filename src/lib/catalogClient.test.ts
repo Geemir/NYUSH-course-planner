@@ -1,65 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   CatalogClientError,
-  catalogValueFromResponse,
   createCatalogClient,
   selectActiveCatalogPrograms,
 } from "@/lib/catalogClient";
 import { CatalogCourseQuerySchema } from "@/lib/catalog/contracts";
 
 describe("client catalog program boundary", () => {
-  it("preserves legacy fallback programs explicitly", () => {
-    const legacy = {
-      snapshot: {
-        id: "bootstrap",
-        sourceHash: "bootstrap-hash",
-        kind: "bootstrap-legacy" as const,
-      },
-      courses: [
-        {
-          id: "TEST-SHU 101",
-          title: "Test Course",
-          credits: 4,
-          department: "TEST-SHU",
-          prereqs: [],
-          offered: ["fall" as const],
-          sites: ["shanghai"],
-          fulfills: [{ programId: "test", categoryId: "foundation" }],
-          equivalentTo: [],
-          attributes: [],
-          tags: [],
-        },
-      ],
-      programs: [
-        {
-          id: "test",
-          name: "Test Program",
-          shortName: "Test",
-          type: "major" as const,
-          color: "#57068c",
-          categories: [
-            {
-              id: "foundation",
-              name: "Foundation",
-              isCapstone: false,
-              rule: {
-                kind: "allOf" as const,
-                courses: ["TEST-SHU 101"],
-              },
-            },
-          ],
-        },
-      ],
-      rules: [],
-    };
-
-    const value = catalogValueFromResponse(legacy);
-
-    expect(value.snapshot.kind).toBe("bootstrap-legacy");
-    expect(value.programs).toEqual(legacy.programs);
-    expect(value.programs.length).toBeGreaterThan(0);
-  });
-
   it("selects active rich Bulletin programs for the planner engines", () => {
     const snapshotId = "live-bulletin";
     const sourceUrl =
@@ -129,15 +76,15 @@ describe("client catalog program boundary", () => {
           ],
           sourceReferenceIds: ["TEST-SHU 101"],
           provenance: { sourceUrl, snapshotId, sourceHash: "hash" },
+          auditAuthority: "nyush-bulletin" as const,
+          eligibleProfileRoles: ["primaryMajor" as const, "secondMajor" as const],
         },
       ],
       rules: [],
     };
 
-    const value = catalogValueFromResponse(response);
-    const selected = selectActiveCatalogPrograms(value.programs, ["test"]);
+    const selected = selectActiveCatalogPrograms(response.programs, ["test"]);
 
-    expect(value.snapshot.kind).toBe("bulletin");
     expect(selected).toHaveLength(1);
     expect(selected[0]).toMatchObject({
       id: "test",

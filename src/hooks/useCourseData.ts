@@ -2,48 +2,65 @@
 
 import { useMemo } from "react";
 import { useCatalog } from "@/components/CatalogProvider";
-import { Course, CourseSchema } from "@/lib/types";
+import type { CatalogCourseRecord } from "@/lib/catalog/types";
+import { CourseSchema, type Course } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 
-/**
- * The live course catalog: built-in courses merged with user-added custom
- * courses (custom entries override built-ins with the same id).
- *
- * Custom courses are re-parsed through CourseSchema so that fields added to
- * the schema after a course was saved (e.g. `equivalentTo`) get their
- * defaults. Zustand's localStorage rehydration restores raw JSON and does NOT
- * re-run Zod, so without this a course saved by an older app version would be
- * missing newer array fields and crash code that reads them.
- */
+/** Adapts source-scoped catalog records to the official-code degree engines. */
 export function useCourseData() {
-  const customCourses = usePlannerStore((s) => s.customCourses);
-  const {
-    courses: catalog,
-    programs,
-    programsById,
-    snapshot,
-    rules,
-    loaded,
-  } = useCatalog();
+  const customCourses = usePlannerStore((state) => state.customCourses);
+  const catalog = useCatalog();
 
   return useMemo(() => {
-    const coursesById = new Map<string, Course>(catalog.map((c) => [c.id, c]));
+    const records: CatalogCourseRecord[] = [...catalog.recordsByStableId.values()];
+    const courseByStableId = new Map<string, Course>(
+      records.map((record) => [record.stableId, record.course]),
+    );
+    const coursesByOfficialCode = new Map<string, Course[]>();
+    records.forEach((record) => {
+      coursesByOfficialCode.set(record.code, [
+        ...(coursesByOfficialCode.get(record.code) ?? []),
+        record.course,
+      ]);
+    });
+
+    const coursesById = new Map<string, Course>();
+    coursesByOfficialCode.forEach((courses, code) => {
+      if (courses.length === 1) coursesById.set(code, courses[0]);
+    });
+
     const customIds = new Set<string>();
+    const validCustomCourses: Course[] = [];
     for (const raw of customCourses) {
       const parsed = CourseSchema.safeParse(raw);
-      if (!parsed.success) continue; // drop malformed legacy entries
-      coursesById.set(parsed.data.id, parsed.data);
+      if (!parsed.success) continue;
+      validCustomCourses.push(parsed.data);
       customIds.add(parsed.data.id);
+      coursesById.set(parsed.data.id, parsed.data);
+      coursesByOfficialCode.set(parsed.data.id, [parsed.data]);
     }
+
+    const courses = [
+      ...records
+        .filter((record) => !customIds.has(record.code))
+        .map((record) => record.course),
+      ...validCustomCourses,
+    ];
+
     return {
-      courses: [...coursesById.values()],
+      records,
+      courses,
+      courseByStableId,
+      coursesByOfficialCode,
       coursesById,
       customIds,
-      programs,
-      programsById,
-      snapshot,
-      rules,
-      loaded,
+      programs: catalog.programs,
+      programsById: catalog.programsById,
+      snapshot: catalog.snapshot,
+      rules: catalog.rules,
+      loaded: catalog.loaded,
+      status: catalog.status,
+      error: catalog.error,
     };
-  }, [customCourses, catalog, loaded, programs, programsById, rules, snapshot]);
+  }, [catalog, customCourses]);
 }

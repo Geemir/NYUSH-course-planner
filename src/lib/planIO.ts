@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { COURSES_BY_ID, PROGRAMS_BY_ID } from "@/lib/data";
+import { PROGRAMS_BY_ID } from "@/lib/clientReferenceData";
 import {
   Course,
   CourseSchema,
@@ -44,12 +44,7 @@ export function parsePlan(text: string): PlanSnapshot {
     const result = CourseSchema.safeParse(raw);
     if (result.success) customCourses.push(result.data);
   }
-  const knownIds = new Set([
-    ...COURSES_BY_ID.keys(),
-    ...customCourses.map((c) => c.id),
-  ]);
-
-  const placements = parsed.placements.filter((p) => knownIds.has(p.courseId));
+  const placements = parsed.placements;
 
   const studyAway: Partial<Record<SemesterId, string>> = {};
   for (const [key, value] of Object.entries(parsed.studyAway)) {

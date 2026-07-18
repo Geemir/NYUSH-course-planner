@@ -8,7 +8,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCourseData } from "@/hooks/useCourseData";
-import { PROGRAMS, SITES } from "@/lib/data";
+import { PROGRAMS, SITES } from "@/lib/clientReferenceData";
 import { Course, TERMS } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 

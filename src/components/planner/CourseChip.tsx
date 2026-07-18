@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
 import { placementCredits } from "@/lib/credits";
-import { PROGRAMS_BY_ID, isActivelyCrossListed } from "@/lib/data";
+import { PROGRAMS_BY_ID, isActivelyCrossListed } from "@/lib/clientReferenceData";
 import { cn } from "@/lib/utils";
 import { usePlannerStore } from "@/store/plannerStore";
 

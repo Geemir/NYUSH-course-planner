@@ -5,7 +5,6 @@ const stubs = vi.hoisted(() => ({
   search: vi.fn(),
   batch: vi.fn(),
   detail: vi.fn(),
-  legacy: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({ db: {} }));
@@ -21,7 +20,6 @@ vi.mock("@/lib/catalog/searchRepository", async (importOriginal) => {
     readCatalogCourse: stubs.detail,
   };
 });
-vi.mock("@/lib/repository", () => ({ getCatalogResponse: stubs.legacy }));
 
 import { CatalogUnavailableError } from "@/lib/catalog/searchRepository";
 import { GET as bootstrapGET } from "@/app/api/catalog/bootstrap/route";
@@ -46,7 +44,6 @@ describe("catalog route contracts", () => {
       missingStableIds: [],
     });
     stubs.detail.mockResolvedValue(null);
-    stubs.legacy.mockResolvedValue({ legacy: true });
   });
 
   it("serves bootstrap at request time with private no-store headers", async () => {
@@ -91,9 +88,11 @@ describe("catalog route contracts", () => {
     expect(await missing.json()).toEqual({ error: "course_not_found" });
   });
 
-  it("keeps the legacy endpoint available during client cutover", async () => {
-    const response = await legacyGET();
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ legacy: true });
+  it("redirects the retired full-catalog endpoint to bootstrap", async () => {
+    const response = await legacyGET(new Request("http://localhost/api/catalog"));
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/api/catalog/bootstrap",
+    );
   });
 });

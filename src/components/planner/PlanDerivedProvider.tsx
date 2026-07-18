@@ -7,7 +7,7 @@ import {
   type PlanDerivationInput,
   type PlanDerivedValue,
 } from "@/lib/derivePlan";
-import { HOME_SITE, SITES } from "@/lib/data";
+import { HOME_SITE, SITES } from "@/lib/clientReferenceData";
 import { usePlannerStore } from "@/store/plannerStore";
 
 const SITE_NAMES = new Map(SITES.map((site) => [site.id, site.name]));

@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { HOME_SITE, SITES, SITES_BY_ID } from "@/lib/data";
+import { HOME_SITE, SITES, SITES_BY_ID } from "@/lib/clientReferenceData";
 import { SemesterId } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 import { cn } from "@/lib/utils";

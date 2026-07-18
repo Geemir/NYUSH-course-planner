@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { getCatalogResponse } from "@/lib/repository";
 
-/** Public reference data from one active snapshot or the checked-in LKG. */
-export async function GET() {
-  return NextResponse.json(await getCatalogResponse(db));
+/** Compatibility redirect after the client moved to the bounded bootstrap API. */
+export async function GET(request: Request) {
+  return NextResponse.redirect(
+    new URL("/api/catalog/bootstrap", request.url),
+    308,
+  );
 }
