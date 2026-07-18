@@ -29,7 +29,19 @@ const globalForDb = globalThis as unknown as {
   __plannerDb?: ReturnType<typeof createDb>;
 };
 
-export const db = globalForDb.__plannerDb ?? createDb();
-if (process.env.NODE_ENV !== "production") globalForDb.__plannerDb = db;
+function buildTimeDb(): ReturnType<typeof createDb> {
+  // Auth.js inspects the Drizzle dialect while Next collects route metadata.
+  // A real node-postgres Drizzle object satisfies that inspection, while the
+  // unreachable loopback URL prevents accidental dependence on build data.
+  return drizzlePg("postgresql://build:build@127.0.0.1:1/build", { schema });
+}
+
+const isProductionBuild = process.env.NEXT_PHASE === "phase-production-build";
+export const db = isProductionBuild
+  ? buildTimeDb()
+  : globalForDb.__plannerDb ?? createDb();
+if (!isProductionBuild && process.env.NODE_ENV !== "production") {
+  globalForDb.__plannerDb = db;
+}
 
 export { schema };
