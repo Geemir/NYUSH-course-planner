@@ -194,6 +194,17 @@
   body { overflow-wrap: anywhere; }
 }
 
+.prototype-reduced-transparency .functional-glass,
+.prototype-reduced-transparency .functional-glass-strong {
+  background: var(--surface-raised);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.prototype-more-contrast { --border-subtle: currentColor; }
+.prototype-reduced-motion *,
+.prototype-reduced-motion *::before,
+.prototype-reduced-motion *::after { animation: none !important; transition: none !important; }
+
 [data-sonner-toaster] {
   z-index: var(--z-toast) !important;
 }
