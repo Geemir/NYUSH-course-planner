@@ -628,6 +628,8 @@ function programReferencing(
     name: "Reference Program",
     shortName: "REF",
     type: "major",
+    auditAuthority: "nyush-bulletin",
+    eligibleProfileRoles: ["primaryMajor", "secondMajor"],
     categories: [
       {
         id: "required-course",

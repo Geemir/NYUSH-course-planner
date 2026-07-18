@@ -175,6 +175,16 @@ const normalize = () =>
   normalizeBulletin(discovery, [subjectDocument, programDocument]);
 
 describe("normalizeBulletin", () => {
+  it("marks Shanghai programs as NYUSH Bulletin audit records", () => {
+    const program = normalize().programs[0];
+
+    expect(program.auditAuthority).toBe("nyush-bulletin");
+    expect(program.eligibleProfileRoles).toEqual([
+      "primaryMajor",
+      "secondMajor",
+    ]);
+  });
+
   it("manualizes a code-only local requirement absent from the inventory", () => {
     const unresolvedProgram: BulletinProgramDocument = {
       ...programDocument,

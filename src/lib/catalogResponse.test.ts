@@ -66,6 +66,8 @@ function bulletinResponse(): BulletinCatalogResponse {
         name: "Test Program",
         shortName: "Test",
         type: "major",
+        auditAuthority: "nyush-bulletin",
+        eligibleProfileRoles: ["primaryMajor", "secondMajor"],
         categories: [
           {
             id: "foundation",

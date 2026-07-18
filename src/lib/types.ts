@@ -287,7 +287,33 @@ export const CatalogCategorySchema = z.object({
 });
 export type CatalogCategory = z.infer<typeof CatalogCategorySchema>;
 
-export const CatalogProgramSchema = z.object({
+export const CatalogProgramAuditAuthoritySchema = z.enum([
+  "nyush-bulletin",
+  "reviewed-nyush-overlay",
+]);
+export type CatalogProgramAuditAuthority = z.infer<
+  typeof CatalogProgramAuditAuthoritySchema
+>;
+
+export const CatalogProgramProfileRoleSchema = z.enum([
+  "core",
+  "primaryMajor",
+  "secondMajor",
+  "minor",
+]);
+export type CatalogProgramProfileRole = z.infer<
+  typeof CatalogProgramProfileRoleSchema
+>;
+
+function defaultProfileRoles(
+  type: "major" | "core" | "minor",
+): CatalogProgramProfileRole[] {
+  if (type === "core") return ["core"];
+  if (type === "minor") return ["minor"];
+  return ["primaryMajor", "secondMajor"];
+}
+
+const CatalogProgramInputSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   shortName: z.string().min(1),
@@ -297,7 +323,17 @@ export const CatalogProgramSchema = z.object({
   sourceRows: z.array(CatalogSourceRowSchema),
   sourceReferenceIds: z.array(z.string()),
   provenance: CatalogProvenanceSchema,
+  auditAuthority: CatalogProgramAuditAuthoritySchema.default("nyush-bulletin"),
+  eligibleProfileRoles: z.array(CatalogProgramProfileRoleSchema).optional(),
 });
+
+export const CatalogProgramSchema = CatalogProgramInputSchema.transform(
+  (program) => ({
+    ...program,
+    eligibleProfileRoles:
+      program.eligibleProfileRoles ?? defaultProfileRoles(program.type),
+  }),
+);
 export type CatalogProgram = z.infer<typeof CatalogProgramSchema>;
 
 export const CatalogCandidateSchema = z.object({

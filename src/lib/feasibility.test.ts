@@ -93,6 +93,8 @@ describe("feasibility analyzer", () => {
       name: "P",
       shortName: "P",
       type: "major",
+      auditAuthority: "nyush-bulletin",
+      eligibleProfileRoles: ["primaryMajor", "secondMajor"],
       categories: [
         {
           id: "choice",
@@ -133,6 +135,8 @@ describe("feasibility analyzer", () => {
       name: "P",
       shortName: "P",
       type: "major",
+      auditAuthority: "nyush-bulletin",
+      eligibleProfileRoles: ["primaryMajor", "secondMajor"],
       categories: [
         {
           id: "manual",
@@ -190,6 +194,8 @@ describe("feasibility analyzer", () => {
       name: "P",
       shortName: "P",
       type: "major",
+      auditAuthority: "nyush-bulletin",
+      eligibleProfileRoles: ["primaryMajor", "secondMajor"],
       categories: [
         {
           id: "credits",

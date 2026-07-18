@@ -376,6 +376,8 @@ describe("progress", () => {
       name: "Bulletin Major",
       shortName: "BM",
       type: "major",
+      auditAuthority: "nyush-bulletin",
+      eligibleProfileRoles: ["primaryMajor", "secondMajor"],
       categories: [
         {
           id: "recursive",

@@ -563,11 +563,13 @@ function normalizeProgram(
     }
   }
 
+  const type = document.kind === "core" ? "core" : discovered!.kind;
+
   return {
     id: programId,
     name: document.title,
     shortName: document.title,
-    type: document.kind === "core" ? "core" : discovered!.kind,
+    type,
     categories,
     requirementRows,
     sourceRows,
@@ -579,6 +581,13 @@ function normalizeProgram(
       snapshotId,
       sourceHash: sourceHash(document),
     },
+    auditAuthority: "nyush-bulletin",
+    eligibleProfileRoles:
+      type === "core"
+        ? ["core"]
+        : type === "minor"
+          ? ["minor"]
+          : ["primaryMajor", "secondMajor"],
   };
 }
 
