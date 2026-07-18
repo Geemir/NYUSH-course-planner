@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { reconcileProgramSelection } from "@/lib/degreePlans";
-import {
+import { activeProgramIds, type ProgramProfile } from "@/lib/programProfile";
+import type {
   Allocation,
   Course,
   FulfillmentFact,
@@ -10,221 +11,207 @@ import {
   PlanSnapshot,
   SemesterId,
 } from "@/lib/types";
+import {
+  createHistory,
+  recordHistory,
+  redoHistory,
+  undoHistory,
+  type PlanHistory,
+} from "@/store/planHistory";
 
-interface PlannerState {
+export interface PlannerPresent {
   placements: Placement[];
   studyAway: Partial<Record<SemesterId, string>>;
   completedSemesters: SemesterId[];
   activePrograms: string[];
+  programProfile: ProgramProfile;
   customCourses: Course[];
   fulfillmentFacts: FulfillmentFact[];
   dismissedWarnings: string[];
   startYear: number;
-
-  placeCourse: (courseId: string, semesterId: SemesterId) => void;
-  removeCourse: (courseId: string) => void;
-  setAllocation: (courseId: string, allocation: Allocation) => void;
-  setSelectedCredits: (courseId: string, credits: number) => void;
-  setExpectedGrade: (courseId: string, grade: Grade | null) => void;
-  setStudyAway: (semesterId: SemesterId, siteId: string | null) => void;
-  toggleCompletedSemester: (semesterId: SemesterId) => void;
-  toggleProgram: (programId: string) => void;
-  setActivePrograms: (programIds: string[]) => void;
-  reconcilePrograms: (
-    validIds: readonly string[],
-    defaultIds: readonly string[],
-  ) => void;
-  addCustomCourse: (course: Course) => void;
-  removeCustomCourse: (courseId: string) => void;
-  recordFulfillmentFact: (fact: FulfillmentFact) => void;
-  removeFulfillmentFact: (factId: string) => void;
-  dismissWarning: (warningId: string) => void;
-  restoreWarning: (warningId: string) => void;
-  setStartYear: (year: number) => void;
-  importPlan: (snapshot: PlanSnapshot) => void;
-  reset: () => void;
 }
 
-const initialState = {
-  placements: [] as Placement[],
-  studyAway: {} as Partial<Record<SemesterId, string>>,
-  completedSemesters: [] as SemesterId[],
-  // Default to the CS + IMA double-major plan; swap via the degree-plan chooser.
+interface PlannerState extends PlannerPresent {
+  history: PlanHistory<PlannerPresent>;
+  canUndo: boolean;
+  canRedo: boolean;
+  undoLabel: string | null;
+  redoLabel: string | null;
+  placeCourse(courseId: string, semesterId: SemesterId): void;
+  removeCourse(courseId: string): void;
+  setAllocation(courseId: string, allocation: Allocation): void;
+  setSelectedCredits(courseId: string, credits: number): void;
+  setExpectedGrade(courseId: string, grade: Grade | null): void;
+  setStudyAway(semesterId: SemesterId, siteId: string | null): void;
+  toggleCompletedSemester(semesterId: SemesterId): void;
+  toggleProgram(programId: string): void;
+  setActivePrograms(programIds: string[]): void;
+  setProgramProfile(profile: ProgramProfile): void;
+  reconcilePrograms(validIds: readonly string[], defaultIds: readonly string[]): void;
+  addCustomCourse(course: Course): void;
+  removeCustomCourse(courseId: string): void;
+  recordFulfillmentFact(fact: FulfillmentFact): void;
+  removeFulfillmentFact(factId: string): void;
+  dismissWarning(warningId: string): void;
+  restoreWarning(warningId: string): void;
+  setStartYear(year: number): void;
+  importPlan(snapshot: PlanSnapshot): void;
+  reset(): void;
+  undo(): void;
+  redo(): void;
+}
+
+function profileFromIds(ids: readonly string[]): ProgramProfile {
+  const coreProgramId = ids.includes("core") ? "core" : ids[0] ?? "core";
+  const selected = ids.filter((id) => id !== coreProgramId);
+  return {
+    coreProgramId,
+    primaryMajorId: selected[0] ?? "cs",
+    secondMajorId: selected[1] ?? null,
+    minorIds: selected.slice(2),
+  };
+}
+
+const initialPresent: PlannerPresent = {
+  placements: [],
+  studyAway: {},
+  completedSemesters: [],
   activePrograms: ["core", "cs", "ima"],
-  customCourses: [] as Course[],
-  fulfillmentFacts: [] as FulfillmentFact[],
-  dismissedWarnings: [] as string[],
+  programProfile: {
+    coreProgramId: "core",
+    primaryMajorId: "cs",
+    secondMajorId: "ima",
+    minorIds: [],
+  },
+  customCourses: [],
+  fulfillmentFacts: [],
+  dismissedWarnings: [],
   startYear: 2025,
 };
 
+function presentFromState(state: PlannerPresent): PlannerPresent {
+  return structuredClone({
+    placements: state.placements,
+    studyAway: state.studyAway,
+    completedSemesters: state.completedSemesters,
+    activePrograms: state.activePrograms,
+    programProfile: state.programProfile,
+    customCourses: state.customCourses,
+    fulfillmentFacts: state.fulfillmentFacts,
+    dismissedWarnings: state.dismissedWarnings,
+    startYear: state.startYear,
+  });
+}
+
+export function plannerPersistedState(state: PlannerPresent): PlannerPresent {
+  return presentFromState(state);
+}
+
+function historyFields(history: PlanHistory<PlannerPresent>) {
+  return {
+    history,
+    canUndo: history.past.length > 0,
+    canRedo: history.future.length > 0,
+    undoLabel: history.past.at(-1)?.label ?? null,
+    redoLabel: history.future[0]?.label ?? null,
+  };
+}
+
 export const usePlannerStore = create<PlannerState>()(
   persist(
-    (set) => ({
-      ...initialState,
+    (set) => {
+      const mutate = (
+        label: string,
+        recipe: (present: PlannerPresent) => PlannerPresent,
+      ) => set((state) => {
+        const next = recipe(presentFromState(state));
+        const history = recordHistory(state.history, label, next);
+        return history === state.history
+          ? state
+          : { ...state, ...history.present, ...historyFields(history) };
+      });
 
-      // A course appears at most once in the plan: placing an already-placed
-      // course moves it, preserving its allocation choice.
-      placeCourse: (courseId, semesterId) =>
-        set((state) => {
-          const existing = state.placements.find((p) => p.courseId === courseId);
-          if (existing) {
-            return {
-              placements: state.placements.map((p) =>
-                p.courseId === courseId ? { ...p, semesterId } : p,
-              ),
-            };
-          }
-          return {
-            placements: [
-              ...state.placements,
-              { courseId, semesterId, allocation: "auto" },
-            ],
+      return {
+        ...initialPresent,
+        ...historyFields(createHistory(initialPresent)),
+        placeCourse: (courseId, semesterId) => mutate("Place course", (present) => {
+          const exists = present.placements.some((item) => item.courseId === courseId);
+          present.placements = exists
+            ? present.placements.map((item) => item.courseId === courseId ? { ...item, semesterId } : item)
+            : [...present.placements, { courseId, semesterId, allocation: "auto" }];
+          return present;
+        }),
+        removeCourse: (courseId) => mutate("Remove course", (present) => ({ ...present, placements: present.placements.filter((item) => item.courseId !== courseId) })),
+        setAllocation: (courseId, allocation) => mutate("Change course allocation", (present) => ({ ...present, placements: present.placements.map((item) => item.courseId === courseId ? { ...item, allocation } : item) })),
+        setSelectedCredits: (courseId, selectedCredits) => mutate("Change course credits", (present) => ({ ...present, placements: present.placements.map((item) => item.courseId === courseId ? { ...item, selectedCredits } : item) })),
+        setExpectedGrade: (courseId, grade) => mutate("Change expected grade", (present) => ({ ...present, placements: present.placements.map((item) => item.courseId === courseId ? { ...item, expectedGrade: grade ?? undefined } : item) })),
+        setStudyAway: (semesterId, siteId) => mutate("Change study-away site", (present) => {
+          if (siteId === null) delete present.studyAway[semesterId];
+          else present.studyAway[semesterId] = siteId;
+          return present;
+        }),
+        toggleCompletedSemester: (semesterId) => mutate("Toggle completed semester", (present) => ({ ...present, completedSemesters: present.completedSemesters.includes(semesterId) ? present.completedSemesters.filter((id) => id !== semesterId) : [...present.completedSemesters, semesterId] })),
+        toggleProgram: (programId) => mutate("Change tracked programs", (present) => {
+          const activePrograms = present.activePrograms.includes(programId) ? present.activePrograms.filter((id) => id !== programId) : [...present.activePrograms, programId];
+          return { ...present, activePrograms, programProfile: profileFromIds(activePrograms) };
+        }),
+        setActivePrograms: (programIds) => mutate("Change tracked programs", (present) => ({ ...present, activePrograms: [...programIds], programProfile: profileFromIds(programIds) })),
+        setProgramProfile: (programProfile) => mutate("Edit Program Profile", (present) => ({ ...present, programProfile: structuredClone(programProfile), activePrograms: activeProgramIds(programProfile) })),
+        reconcilePrograms: (validIds, defaultIds) => set((state) => {
+          const activePrograms = reconcileProgramSelection(state.activePrograms, validIds, defaultIds);
+          const present = {
+            ...presentFromState(state),
+            activePrograms,
+            programProfile: profileFromIds(activePrograms),
           };
+          const history = { ...state.history, present };
+          return { ...present, ...historyFields(history) };
         }),
-
-      removeCourse: (courseId) =>
-        set((state) => ({
-          placements: state.placements.filter((p) => p.courseId !== courseId),
-        })),
-
-      setAllocation: (courseId, allocation) =>
-        set((state) => ({
-          placements: state.placements.map((p) =>
-            p.courseId === courseId ? { ...p, allocation } : p,
-          ),
-        })),
-
-      setSelectedCredits: (courseId, credits) =>
-        set((state) => ({
-          placements: state.placements.map((placement) =>
-            placement.courseId === courseId
-              ? { ...placement, selectedCredits: credits }
-              : placement,
-          ),
-        })),
-
-      setExpectedGrade: (courseId, grade) =>
-        set((state) => ({
-          placements: state.placements.map((p) =>
-            p.courseId === courseId
-              ? { ...p, expectedGrade: grade ?? undefined }
-              : p,
-          ),
-        })),
-
-      setStudyAway: (semesterId, siteId) =>
-        set((state) => {
-          const studyAway = { ...state.studyAway };
-          if (siteId === null) {
-            delete studyAway[semesterId];
-          } else {
-            studyAway[semesterId] = siteId;
-          }
-          return { studyAway };
-        }),
-
-      toggleCompletedSemester: (semesterId) =>
-        set((state) => ({
-          completedSemesters: state.completedSemesters.includes(semesterId)
-            ? state.completedSemesters.filter((s) => s !== semesterId)
-            : [...state.completedSemesters, semesterId],
-        })),
-
-      toggleProgram: (programId) =>
-        set((state) => ({
-          activePrograms: state.activePrograms.includes(programId)
-            ? state.activePrograms.filter((p) => p !== programId)
-            : [...state.activePrograms, programId],
-        })),
-
-      // Replaces the tracked-program set wholesale (used by degree-plan presets).
-      setActivePrograms: (programIds) => set({ activePrograms: programIds }),
-
-      reconcilePrograms: (validIds, defaultIds) =>
-        set((state) => ({
-          activePrograms: reconcileProgramSelection(
-            state.activePrograms,
-            validIds,
-            defaultIds,
-          ),
-        })),
-
-      // Upserts by course id — re-importing an existing code replaces it,
-      // which also lets a custom course shadow/fix a built-in one.
-      addCustomCourse: (course) =>
-        set((state) => ({
-          customCourses: [
-            ...state.customCourses.filter((c) => c.id !== course.id),
-            course,
-          ],
-        })),
-
-      removeCustomCourse: (courseId) =>
-        set((state) => ({
-          customCourses: state.customCourses.filter((c) => c.id !== courseId),
-          // Keep unresolved placements recoverable until catalog reconciliation.
-          placements: state.placements,
-        })),
-
-      recordFulfillmentFact: (fact) =>
-        set((state) => ({
-          fulfillmentFacts: [
-            ...state.fulfillmentFacts.filter((item) => item.id !== fact.id),
-            fact,
-          ],
-        })),
-
-      removeFulfillmentFact: (factId) =>
-        set((state) => ({
-          fulfillmentFacts: state.fulfillmentFacts.filter(
-            (fact) => fact.id !== factId,
-          ),
-        })),
-
-      dismissWarning: (warningId) =>
-        set((state) => ({
-          dismissedWarnings: state.dismissedWarnings.includes(warningId)
-            ? state.dismissedWarnings
-            : [...state.dismissedWarnings, warningId],
-        })),
-
-      restoreWarning: (warningId) =>
-        set((state) => ({
-          dismissedWarnings: state.dismissedWarnings.filter(
-            (id) => id !== warningId,
-          ),
-        })),
-
-      setStartYear: (year) => set({ startYear: year }),
-
-      importPlan: (snapshot) =>
-        set({
+        addCustomCourse: (course) => mutate("Add custom course", (present) => ({ ...present, customCourses: [...present.customCourses.filter((item) => item.id !== course.id), course] })),
+        removeCustomCourse: (courseId) => mutate("Remove custom course", (present) => ({ ...present, customCourses: present.customCourses.filter((course) => course.id !== courseId) })),
+        recordFulfillmentFact: (fact) => mutate("Add requirement evidence", (present) => ({ ...present, fulfillmentFacts: [...present.fulfillmentFacts.filter((item) => item.id !== fact.id), fact] })),
+        removeFulfillmentFact: (factId) => mutate("Remove requirement evidence", (present) => ({ ...present, fulfillmentFacts: present.fulfillmentFacts.filter((fact) => fact.id !== factId) })),
+        dismissWarning: (warningId) => mutate("Dismiss warning", (present) => ({ ...present, dismissedWarnings: present.dismissedWarnings.includes(warningId) ? present.dismissedWarnings : [...present.dismissedWarnings, warningId] })),
+        restoreWarning: (warningId) => mutate("Restore warning", (present) => ({ ...present, dismissedWarnings: present.dismissedWarnings.filter((id) => id !== warningId) })),
+        setStartYear: (startYear) => mutate("Change start year", (present) => ({ ...present, startYear })),
+        importPlan: (snapshot) => mutate("Import plan", () => ({
           placements: snapshot.placements,
           studyAway: snapshot.studyAway,
           completedSemesters: snapshot.completedSemesters,
           activePrograms: snapshot.activePrograms,
+          programProfile: profileFromIds(snapshot.activePrograms),
           customCourses: snapshot.customCourses,
           fulfillmentFacts: snapshot.fulfillmentFacts ?? [],
           dismissedWarnings: snapshot.dismissedWarnings,
           startYear: snapshot.startYear,
+        })),
+        reset: () => mutate("Reset plan", () => presentFromState(initialPresent)),
+        undo: () => set((state) => {
+          const history = undoHistory(state.history);
+          return history === state.history ? state : { ...state, ...history.present, ...historyFields(history) };
         }),
-
-      reset: () => set(initialState),
-    }),
-    { name: "nyush-planner-v1" },
+        redo: () => set((state) => {
+          const history = redoHistory(state.history);
+          return history === state.history ? state : { ...state, ...history.present, ...historyFields(history) };
+        }),
+      };
+    },
+    {
+      name: "nyush-planner-v1",
+      partialize: (state) => plannerPersistedState(state) as PlannerState,
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<PlannerState>) };
+        if (!(persisted as Partial<PlannerState>).programProfile) {
+          merged.programProfile = profileFromIds(merged.activePrograms);
+        }
+        const history = createHistory(presentFromState(merged));
+        return { ...merged, ...historyFields(history) };
+      },
+    },
   ),
 );
 
-export function snapshotFromState(state: {
-  placements: Placement[];
-  studyAway: Partial<Record<SemesterId, string>>;
-  completedSemesters: SemesterId[];
-  activePrograms: string[];
-  customCourses: Course[];
-  fulfillmentFacts: FulfillmentFact[];
-  dismissedWarnings: string[];
-  startYear: number;
-}): PlanSnapshot {
+export function snapshotFromState(state: PlannerPresent): PlanSnapshot {
   return {
     version: 1,
     placements: state.placements,
