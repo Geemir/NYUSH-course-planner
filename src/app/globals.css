@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,31 +49,41 @@
 }
 
 :root {
-  /* Academic Workspace: NYU violet, neutral canvas, opaque working surfaces. */
-  --background: oklch(0.982 0.003 310);
-  --foreground: oklch(0.19 0.012 300);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.38 0.18 310);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.46 0.012 300);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --nyu-violet: #57068c;
+  --nyu-plum: #330662;
+  --nyu-lavender: #e6d9f2;
+  --surface-canvas: #f7f5f8;
+  --surface-content: #ffffff;
+  --surface-raised: #fbfafc;
+  --surface-glass: rgb(255 255 255 / 78%);
+  --text-primary: #1f1824;
+  --text-secondary: #665e6b;
+  --border-subtle: rgb(87 6 140 / 14%);
+  --focus-ring: #7b2cbf;
+  --background: var(--surface-canvas);
+  --foreground: var(--text-primary);
+  --card: var(--surface-content);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--nyu-violet);
+  --primary-foreground: #ffffff;
+  --secondary: #f0ebf3;
+  --secondary-foreground: var(--nyu-plum);
+  --muted: #f0edf2;
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--nyu-lavender);
+  --accent-foreground: var(--nyu-plum);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.55 0.15 310);
+  --border: var(--border-subtle);
+  --input: rgb(87 6 140 / 20%);
+  --ring: var(--focus-ring);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -88,30 +98,43 @@
   --z-modal: 60;
   --z-toast: 70;
   --z-tooltip: 80;
-  --motion-fast: 150ms;
-  --motion-standard: 220ms;
+  --motion-fast: 160ms;
+  --motion-standard: 260ms;
+  --content-max-width: 73.75rem;
+  --glass-blur-subtle: 12px;
+  --glass-blur-strong: 20px;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* Lighter violet primary so it stays readable on dark surfaces */
-  --primary: oklch(0.74 0.14 310);
-  --primary-foreground: oklch(0.17 0.05 310);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --nyu-violet: #b58ad3;
+  --nyu-plum: #e2ccef;
+  --nyu-lavender: #5e3976;
+  --surface-canvas: #141017;
+  --surface-content: #201923;
+  --surface-raised: #2a2130;
+  --surface-glass: rgb(29 22 33 / 82%);
+  --text-primary: #f8f4fa;
+  --text-secondary: #cbbfce;
+  --border-subtle: rgb(230 217 242 / 18%);
+  --focus-ring: #d0a6eb;
+  --background: var(--surface-canvas);
+  --foreground: var(--text-primary);
+  --card: var(--surface-content);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--nyu-violet);
+  --primary-foreground: #1b1020;
+  --secondary: #302737;
+  --secondary-foreground: var(--text-primary);
+  --muted: #302737;
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--nyu-lavender);
+  --accent-foreground: var(--text-primary);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.6 0.12 310);
+  --border: var(--border-subtle);
+  --input: rgb(230 217 242 / 24%);
+  --ring: var(--focus-ring);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -135,6 +158,7 @@
     @apply bg-background text-foreground;
     font-size: 1rem;
     line-height: 1.5;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
@@ -144,8 +168,54 @@
   }
 }
 
+@media (prefers-reduced-transparency: reduce) {
+  :root { --surface-glass: var(--surface-raised); }
+  .functional-glass, .functional-glass-strong {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root { --border-subtle: currentColor; }
+  * { text-decoration-thickness: max(1px, 0.08em); }
+}
+
+@media (forced-colors: active) {
+  * { forced-color-adjust: auto; }
+  :focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+}
+
+@media (pointer: coarse) {
+  button, [role="button"], input, select, textarea { min-height: 44px; }
+}
+
+@media (max-width: 40rem) {
+  body { overflow-wrap: anywhere; }
+}
+
 [data-sonner-toaster] {
   z-index: var(--z-toast) !important;
+}
+
+@layer components {
+  .functional-glass {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .functional-glass {
+      background: var(--surface-glass);
+      -webkit-backdrop-filter: saturate(135%) blur(var(--glass-blur-subtle));
+      backdrop-filter: saturate(135%) blur(var(--glass-blur-subtle));
+    }
+    .functional-glass-strong {
+      -webkit-backdrop-filter: saturate(145%) blur(var(--glass-blur-strong));
+      backdrop-filter: saturate(145%) blur(var(--glass-blur-strong));
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

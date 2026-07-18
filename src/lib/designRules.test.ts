@@ -60,12 +60,14 @@ describe("Academic Workspace design rules", () => {
       "--z-modal",
       "--z-toast",
       "--z-tooltip",
-      "--motion-fast: 150ms",
-      "--motion-standard: 220ms",
+      "--motion-fast: 160ms",
+      "--motion-standard: 260ms",
     ]) {
       expect(css).toContain(token);
     }
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(css).toContain("@media (prefers-reduced-transparency: reduce)");
+    expect(css).not.toMatch(/SF Pro(?: Text| Display)?/);
     expect(css).toMatch(/body\s*\{[\s\S]*?font-size:\s*1rem/);
   });
 
