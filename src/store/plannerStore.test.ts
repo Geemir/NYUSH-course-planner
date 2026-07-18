@@ -10,6 +10,7 @@ const initial: PlannerPresent = {
   placements: [], studyAway: {}, completedSemesters: [],
   activePrograms: ["core", "cs"],
   programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
+  unresolvedProgramIds: [],
   customCourses: [], fulfillmentFacts: [], dismissedWarnings: [], startYear: 2025,
 };
 

@@ -8,7 +8,9 @@ import type {
   FulfillmentFact,
   Grade,
   Placement,
+  PlanPlacementV2,
   PlanSnapshot,
+  PlanSnapshotV2,
   SemesterId,
 } from "@/lib/types";
 import {
@@ -25,6 +27,7 @@ export interface PlannerPresent {
   completedSemesters: SemesterId[];
   activePrograms: string[];
   programProfile: ProgramProfile;
+  unresolvedProgramIds: string[];
   customCourses: Course[];
   fulfillmentFacts: FulfillmentFact[];
   dismissedWarnings: string[];
@@ -47,6 +50,8 @@ interface PlannerState extends PlannerPresent {
   toggleProgram(programId: string): void;
   setActivePrograms(programIds: string[]): void;
   setProgramProfile(profile: ProgramProfile): void;
+  hydratePlan(snapshot: PlanSnapshotV2): void;
+  replacePlanV2(snapshot: PlanSnapshotV2): void;
   reconcilePrograms(validIds: readonly string[], defaultIds: readonly string[]): void;
   addCustomCourse(course: Course): void;
   removeCustomCourse(courseId: string): void;
@@ -83,6 +88,7 @@ const initialPresent: PlannerPresent = {
     secondMajorId: "ima",
     minorIds: [],
   },
+  unresolvedProgramIds: [],
   customCourses: [],
   fulfillmentFacts: [],
   dismissedWarnings: [],
@@ -96,6 +102,7 @@ function presentFromState(state: PlannerPresent): PlannerPresent {
     completedSemesters: state.completedSemesters,
     activePrograms: state.activePrograms,
     programProfile: state.programProfile,
+    unresolvedProgramIds: state.unresolvedProgramIds,
     customCourses: state.customCourses,
     fulfillmentFacts: state.fulfillmentFacts,
     dismissedWarnings: state.dismissedWarnings,
@@ -157,6 +164,34 @@ export const usePlannerStore = create<PlannerState>()(
         }),
         setActivePrograms: (programIds) => mutate("Change tracked programs", (present) => ({ ...present, activePrograms: [...programIds], programProfile: profileFromIds(programIds) })),
         setProgramProfile: (programProfile) => mutate("Edit Program Profile", (present) => ({ ...present, programProfile: structuredClone(programProfile), activePrograms: activeProgramIds(programProfile) })),
+        hydratePlan: (snapshot) => set(() => {
+          const present: PlannerPresent = {
+            placements: structuredClone(snapshot.placements),
+            studyAway: structuredClone(snapshot.studyAway),
+            completedSemesters: [...snapshot.completedSemesters],
+            activePrograms: activeProgramIds(snapshot.programProfile),
+            programProfile: structuredClone(snapshot.programProfile),
+            unresolvedProgramIds: [...snapshot.unresolvedProgramIds],
+            customCourses: structuredClone(snapshot.customCourses),
+            fulfillmentFacts: structuredClone(snapshot.fulfillmentFacts),
+            dismissedWarnings: [...snapshot.dismissedWarnings],
+            startYear: snapshot.startYear,
+          };
+          const history = createHistory(present);
+          return { ...present, ...historyFields(history) };
+        }),
+        replacePlanV2: (snapshot) => mutate("Use server plan", () => ({
+          placements: structuredClone(snapshot.placements),
+          studyAway: structuredClone(snapshot.studyAway),
+          completedSemesters: [...snapshot.completedSemesters],
+          activePrograms: activeProgramIds(snapshot.programProfile),
+          programProfile: structuredClone(snapshot.programProfile),
+          unresolvedProgramIds: [...snapshot.unresolvedProgramIds],
+          customCourses: structuredClone(snapshot.customCourses),
+          fulfillmentFacts: structuredClone(snapshot.fulfillmentFacts),
+          dismissedWarnings: [...snapshot.dismissedWarnings],
+          startYear: snapshot.startYear,
+        })),
         reconcilePrograms: (validIds, defaultIds) => set((state) => {
           const activePrograms = reconcileProgramSelection(state.activePrograms, validIds, defaultIds);
           const present = {
@@ -180,6 +215,7 @@ export const usePlannerStore = create<PlannerState>()(
           completedSemesters: snapshot.completedSemesters,
           activePrograms: snapshot.activePrograms,
           programProfile: profileFromIds(snapshot.activePrograms),
+          unresolvedProgramIds: [],
           customCourses: snapshot.customCourses,
           fulfillmentFacts: snapshot.fulfillmentFacts ?? [],
           dismissedWarnings: snapshot.dismissedWarnings,
@@ -221,6 +257,30 @@ export function snapshotFromState(state: PlannerPresent): PlanSnapshot {
     customCourses: state.customCourses,
     fulfillmentFacts: state.fulfillmentFacts,
     dismissedWarnings: state.dismissedWarnings,
+    startYear: state.startYear,
+  };
+}
+
+function isPlanPlacementV2(placement: Placement): placement is PlanPlacementV2 {
+  return "placementId" in placement && typeof placement.placementId === "string" && placement.placementId.length > 0;
+}
+
+export function snapshotV2FromState(
+  state: PlannerPresent,
+  catalogReleaseId: string | null,
+): PlanSnapshotV2 | null {
+  if (!state.placements.every(isPlanPlacementV2)) return null;
+  return {
+    version: 2,
+    catalogReleaseId,
+    placements: structuredClone(state.placements),
+    studyAway: structuredClone(state.studyAway),
+    completedSemesters: [...state.completedSemesters],
+    programProfile: structuredClone(state.programProfile),
+    unresolvedProgramIds: [...state.unresolvedProgramIds],
+    customCourses: structuredClone(state.customCourses),
+    fulfillmentFacts: structuredClone(state.fulfillmentFacts),
+    dismissedWarnings: [...state.dismissedWarnings],
     startYear: state.startYear,
   };
 }
