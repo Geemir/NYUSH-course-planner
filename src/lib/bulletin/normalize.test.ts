@@ -590,6 +590,58 @@ describe("normalizeBulletin", () => {
     });
   });
 
+  it("recognizes the Bulletin's natural pool-selection phrasings", () => {
+    const phrasings: BulletinProgramDocument = {
+      ...programDocument,
+      requirementTables: [
+        {
+          id: "pool-phrasings",
+          sectionId: "requirements",
+          rows: [
+            row("areaHeader", 0, "Disciplinary Electives"),
+            row("areaSubheader", 1, "Select two of the following:"),
+            row("course", 2, "MATH-SHU 235 Probability", ["MATH-SHU 235"], "4"),
+            row("course", 3, "MATH-SHU 238 Statistics", ["MATH-SHU 238"], "4"),
+            row("course", 4, "MATH-SHU 121 Calculus", ["MATH-SHU 121"], "4"),
+
+            row("areaHeader", 5, "Breadth"),
+            row("areaSubheader", 6, "Choose 3 courses from the following list:"),
+            row("course", 7, "CSCI-SHU 205 Topics", ["CSCI-SHU 205"], "4"),
+
+            row("areaHeader", 8, "Flexible Credits"),
+            row("areaSubheader", 9, "Select 8 credits of the following:"),
+            row("course", 10, "CSCI-UA 101", ["CSCI-UA 101"], "4"),
+          ],
+        },
+      ],
+    };
+
+    const categories = normalizeBulletin(discovery, [
+      subjectDocument,
+      phrasings,
+    ]).programs[0].categories;
+
+    expect(categories[0].requirement).toEqual({
+      kind: "choose",
+      count: 2,
+      children: [
+        { kind: "course", courseId: "MATH-SHU 235" },
+        { kind: "course", courseId: "MATH-SHU 238" },
+        { kind: "course", courseId: "MATH-SHU 121" },
+      ],
+    });
+    expect(categories[1].requirement).toEqual({
+      kind: "choose",
+      count: 3,
+      children: [{ kind: "course", courseId: "CSCI-SHU 205" }],
+    });
+    expect(categories[2].requirement).toEqual({
+      kind: "credits",
+      minimum: 8,
+      children: [{ kind: "course", courseId: "CSCI-UA 101" }],
+    });
+  });
+
   it("represents every semantic source row and preserves all structural rows", () => {
     const program = normalize().programs[0];
 

@@ -215,15 +215,47 @@ type Directive =
   | { kind: "choose"; count: number }
   | { kind: "credits"; minimum: number };
 
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
+function parseCount(value: string): number | undefined {
+  const numeric = Number(value);
+  if (Number.isInteger(numeric) && numeric > 0) return numeric;
+  return NUMBER_WORDS[value.toLowerCase()];
+}
+
+/**
+ * Recognizes the Bulletin's "pick from a pool" headers so pools become
+ * choose/credits nodes instead of a wall of individually-required rows:
+ *   "Select one:"                       → choose 1
+ *   "Select two of the following:"      → choose 2
+ *   "Choose 3 courses from the list:"   → choose 3
+ *   "Select one course from:"           → choose 1
+ *   "Complete 8 credits from:"          → credits 8
+ *   "Select 8 credits of the following" → credits 8
+ * Headers that name a count without a verb ("Electives (Two Courses)") stay
+ * unrecognized on purpose — they describe totals, not selection semantics.
+ */
 function explicitDirective(row: SourceTableRow): Directive | undefined {
   if (row.role !== "areaSubheader") return undefined;
-  if (/^select one:?$/i.test(row.text)) return { kind: "choose", count: 1 };
-  const creditPool = row.text.match(
-    /^complete (\d+(?:\.\d+)?) credits from:?$/i,
+  const text = row.text.trim().replace(/[.:]+$/, "");
+
+  const creditPool = text.match(
+    /^(?:complete|select|choose) (\d+(?:\.\d+)?) credits? (?:from|of)(?: the following(?: list)?| the list| these)?\b.*$/i,
   );
-  return creditPool
-    ? { kind: "credits", minimum: Number(creditPool[1]) }
-    : undefined;
+  if (creditPool) return { kind: "credits", minimum: Number(creditPool[1]) };
+
+  if (/^select one$/i.test(text)) return { kind: "choose", count: 1 };
+  const choosePool = text.match(
+    /^(?:select|choose) (\w+)(?: courses?| sequences?)? (?:of|from|among)(?: the)?(?: following| list| courses| options| below)?\b.*$/i,
+  );
+  if (choosePool) {
+    const count = parseCount(choosePool[1]);
+    if (count !== undefined) return { kind: "choose", count };
+  }
+  return undefined;
 }
 
 function parseCourseCodeList(value: string): string[] | undefined {

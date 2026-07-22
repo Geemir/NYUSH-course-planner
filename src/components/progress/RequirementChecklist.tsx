@@ -23,6 +23,7 @@ import type { ClientPlannerProgram } from "@/lib/catalogClient";
 import type {
   CategoryProgress,
   FulfillmentFact,
+  RequirementGap,
   RequirementNode,
 } from "@/lib/types";
 import { semesterTermName } from "@/lib/types";
@@ -238,18 +239,54 @@ function CategoryRow({
           </li>
         ))}
         {category.gaps
-          .filter((gap) => gap.kind === "ambiguous")
+          .filter((gap): gap is Extract<RequirementGap, { kind: "ambiguous" }> => gap.kind === "ambiguous")
           .map((gap) => (
             <li
               key={gap.label}
-              className="text-xs leading-relaxed text-muted-foreground"
+              className="rounded-lg border border-primary/25 bg-primary/5 p-2.5"
             >
-              {gap.label}
+              <p className="text-xs font-semibold text-primary">
+                Your choice — {gap.label.toLowerCase()}
+              </p>
+              {gap.candidateCourseIds.length > 0 && (
+                <>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Any of these count; you don&apos;t need them all:
+                  </p>
+                  <p className="mt-1 flex flex-wrap gap-1">
+                    {gap.candidateCourseIds.slice(0, 6).map((courseId) => (
+                      <span key={courseId} className="rounded bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                        {courseId}
+                      </span>
+                    ))}
+                    {gap.candidateCourseIds.length > 6 && (
+                      <span className="px-1 text-[11px] text-muted-foreground">
+                        +{gap.candidateCourseIds.length - 6} more in the catalog
+                      </span>
+                    )}
+                  </p>
+                </>
+              )}
             </li>
           ))}
-        {evidence.map((item) => (
+        {(evidence.length > 4 ? evidence.slice(0, 3) : evidence).map((item) => (
           <EvidenceRow key={item.factId} item={item} />
         ))}
+        {evidence.length > 4 && (
+          <li>
+            <details className="group">
+              <summary className="cursor-pointer list-none rounded-lg bg-muted/45 p-2.5 text-xs font-medium text-muted-foreground hover:bg-muted">
+                <span className="group-open:hidden">Show {evidence.length - 3} more Bulletin rows needing review…</span>
+                <span className="hidden group-open:inline">Hide extra Bulletin rows</span>
+              </summary>
+              <ul className="mt-1.5 flex flex-col gap-1.5">
+                {evidence.slice(3).map((item) => (
+                  <EvidenceRow key={item.factId} item={item} />
+                ))}
+              </ul>
+            </details>
+          </li>
+        )}
       </ul>
 
       {sourceUrl && (
