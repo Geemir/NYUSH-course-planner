@@ -71,7 +71,7 @@ describe("ProgramProfileSheet", () => {
     const onOpenChange = vi.fn();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<ProgramProfileSheet open onOpenChange={onOpenChange} programs={programs} profile={profile} onSave={() => undefined} />);
-    await user.type(screen.getByRole("searchbox", { name: "Search programs" }), "Data");
+    await user.type(screen.getByRole("searchbox", { name: "Filter programs" }), "Data");
     expect(screen.getAllByRole("option", { name: "Data Science" })).toHaveLength(2);
     await user.selectOptions(screen.getByLabelText("Primary major"), "data");
     await user.click(screen.getByRole("button", { name: "Cancel" }));

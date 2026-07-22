@@ -59,7 +59,13 @@ function FilterSelect({
   return (
     <Select value={value} onValueChange={(next) => onChange(next as string)}>
       <SelectTrigger size="sm" aria-label={label} className="h-10 min-w-32 flex-1">
-        <SelectValue />
+        {/* Base UI's Select.Value renders the raw value ("all") unless given a
+            function to map it — show the option's descriptive label instead. */}
+        <SelectValue>
+          {(current: string) =>
+            options.find((option) => option.value === current)?.label ?? current
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (

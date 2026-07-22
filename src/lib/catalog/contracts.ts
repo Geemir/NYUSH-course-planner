@@ -112,6 +112,8 @@ const CursorPayloadSchema = z.object({
   rank: z.number().int().min(0).max(4).optional().default(0),
 }).strict();
 export type CatalogCursorPayload = z.infer<typeof CursorPayloadSchema>;
+/** Encode input: `rank` may be omitted (defaults to 0) for pre-ranking callers. */
+export type CatalogCursorInput = z.input<typeof CursorPayloadSchema>;
 
 function base64UrlEncode(value: string): string {
   const bytes = new TextEncoder().encode(value);
@@ -126,7 +128,7 @@ function base64UrlDecode(value: string): string {
   return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
 }
 
-export function encodeCatalogCursor(payload: CatalogCursorPayload): string {
+export function encodeCatalogCursor(payload: CatalogCursorInput): string {
   return base64UrlEncode(JSON.stringify(CursorPayloadSchema.parse(payload)));
 }
 

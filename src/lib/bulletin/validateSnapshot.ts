@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isDirectiveRow } from "@/lib/bulletin/normalize";
 import type { BulletinSourceDocument } from "@/lib/bulletin/parseCoursePage";
 import type {
   BulletinProgramDocument,
@@ -363,18 +364,18 @@ function sourceRowGroups(rows: SourceTableRow[]): SourceTableRow[][] {
 }
 
 function semanticRowPaths(rows: SourceTableRow[]): Map<number, number[]> {
+  // Mirrors normalize.ts's semanticRowGroups + normalizeSemanticGroup exactly,
+  // reusing its directive detector so the two never drift out of sync.
   const groups: SourceTableRow[][] = [];
   for (const row of rows) {
-    if (row.role === "areaSubheader" || groups.length === 0) groups.push([]);
+    if (row.role === "areaSubheader" || isDirectiveRow(row) || groups.length === 0) {
+      groups.push([]);
+    }
     groups.at(-1)!.push(row);
   }
   const paths = new Map<number, number[]>();
   groups.forEach((group, groupIndex) => {
-    const directive =
-      group.length > 1 &&
-      group[0].role === "areaSubheader" &&
-      (/^select one:?$/i.test(group[0].text) ||
-        /^complete \d+(?:\.\d+)? credits from:?$/i.test(group[0].text));
+    const directive = group.length > 1 && isDirectiveRow(group[0]);
     group.forEach((row, rowIndex) => {
       const localPath = directive
         ? rowIndex === 0

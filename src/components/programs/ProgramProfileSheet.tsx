@@ -70,20 +70,24 @@ function RoleSelect({
   // stored value isn't in the list — show an explicit placeholder instead.
   const displayValue = selected ? selected.id : "";
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-medium">{label}</span>
-      <select
-        className="h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        value={displayValue}
-        onChange={(event) => onChange(event.target.value || null)}
-      >
-        {allowNone
-          ? <option value="">None</option>
-          : <option value="" disabled>{placeholder}</option>}
-        {options.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
-      </select>
+    <div>
+      {/* The requirement preview stays OUTSIDE the <label> so it doesn't leak
+          into the control's accessible name. */}
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium">{label}</span>
+        <select
+          className="h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          value={displayValue}
+          onChange={(event) => onChange(event.target.value || null)}
+        >
+          {allowNone
+            ? <option value="">None</option>
+            : <option value="" disabled>{placeholder}</option>}
+          {options.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
+        </select>
+      </label>
       <RequirementPreview program={selected} />
-    </label>
+    </div>
   );
 }
 

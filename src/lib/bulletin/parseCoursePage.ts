@@ -160,7 +160,12 @@ function parseCourse(
   $: LoadedPage,
   block: PageNode,
   context?: { source: CatalogSourceDefinition; sourceUrl: string },
-): SourceCourse {
+): SourceCourse | null {
+  // New York study-away catalogs are large and occasionally carry a malformed
+  // or placeholder course block. Skipping one there is far better than aborting
+  // a whole 50-subject school; the NYUSH audit source stays strict (throws), and
+  // the count/empty-catalog validation gates still catch a real parser failure.
+  const lenient = context?.source.campus === "new-york";
   const selection = $(block);
   const codeText = normalizedText(
     selection
@@ -170,6 +175,7 @@ function parseCourse(
   );
   const code = COURSE_ID.test(codeText) ? codeText : "";
   if (code === "") {
+    if (lenient) return null;
     throw new BulletinParseError("A Bulletin course block is missing its code.");
   }
 
@@ -183,6 +189,7 @@ function parseCourse(
   );
   const title = courseTitle($, block);
   if (title === "") {
+    if (lenient) return null;
     throw new BulletinParseError(`Bulletin course ${code} is missing its title.`);
   }
 
@@ -372,15 +379,23 @@ export function parseCoursePage(
   const context = configured
     ? { source: configured.source, sourceUrl: configured.sourceUrl }
     : undefined;
-  const courses = blocks.map((block) => parseCourse($, block, context));
+  const lenient = configured?.source.campus === "new-york";
+  const parsed = blocks
+    .map((block) => parseCourse($, block, context))
+    .filter((course): course is SourceCourse => course !== null);
   const codes = new Set<string>();
-  for (const course of courses) {
+  const courses: SourceCourse[] = [];
+  for (const course of parsed) {
     if (codes.has(course.code)) {
+      // NY catalogs occasionally repeat a block; keep the first and skip the
+      // rest. NYUSH stays strict so genuine duplicates surface loudly.
+      if (lenient) continue;
       throw new BulletinParseError(
         `Duplicate Bulletin course code: ${course.code}.`,
       );
     }
     codes.add(course.code);
+    courses.push(course);
   }
 
   return {

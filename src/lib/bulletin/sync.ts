@@ -283,6 +283,15 @@ export async function syncCatalogSource({
       source,
       expectedSubjectCount: discovery.subjects.length,
       previousCourseCount: previous?.activeCourseCount,
+      // A single-source study-away sync can't resolve references to courses in
+      // OTHER NY schools or NYUSH, so a large catalog legitimately shows many
+      // "unresolved" cross-references on first ingest. Scale the tolerance to the
+      // catalog size for New York sources; NYUSH (audit authority) keeps the
+      // strict default. empty-catalog / course-count-drop still guard real
+      // parse failures.
+      ...(source.campus === "new-york"
+        ? { maximumUnresolvedIncrease: Math.max(50, Math.ceil(candidate.courses.length * 0.5)) }
+        : {}),
     });
     assertPublishable(report);
     const publication = await publishSourceCandidate(db, candidate, report);

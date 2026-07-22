@@ -159,6 +159,46 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
   );
 }
 
+function MissingCourseList({ courseIds }: { courseIds: string[] }) {
+  const { coursesById } = usePlanDerived();
+  const [expanded, setExpanded] = useState(false);
+  const LIMIT = 6;
+  if (courseIds.length === 0) return null;
+  const shown = expanded ? courseIds : courseIds.slice(0, LIMIT);
+  return (
+    <>
+      {shown.map((courseId) => (
+        <li
+          key={courseId}
+          className="flex items-center gap-1.5 text-sm text-destructive/80"
+        >
+          <Circle className="size-3.5 shrink-0" />
+          <span className="font-mono text-xs">{courseId}</span>
+          <span className="truncate text-xs">{coursesById.get(courseId)?.title}</span>
+          <span className="ml-auto shrink-0 text-[11px]">not planned</span>
+        </li>
+      ))}
+      {courseIds.length > LIMIT && (
+        <li className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            {expanded ? "Show fewer" : `Show all ${courseIds.length} listed as required`}
+          </button>
+          {!expanded && (
+            <span className="text-[11px] text-muted-foreground">
+              — that&apos;s a lot; this may be a &ldquo;choose some&rdquo; requirement
+              mis-read as &ldquo;take all&rdquo; (see the note above).
+            </span>
+          )}
+        </li>
+      )}
+    </>
+  );
+}
+
 function CategoryRow({
   category,
   program,
@@ -225,24 +265,12 @@ function CategoryRow({
             </li>
           );
         })}
-        {category.missingCourseIds.map((courseId) => (
-          <li
-            key={courseId}
-            className="flex items-center gap-1.5 text-sm text-destructive/80"
-          >
-            <Circle className="size-3.5 shrink-0" />
-            <span className="font-mono text-xs">{courseId}</span>
-            <span className="truncate text-xs">
-              {coursesById.get(courseId)?.title}
-            </span>
-            <span className="ml-auto shrink-0 text-[11px]">not planned</span>
-          </li>
-        ))}
+        <MissingCourseList courseIds={category.missingCourseIds} />
         {category.gaps
           .filter((gap): gap is Extract<RequirementGap, { kind: "ambiguous" }> => gap.kind === "ambiguous")
-          .map((gap) => (
+          .map((gap, index) => (
             <li
-              key={gap.label}
+              key={`${gap.label}:${index}`}
               className="rounded-lg border border-primary/25 bg-primary/5 p-2.5"
             >
               <p className="text-xs font-semibold text-primary">
@@ -318,8 +346,35 @@ export function RequirementChecklist() {
   };
 
   return (
-    <Accordion>
-      {activeProgramObjs.map((program) => {
+    <>
+      <div
+        role="note"
+        className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100"
+      >
+        <p className="font-semibold">
+          These requirements are auto-extracted — please verify them yourself.
+        </p>
+        <p className="mt-1">
+          We use an LLM to read the NYU Bulletin, and it has a{" "}
+          <strong>high chance of getting requirements wrong</strong> — a
+          &ldquo;choose 2 of these&rdquo; can be mis-read as &ldquo;take all of
+          these,&rdquo; and the Bulletin itself changes over time. That&rsquo;s
+          why you can attach your own <em>confirmation records</em> to each
+          requirement. Treat this page as a planning{" "}
+          <strong>visualization, not an official audit</strong>: always check the{" "}
+          <a
+            className="underline"
+            href="https://bulletins.nyu.edu/undergraduate/shanghai/#programstext"
+            target="_blank"
+            rel="noreferrer"
+          >
+            latest NYU Shanghai Bulletin
+          </a>{" "}
+          and your advisor before relying on it.
+        </p>
+      </div>
+      <Accordion>
+        {activeProgramObjs.map((program) => {
         const progress = progressByProgram.get(program.id);
         if (!progress) return null;
         return (
@@ -357,6 +412,7 @@ export function RequirementChecklist() {
           </AccordionItem>
         );
       })}
-    </Accordion>
+      </Accordion>
+    </>
   );
 }

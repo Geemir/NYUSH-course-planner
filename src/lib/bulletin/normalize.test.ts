@@ -598,18 +598,20 @@ describe("normalizeBulletin", () => {
           id: "pool-phrasings",
           sectionId: "requirements",
           rows: [
+            // The real NYU Bulletin writes these as comment rows and appends the
+            // pool's credit-hours total to the instruction text.
             row("areaHeader", 0, "Disciplinary Electives"),
-            row("areaSubheader", 1, "Select two of the following:"),
+            row("comment", 1, "Select two of the following: 8"),
             row("course", 2, "MATH-SHU 235 Probability", ["MATH-SHU 235"], "4"),
             row("course", 3, "MATH-SHU 238 Statistics", ["MATH-SHU 238"], "4"),
             row("course", 4, "MATH-SHU 121 Calculus", ["MATH-SHU 121"], "4"),
 
             row("areaHeader", 5, "Breadth"),
-            row("areaSubheader", 6, "Choose 3 courses from the following list:"),
+            row("comment", 6, "Select five elective courses from the list below 20"),
             row("course", 7, "CSCI-SHU 205 Topics", ["CSCI-SHU 205"], "4"),
 
             row("areaHeader", 8, "Flexible Credits"),
-            row("areaSubheader", 9, "Select 8 credits of the following:"),
+            row("comment", 9, "Complete 8 credits from the following:"),
             row("course", 10, "CSCI-UA 101", ["CSCI-UA 101"], "4"),
           ],
         },
@@ -632,7 +634,7 @@ describe("normalizeBulletin", () => {
     });
     expect(categories[1].requirement).toEqual({
       kind: "choose",
-      count: 3,
+      count: 5,
       children: [{ kind: "course", courseId: "CSCI-SHU 205" }],
     });
     expect(categories[2].requirement).toEqual({

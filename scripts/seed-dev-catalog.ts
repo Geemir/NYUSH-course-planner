@@ -12,18 +12,20 @@
  *
  * A later successful `bulletin:sync` supersedes this seeded release.
  */
-import { db } from "@/db";
 import fallback from "@/data/catalog-fallback.json";
 import { getCatalogSource } from "@/lib/bulletin/sourceRegistry";
 import * as schema from "@/db/schema";
 import { CatalogCourseRecordSchema } from "@/lib/catalog/types";
 import { CatalogProgramSchema, CourseSchema } from "@/lib/types";
+import { assertDatabaseUnlocked } from "./lib/preflight-db-lock";
 
 const SOURCE_ID = "nyu-shanghai";
 const SNAPSHOT_ID = "recovery-fallback";
 const RELEASE_ID = "recovery-fallback-release";
 
 async function main() {
+  await assertDatabaseUnlocked();
+  const { db } = await import("@/db");
   const source = getCatalogSource(SOURCE_ID);
   const courses = CourseSchema.array().parse(fallback.courses);
   const programs = fallback.programs.map((input) => CatalogProgramSchema.parse(input));

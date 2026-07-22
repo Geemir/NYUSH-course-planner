@@ -227,35 +227,47 @@ function parseCount(value: string): number | undefined {
 }
 
 /**
- * Recognizes the Bulletin's "pick from a pool" headers so pools become
- * choose/credits nodes instead of a wall of individually-required rows:
- *   "Select one:"                       → choose 1
- *   "Select two of the following:"      → choose 2
- *   "Choose 3 courses from the list:"   → choose 3
- *   "Select one course from:"           → choose 1
- *   "Complete 8 credits from:"          → credits 8
- *   "Select 8 credits of the following" → credits 8
- * Headers that name a count without a verb ("Electives (Two Courses)") stay
- * unrecognized on purpose — they describe totals, not selection semantics.
+ * Recognizes the Bulletin's "pick from a pool" instruction rows so pools become
+ * choose/credits nodes instead of a wall of individually-required rows. NYU
+ * writes these as `.courselistcomment` rows (role "comment"), occasionally as
+ * area subheaders, and appends the pool's credit-hours total to the text:
+ *   "Select one of the following: 4"                 → choose 1
+ *   "Select two of the following: 8"                 → choose 2
+ *   "Select five elective courses from the list below 20" → choose 5
+ *   "Complete 8 credits from the following:"         → credits 8
+ *   "Select 8 credits of the following"              → credits 8
+ * A count with no verb ("Electives (Two Courses)") stays unrecognized on
+ * purpose — it's a total, not a selection instruction.
  */
 function explicitDirective(row: SourceTableRow): Directive | undefined {
-  if (row.role !== "areaSubheader") return undefined;
-  const text = row.text.trim().replace(/[.:]+$/, "");
+  if (row.role !== "areaSubheader" && row.role !== "comment") return undefined;
+  // Drop the trailing credit-hours total the Bulletin appends, then any
+  // trailing punctuation: "Select two of the following: 8" → "Select two of the following".
+  const text = row.text
+    .trim()
+    .replace(/\s+\d+(?:\.\d+)?\s*$/, "")
+    .replace(/[.:]+$/, "")
+    .trim();
 
   const creditPool = text.match(
-    /^(?:complete|select|choose) (\d+(?:\.\d+)?) credits? (?:from|of)(?: the following(?: list)?| the list| these)?\b.*$/i,
+    /^(?:complete|select|choose|take)\s+(\d+(?:\.\d+)?)\s+credits?\b/i,
   );
   if (creditPool) return { kind: "credits", minimum: Number(creditPool[1]) };
 
   if (/^select one$/i.test(text)) return { kind: "choose", count: 1 };
+  // A choose-N pool: a count followed somewhere by a "from a set" phrasing.
   const choosePool = text.match(
-    /^(?:select|choose) (\w+)(?: courses?| sequences?)? (?:of|from|among)(?: the)?(?: following| list| courses| options| below)?\b.*$/i,
+    /^(?:select|choose|take)\s+(\w+)\b.*\b(?:following|from|of the|list|below|these|among|electives?)\b/i,
   );
   if (choosePool) {
     const count = parseCount(choosePool[1]);
     if (count !== undefined) return { kind: "choose", count };
   }
   return undefined;
+}
+
+export function isDirectiveRow(row: SourceTableRow): boolean {
+  return explicitDirective(row) !== undefined;
 }
 
 function parseCourseCodeList(value: string): string[] | undefined {
@@ -405,7 +417,11 @@ function combineNodes(nodes: RequirementNode[]): RequirementNode {
 function semanticRowGroups(rows: SourceTableRow[]): SourceTableRow[][] {
   const groups: SourceTableRow[][] = [];
   for (const row of rows) {
-    if (row.role === "areaSubheader" || groups.length === 0) groups.push([]);
+    // A subheader or a "Select N of the following" instruction row starts a new
+    // group so the rows that follow become that pool's choose/credits children.
+    if (row.role === "areaSubheader" || isDirectiveRow(row) || groups.length === 0) {
+      groups.push([]);
+    }
     groups.at(-1)!.push(row);
   }
   return groups;

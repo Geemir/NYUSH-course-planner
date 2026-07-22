@@ -1,20 +1,23 @@
 /**
- * Fills the catalog with the 13 New York school inventories WITHOUT re-syncing
- * NYU Shanghai: the existing active nyu-shanghai snapshot (e.g. the seeded
- * recovery catalog) is reused as-is, and a composed release activates once
- * every enabled source has an active snapshot.
+ * Fills the catalog with the enabled New York school inventories WITHOUT
+ * re-syncing NYU Shanghai: the existing active nyu-shanghai snapshot (e.g. the
+ * seeded recovery catalog) is reused as-is, and a composed release activates
+ * once every enabled source has an active snapshot. (Dentistry and Professional
+ * Studies are disabled in sourceRegistry.ts — no undergraduate inventory.)
  *
  *   npx tsx --conditions=react-server scripts/fill-ny-catalog.ts
  *
  * Prints per-source outcomes and real diagnostics (the npm CLI swallows them).
  * Stop the dev server first when running against local PGlite.
  */
-import { db } from "@/db";
 import { createBulletinFetch } from "@/lib/bulletin/fetch";
 import { CATALOG_SOURCES } from "@/lib/bulletin/sourceRegistry";
 import { syncCatalogSources } from "@/lib/bulletin/syncAll";
+import { assertDatabaseUnlocked } from "./lib/preflight-db-lock";
 
 async function main() {
+  await assertDatabaseUnlocked();
+  const { db } = await import("@/db");
   const nySourceIds = CATALOG_SOURCES.filter(
     (source) => source.enabled && source.id !== "nyu-shanghai",
   ).map((source) => source.id);

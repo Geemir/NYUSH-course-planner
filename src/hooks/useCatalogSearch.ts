@@ -40,7 +40,7 @@ function cachedMatches(
   records: Iterable<CatalogCourseRecord>,
   query: CatalogCourseQuery,
 ): CatalogCourseRecord[] {
-  const text = query.q.toLowerCase();
+  const text = query.q.trim().toLowerCase();
   return [...records].filter((record) => {
     const haystack = `${record.code} ${record.course.title} ${record.course.description ?? ""}`.toLowerCase();
     if (text && !haystack.includes(text)) return false;
@@ -145,11 +145,20 @@ export function useCatalogSearch(injectedClient?: CatalogClient): CatalogSearchS
   }, [requestQuery, runSearch]);
 
   const setQuery = useCallback((patch: Partial<CatalogCourseQuery>) => {
-    setQueryState((current) => CatalogCourseQuerySchema.parse({
-      ...current,
-      ...patch,
-      cursor: undefined,
-    }));
+    setQueryState((current) => {
+      const parsed = CatalogCourseQuerySchema.parse({
+        ...current,
+        ...patch,
+        cursor: undefined,
+      });
+      // The schema trims `q`, which would strip a space the moment it's typed
+      // (the input is controlled) — so spaces become untypeable. Keep the user's
+      // raw text for display; requestQuery/the server still trim before searching.
+      if ("q" in patch) {
+        return { ...parsed, q: (patch.q ?? "").slice(0, 120) };
+      }
+      return parsed;
+    });
   }, []);
 
   const loadMore = useCallback((): Promise<void> => {
