@@ -230,11 +230,13 @@ export function CourseCatalog({
     <section className="flex flex-col gap-3" aria-label="Course discovery">
       <div className="flex items-center justify-between gap-2">
         <AddCourseDialog />
-        <Button variant="ghost" size="sm" onClick={clearAllFilters}><RotateCcw />Clear filters</Button>
       </div>
       <div className="relative">
         <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
         <Input value={search.query.q} onChange={(event) => search.setQuery({ q: event.target.value })} placeholder="Search by course code or title…" aria-label="Search courses" className="h-13 rounded-xl bg-card pl-10 text-[15px] shadow-xs" />
+      </div>
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={clearAllFilters}><RotateCcw />Clear filters</Button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <FilterSelect label="Campus" value={search.query.campuses[0] ?? "all"} onChange={(value) => search.setQuery({ campuses: value === "all" ? [] : [value as "shanghai" | "new-york"] })} options={[{ value: "all", label: "All campuses" }, { value: "shanghai", label: "Shanghai" }, { value: "new-york", label: "New York" }]} />

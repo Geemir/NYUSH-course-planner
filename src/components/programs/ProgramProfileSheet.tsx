@@ -55,30 +55,47 @@ function RoleSelect({
   value,
   options,
   allowNone = false,
+  placeholder = "Select a program…",
   onChange,
 }: {
   label: string;
   value: string | null;
   options: CatalogProgram[];
   allowNone?: boolean;
+  placeholder?: string;
   onChange(value: string | null): void;
 }) {
   const selected = options.find((program) => program.id === value);
+  // Never let the native select silently display its first option when the
+  // stored value isn't in the list — show an explicit placeholder instead.
+  const displayValue = selected ? selected.id : "";
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium">{label}</span>
       <select
         className="h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        value={value ?? ""}
+        value={displayValue}
         onChange={(event) => onChange(event.target.value || null)}
       >
-        {allowNone && <option value="">None</option>}
-        {!allowNone && value === "" && <option value="">Select a program</option>}
+        {allowNone
+          ? <option value="">None</option>
+          : <option value="" disabled>{placeholder}</option>}
         {options.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
       </select>
       <RequirementPreview program={selected} />
     </label>
   );
+}
+
+/** Drops selections the active catalog no longer knows (nullable roles only). */
+function sanitizeDraft(profile: ProgramProfile, programs: CatalogProgram[]): ProgramProfile {
+  if (programs.length === 0) return profile;
+  const known = new Set(programs.map((program) => program.id));
+  return {
+    ...profile,
+    secondMajorId: profile.secondMajorId && known.has(profile.secondMajorId) ? profile.secondMajorId : null,
+    minorIds: profile.minorIds.filter((id) => known.has(id)),
+  };
 }
 
 function ProgramProfileSheetEditor({
@@ -88,7 +105,7 @@ function ProgramProfileSheetEditor({
   profile,
   onSave,
 }: ProgramProfileSheetProps) {
-  const [draft, setDraft] = useState(profile);
+  const [draft, setDraft] = useState(() => sanitizeDraft(profile, programs));
   const [query, setQuery] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -96,10 +113,25 @@ function ProgramProfileSheetEditor({
     const term = query.trim().toLowerCase();
     return term ? programs.filter((program) => `${program.name} ${program.shortName}`.toLowerCase().includes(term)) : programs;
   }, [programs, query]);
-  const cores = filtered.filter((program) => eligible(program, "core"));
-  const primaryMajors = filtered.filter((program) => eligible(program, "primaryMajor"));
-  const secondMajors = filtered.filter((program) => eligible(program, "secondMajor") && program.id !== draft.primaryMajorId);
-  const minors = filtered.filter((program) => eligible(program, "minor") && ![draft.coreProgramId, draft.primaryMajorId, draft.secondMajorId].includes(program.id));
+  const searching = query.trim().length > 0;
+  // A selected program always stays visible in its list, even when the search
+  // term filters it out — otherwise the select can't display the real value.
+  const withSelected = (list: CatalogProgram[], id: string | null) => {
+    if (!id || list.some((program) => program.id === id)) return list;
+    const selected = programs.find((program) => program.id === id);
+    return selected ? [selected, ...list] : list;
+  };
+  const cores = withSelected(filtered.filter((program) => eligible(program, "core")), draft.coreProgramId);
+  const primaryMajors = withSelected(filtered.filter((program) => eligible(program, "primaryMajor")), draft.primaryMajorId);
+  const secondMajors = withSelected(filtered.filter((program) => eligible(program, "secondMajor") && program.id !== draft.primaryMajorId), draft.secondMajorId);
+  const minors = useMemo(() => {
+    const base = filtered.filter((program) => eligible(program, "minor") && ![draft.coreProgramId, draft.primaryMajorId, draft.secondMajorId].includes(program.id));
+    const visible = new Set(base.map((program) => program.id));
+    const checked = draft.minorIds
+      .filter((id) => !visible.has(id))
+      .flatMap((id) => { const found = programs.find((program) => program.id === id); return found ? [found] : []; });
+    return [...checked, ...base];
+  }, [draft.coreProgramId, draft.minorIds, draft.primaryMajorId, draft.secondMajorId, filtered, programs]);
   const validation = validateProgramProfile(draft, programs);
   const dirty = JSON.stringify(draft) !== JSON.stringify(profile);
   const needsGuidance = Boolean(draft.secondMajorId) || [...draft.minorIds, draft.secondMajorId].filter(Boolean).some((id) => programs.find((program) => program.id === id)?.auditAuthority === "reviewed-nyush-overlay");
@@ -120,10 +152,17 @@ function ProgramProfileSheetEditor({
           <SheetDescription>Choose the NYUSH programs whose requirements you want to plan. This is planning guidance, not an official degree audit.</SheetDescription>
         </SheetHeader>
 
-        <label className="relative block">
-          <Search className="pointer-events-none absolute top-3.5 left-3 size-4 text-muted-foreground" aria-hidden="true" />
-          <Input className="h-11 pl-9" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search majors and minors" aria-label="Search programs" />
-        </label>
+        <div>
+          <label className="relative block">
+            <Search className="pointer-events-none absolute top-3.5 left-3 size-4 text-muted-foreground" aria-hidden="true" />
+            <Input className="h-11 pl-9" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Type to filter the lists below…" aria-label="Filter programs" />
+          </label>
+          <p className="mt-1.5 text-xs text-muted-foreground" aria-live="polite">
+            {searching
+              ? `${filtered.length} of ${programs.length} programs match — pick from the dropdowns and minors below.`
+              : "Filters the Core, major, and minor lists below. Your current selections always stay visible."}
+          </p>
+        </div>
 
         <div className="space-y-6">
           <section aria-labelledby="core-program-heading">
@@ -134,7 +173,7 @@ function ProgramProfileSheetEditor({
 
           <section className="space-y-5" aria-labelledby="majors-heading">
             <h3 id="majors-heading" className="text-sm font-semibold">Majors</h3>
-            <RoleSelect label="Primary major" value={draft.primaryMajorId} options={primaryMajors} onChange={(primaryMajorId) => primaryMajorId && setDraft((current) => ({ ...current, primaryMajorId, secondMajorId: current.secondMajorId === primaryMajorId ? null : current.secondMajorId }))} />
+            <RoleSelect label="Primary major" value={draft.primaryMajorId} options={primaryMajors} placeholder="Select your major…" onChange={(primaryMajorId) => primaryMajorId && setDraft((current) => ({ ...current, primaryMajorId, secondMajorId: current.secondMajorId === primaryMajorId ? null : current.secondMajorId }))} />
             <RoleSelect label="Second major (optional)" value={draft.secondMajorId} options={secondMajors} allowNone onChange={(secondMajorId) => setDraft((current) => ({ ...current, secondMajorId }))} />
           </section>
 
@@ -167,7 +206,15 @@ function ProgramProfileSheetEditor({
 
         {validation.issues.length > 0 && (
           <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {validation.issues.map((issue) => <p key={`${issue.field}:${issue.programId}`}>{issue.message}</p>)}
+            {validation.issues.map((issue) => (
+              <p key={`${issue.field}:${issue.programId}`}>
+                {issue.code === "unresolved" && issue.field === "primaryMajor"
+                  ? "Select your primary major from the list above to start planning."
+                  : issue.code === "unresolved" && issue.field === "core"
+                    ? "Select the NYUSH Core program from the list above."
+                    : issue.message}
+              </p>
+            ))}
           </div>
         )}
 
@@ -193,7 +240,7 @@ function ProgramProfileSheetEditor({
 export function ProgramProfileSheet(props: ProgramProfileSheetProps) {
   return (
     <ProgramProfileSheetEditor
-      key={`${props.open}:${JSON.stringify(props.profile)}`}
+      key={`${props.open}:${props.programs.length}:${JSON.stringify(props.profile)}`}
       {...props}
     />
   );

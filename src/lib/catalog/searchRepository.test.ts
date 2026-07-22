@@ -73,8 +73,13 @@ beforeAll(async () => {
       sourceReferenceIds: [], externalCourseIds: [], unresolvedCourseIds: [],
     });
   }
+  const descriptionOnlyMatch = record("nyu-shanghai", "shanghai-active", "MATH-SHU 140", "Linear Algebra");
+  descriptionOnlyMatch.course.description = "Vector spaces with applications to data analysis.";
   const records = [
     record("nyu-shanghai", "shanghai-active", "CSCI-SHU 101", "Computer Science"),
+    record("nyu-shanghai", "shanghai-active", "CSCI-SHU 210", "Data Structures"),
+    record("nyu-shanghai", "shanghai-active", "BUSF-SHU 101", "Introduction to Data and Business Analytics"),
+    descriptionOnlyMatch,
     record("nyu-new-york-business", "stern-active", "ACCT-UB 1", "Financial Accounting"),
   ];
   for (const item of records) {
@@ -103,6 +108,33 @@ describe("active release catalog queries", () => {
     expect(search.items.map((item) => item.code)).toEqual(["ACCT-UB 1"]);
   });
 
+  it("ranks title matches above description matches, code matches first", async () => {
+    // Alphabetically BUSF < CSCI < MATH; relevance must reorder them:
+    // title-prefix (Data Structures) > title-substring > description-only.
+    const byRelevance = await searchCatalogCourses(db, CatalogCourseQuerySchema.parse({ q: "data" }));
+    expect(byRelevance.items.map((item) => item.code)).toEqual([
+      "CSCI-SHU 210",
+      "BUSF-SHU 101",
+      "MATH-SHU 140",
+    ]);
+    const byCode = await searchCatalogCourses(db, CatalogCourseQuerySchema.parse({ q: "CSCI-SHU 210" }));
+    expect(byCode.items[0]?.code).toBe("CSCI-SHU 210");
+  });
+
+  it("matches every query word regardless of order and keeps ranked cursor pages stable", async () => {
+    const reordered = await searchCatalogCourses(db, CatalogCourseQuerySchema.parse({ q: "structures data" }));
+    expect(reordered.items.map((item) => item.code)).toEqual(["CSCI-SHU 210"]);
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await searchCatalogCourses(db, CatalogCourseQuerySchema.parse({ q: "data", limit: 1, ...(cursor ? { cursor } : {}) }));
+      seen.push(...page.items.map((item) => item.code));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    expect(seen).toEqual(["CSCI-SHU 210", "BUSF-SHU 101", "MATH-SHU 140"]);
+  });
+
   it("reads detail and batch only from release members in request order", async () => {
     const stableIds = ["nyu-shanghai:CSCI-SHU 101", "missing", "nyu-new-york-business:ACCT-UB 1"];
     expect((await readCatalogCourse(db, stableIds[0]))?.code).toBe("CSCI-SHU 101");
@@ -115,7 +147,7 @@ describe("active release catalog queries", () => {
     const bootstrap = await readCatalogBootstrap(db);
     expect(bootstrap.release.id).toBe(releaseId);
     expect(bootstrap.sources).toHaveLength(2);
-    expect(bootstrap.filters.subjects.map((item) => item.subject)).toEqual(["ACCT-UB", "CSCI-SHU"]);
+    expect(bootstrap.filters.subjects.map((item) => item.subject)).toEqual(["ACCT-UB", "BUSF-SHU", "CSCI-SHU", "MATH-SHU"]);
     expect(bootstrap).not.toHaveProperty("courses");
   });
 

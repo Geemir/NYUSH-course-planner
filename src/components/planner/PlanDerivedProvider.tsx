@@ -34,7 +34,28 @@ export function PlanDerivedProvider({ children }: { children: React.ReactNode })
   const dismissedWarningIds = usePlannerStore(
     (state) => state.dismissedWarnings,
   );
-  const { coursesById, customIds, programs, rules } = useCourseData();
+  const {
+    coursesById: baseCoursesById,
+    courseByStableId,
+    customIds,
+    programs,
+    rules,
+  } = useCourseData();
+
+  // Codes shared by multiple Bulletin sources are excluded from the code-keyed
+  // map (they're ambiguous). Overlay the specific record each placement
+  // resolved to via its stable id so a placed cross-source course still carries
+  // credits, prereqs, offerings, and sites into every engine.
+  const coursesById = useMemo(() => {
+    const map = new Map(baseCoursesById);
+    for (const placement of placements) {
+      const stableId = placement.catalogCourseId;
+      if (!stableId || map.has(placement.courseId)) continue;
+      const course = courseByStableId.get(stableId);
+      if (course) map.set(placement.courseId, course);
+    }
+    return map;
+  }, [baseCoursesById, courseByStableId, placements]);
 
   const input = useMemo<PlanDerivationInput>(
     () => ({

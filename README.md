@@ -1,210 +1,120 @@
-# NYUSH Course Planner
+# NYUSH Course Planner v0.2
 
-An English-language, four-year academic planning workspace for students across
-all NYU Shanghai majors. The planner combines official Bulletin requirements
-and course details with prerequisite checks, study-away planning, live degree
-progress, feasibility guidance, and portable plan files.
+An English-language four-year degree planner for students enrolled at NYU Shanghai. It combines NYU Shanghai Bulletin requirements with a query-driven catalog of New York undergraduate courses for study-away exploration.
 
-The checked-in last-known-good Bulletin fallback currently contains **810
-courses and 43 programs**. A validated database snapshot takes precedence when
-one is available.
+This is not an official NYU degree audit, petition, advisor approval, registration authorization, or availability service. New York degree programs are not selectable, and a New York course affects NYUSH progress only through an active NYUSH requirement or reviewed planner overlay.
 
-## Quick start
+## What is in v0.2
 
-Requirements: Node.js 20+ and npm. Local development uses embedded PGlite, so a
-separate PostgreSQL server is not required.
+- One-column, eight-semester planner with drag, keyboard assignment, variable credits, Undo/Redo, local-first persistence, visible sync state, revision conflicts, and v1 plan migration backups.
+- Program Profile with NYUSH Core, one primary major, an optional distinct second major, and multiple NYUSH minors.
+- Query-driven catalog search, stable pagination, school/subject/campus filters, release-aware details, and hydration of placed courses.
+- Immutable source snapshots and composed releases for NYU Shanghai plus 13 New York school inventories, with last-known-good retention and fail-closed validation.
+- Correction Hub with student reports, My Reports, maintainer review, messages, notifications, immutable audit events, and typed overlays. Approval and application are separate actions.
+- NYU Academic Glass: NYU violet identity, legal platform font stack, Lucide icons, touch-safe controls, restrained functional glass, responsive preferences, English onboarding, Help, interest quotes, and the provided New York skyline.
 
-```powershell
-npm install
-npm run db:push
-npm run dev
-```
+The checked-in recovery catalog contains 810 NYUSH courses and 43 programs. The full New York catalog is database-backed and must be synchronized before use.
 
-Open [http://localhost:3000](http://localhost:3000). To start everything from a
-single PowerShell line:
+## Requirements
 
-```powershell
-npm install; npm run db:push; npm run dev
-```
+- Node.js 20 or newer (verified locally with Node 24)
+- npm 10 or newer
+- Embedded PGlite for single-process local development, or PostgreSQL for shared/staging/production use
 
-Useful commands:
+## Quick start: local development
 
 ```powershell
-npm test                     # unit and database integration tests
-npm run lint                 # ESLint
-npx tsc --noEmit             # TypeScript check
-npm run build                # optimized production build
-npm run bulletin:sync        # fetch, validate, and publish Bulletin data
-npm run bulletin:sync -- --source=nyu-new-york-arts-science
-npm run bulletin:sync -- --source=nyu-new-york-business --source=nyu-new-york-engineering
-npm run catalog:generate-fallback
+npm.cmd install
+Copy-Item .env.example .env.local
+npm.cmd run db:push
+npm.cmd run bulletin:sync
+npm.cmd run dev
 ```
 
-## Product experience
+Open [http://localhost:3000](http://localhost:3000). `db:push` is for a disposable local database only. Teams using a shared or migration-managed database must review and apply the ordered SQL migrations in `drizzle/` instead.
 
-- One chronological column covering all eight semesters.
-- Sticky course and degree-progress rails on wide screens; accessible sheets
-  on tablet and mobile.
-- Search and filters across the complete Bulletin catalog, with drag-and-drop
-  and keyboard-friendly “Add to semester” actions.
-- Major and entry-year selection, prerequisite/load/site warnings, study-away
-  controls, requirement progress, and deterministic feasibility guidance.
-- First-visit four-step onboarding plus an always-available **Guide** button.
-- A New York skyline inspiration banner with session-stable, interest-driven
-  quotes and a manual “Another thought” control.
-- Contextual course and requirement reporting, **My reports**, maintainer
-  review, in-app notifications, and typed reviewed overlays that never rewrite
-  archived Bulletin source data.
-- Light/dark themes, responsive dialogs, 44px compact touch targets, reduced
-  motion/transparency and higher-contrast fallbacks, and safe-area-aware mobile
-  actions.
-- Signed-out plans persist locally. Signed-in NYU users receive database-backed
-  plan synchronization. JSON import/export remains available in both modes.
+To start without a live Bulletin refresh, omit `bulletin:sync`; the checked-in NYUSH recovery catalog will remain available, but the 13-source New York GA claim will not be satisfied.
 
-## Official Bulletin data
-
-Degree requirements come only from the official
-[NYU Shanghai Undergraduate Bulletin](https://bulletins.nyu.edu/undergraduate/shanghai/).
-Study-away course inventory comes from the configured undergraduate school
-sections of the [New York Bulletin](https://bulletins.nyu.edu/undergraduate/).
-The synchronization pipeline:
-
-1. Discovers Shanghai major, minor, Core, and subject pages plus course pages
-   owned by each configured New York school. New York program pages are never
-   imported as NYUSH degree requirements.
-2. Archives source documents and parses program requirements, course details,
-   descriptions, credits, attributes, and source provenance.
-3. Normalizes references while preserving unresolved official references for
-   audit instead of fabricating courses.
-4. Validates the complete candidate snapshot with fail-closed coverage and
-   referential-integrity checks.
-5. Activates each immutable source snapshot independently, then atomically
-   composes a release from one healthy snapshot per enabled source.
-
-Official Bulletin content is trusted first-party data and publishes
-automatically after validation. A failed fetch, parse, validation, or activation
-leaves that source's prior healthy snapshot and the current release untouched.
-Re-running an unchanged source is a no-op based on its content hash.
-
-New York Bulletin text such as “typically offered” is catalog evidence, not a
-promise of semester availability, seats, eligibility, or NYUSH degree
-fulfillment. The expanded New York catalog currently requires a database-backed
-deployment; the checked-in fallback remains a bounded NYUSH recovery catalog.
+## Production-like verification
 
 ```powershell
-npm run bulletin:sync
+npm.cmd install
+npm.cmd test -- --maxWorkers=1
+npm.cmd run lint
+npx.cmd tsc --noEmit
+npm.cmd run build
+npm.cmd run start
 ```
 
-After a successful production sync, refresh and verify the disaster-recovery
-fallback from the same active snapshot:
+Production-build browser verification uses an isolated PGlite database and never adds an authentication bypass:
 
 ```powershell
-npm run catalog:generate-fallback
-npm test -- src/lib/data.test.ts
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
 ```
 
-User-submitted corrections and additions use the reviewed-overlay workflow:
-request, review, approve, then apply on top of the official snapshot. Approval
-and application are separate maintainer actions. Active overlays carry forward
-to new releases, become superseded when the Bulletin resolves them, and block a
-release when their target disappears or conflicts instead of being silently
-dropped.
-
-## NYU Academic Glass design system
-
-The interface uses the legal platform font stack (`-apple-system`,
-`BlinkMacSystemFont`, `Segoe UI`, Helvetica, Arial, sans-serif), Lucide icons,
-and NYU violet/plum/lavender semantic tokens. Apple-inspired craft is limited
-to restrained motion, careful hierarchy, and functional glass on floating or
-transient chrome. Semester cards, course rows, forms, evidence, and long-reading
-surfaces remain opaque.
-
-The glass primitive has an opaque default, uses `backdrop-filter` only when the
-browser supports it, and turns blur off for reduced-transparency preferences.
-Reduced motion, higher contrast, forced colors, coarse pointers, keyboard use,
-and 200% zoom are part of the design contract.
-
-The New York skyline photograph is by Diane Picchiottino and was provided from
-[Unsplash](https://unsplash.com/) as
-`diane-picchiottino-EZ_SHxykcgw-unsplash.jpg`; the checked-in optimized product
-asset is `public/nyc-skyline-diane-picchiottino.jpg`.
-
-## Accounts, database, and environment
-
-Without `DATABASE_URL`, development uses PGlite in `.pglite/`. Production uses
-PostgreSQL through Drizzle ORM. Create `.env.local` as needed:
-
-```dotenv
-AUTH_SECRET=replace-with-a-random-secret
-ADMIN_EMAILS=admin@nyu.edu
-
-# Production database
-# DATABASE_URL=postgresql://user:password@host:5432/database
-
-# Optional production OAuth providers
-# AUTH_MICROSOFT_ENTRA_ID_ID=...
-# AUTH_MICROSOFT_ENTRA_ID_SECRET=...
-# AUTH_MICROSOFT_ENTRA_ID_ISSUER=...
-# AUTH_GOOGLE_ID=...
-# AUTH_GOOGLE_SECRET=...
-
-# Optional legacy AI-assisted admin import/rule authoring
-# DEEPSEEK_API_KEY=...
-```
-
-Local sign-in uses a development-only magic link printed in the server console.
-Only `@nyu.edu` addresses are accepted. In production, configure Microsoft Entra
-ID or Google OAuth and a hosted PostgreSQL database.
-
-PGlite is single-process. Do not run database scripts against the same local
-`.pglite/` directory while `npm run dev` is using it. Production PostgreSQL does
-not have this limitation.
-
-## Production start
-
-Set `DATABASE_URL` and the authentication variables before building:
+Release-specific checks:
 
 ```powershell
-npm install
-npm run db:push
-npm run build
-npm run start
+$env:PGLITE_DIR='.pglite-staging'
+npm.cmd run verify:v0.2:sources -- --json
+
+$env:ALLOW_DESTRUCTIVE_MIGRATION_REHEARSAL='true'
+$env:MIGRATION_REHEARSAL_TARGET='pglite://memory/v0-2-rehearsal'
+npm.cmd run verify:v0.2:migration
 ```
 
-The UI uses local platform fonts and does not download a web font during build.
-On Node 24, building without `DATABASE_URL` may print known PGlite worker noise
-after successful route generation. The production PostgreSQL path is the
-supported clean build path.
+The source verifier is read-only. The migration rehearsal refuses targets that are not explicitly marked disposable or appear production-like.
+
+## Bulletin synchronization
+
+Degree requirements come only from the [NYU Shanghai Undergraduate Bulletin](https://bulletins.nyu.edu/undergraduate/shanghai/). Study-away inventory comes from the 13 configured school sections under the [NYU Undergraduate Bulletin](https://bulletins.nyu.edu/undergraduate/).
+
+```powershell
+npm.cmd run bulletin:sync
+npm.cmd run bulletin:sync -- --source=nyu-new-york-arts-science
+npm.cmd run bulletin:sync -- --source=nyu-new-york-business --source=nyu-new-york-engineering
+```
+
+The pipeline discovers only configured school boundaries, archives canonical documents, normalizes course provenance, excludes graduate records, quarantines ambiguity, validates counts/references/hosts, and activates a composed release atomically. A failed or anomalous refresh leaves the previous healthy source membership active.
+
+Bulletin records are catalog inventory. They do not confirm a current semester offering, open seats, instructor, registration eligibility, prerequisite clearance, or NYUSH fulfillment. Albert and live scheduling integration remain out of scope for v0.2.
+
+## Accounts, privacy, and administration
+
+Copy `.env.example` to `.env.local`, replace `AUTH_SECRET`, and configure OAuth variables for production. Development may use the console-only magic link; production providers never include it. Sign-in is restricted to `@nyu.edu` identities.
+
+`ADMIN_EMAILS` is a comma-separated allowlist; a stored `admin` role is also honored server-side. Every plan, report, message, and notification route scopes reads to its owner. Correction Hub private notes remain administrator-only, and maintainer decisions are planner-side guidance rather than official NYU action.
+
+Do not include real secrets or production hosts in `.env.example`, logs, release reports, screenshots, or test fixtures. PGlite is single-process: stop the development server before another command opens the same directory.
+
+## Design and attribution
+
+The interface uses `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, Helvetica, Arial, and standards-based fallbacks; no proprietary Apple font or copied SF Symbol is distributed. Lucide is the icon family, while NYU violet/plum/lavender remain the brand anchors. Dense academic surfaces are opaque; blur is limited to functional floating/transient chrome and falls back for reduced transparency, contrast, forced colors, and unsupported browsers.
+
+The skyline photograph is by Diane Picchiottino, supplied from [Unsplash](https://unsplash.com/) as `diane-picchiottino-EZ_SHxykcgw-unsplash.jpg`, and stored as `public/nyc-skyline-diane-picchiottino.jpg`.
 
 ## Architecture
 
-- **Framework:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4,
-  Base UI/shadcn components, dnd-kit.
-- **State:** Zustand stores raw planning facts and local persistence; derived
-  progress and validation stay outside the persisted state.
-- **Data:** Drizzle ORM over PostgreSQL/PGlite, immutable Bulletin snapshots,
-  transactional activation, and a generated JSON fallback.
-- **Deterministic engines:** allocation, prerequisites, validation, requirement
-  progress, special rules, and feasibility live in `src/lib/` and are covered by
-  unit/integration tests.
-- **API:** query-driven `/api/catalog` readers, `/api/plan`, owner-scoped
-  correction/notification routes, authentication routes, and admin-only
-  Bulletin sync plus correction review/application routes.
+- Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4, Base UI/shadcn, dnd-kit, Zustand
+- Drizzle ORM over PostgreSQL/PGlite, immutable Bulletin captures/snapshots, composed releases, and reviewed overlays
+- Public bounded catalog APIs; owner-scoped plan/correction/notification APIs; server-authorized administration
+- Vitest/PGlite unit and integration coverage plus Playwright/Chromium production-build journeys
 
-The older Albert/FOSE and AI-assisted paste importers remain admin utilities but
-are not the primary catalog or program-requirement source.
+Next.js 16 in this repository has version-specific conventions. Read the relevant guide under `node_modules/next/dist/docs/` before changing framework APIs.
 
-## Verification
+## Troubleshooting
 
-Before merging changes, run:
+- `No active catalog release`: run migrations and `bulletin:sync`, or seed the isolated E2E database only for tests.
+- PGlite lock/open errors: stop all processes using the configured `PGLITE_DIR` and retry.
+- Auth.js `UntrustedHost`: configure the exact deployment `AUTH_URL`/trusted-host setting; do not add a test login route.
+- Playwright cannot find Chromium: run `npx.cmd playwright install chromium` under the same user account.
+- A source verifier exits non-zero: inspect its missing/failed/count/level diagnostics; do not publish around the gate.
 
-```powershell
-npm test -- --maxWorkers=1
-npm run lint
-npx tsc --noEmit
-$env:DATABASE_URL='postgresql://planner:planner@127.0.0.1:5432/planner_build'
-npm run build
-```
+## Release evidence and rollback
 
-The temporary build URL only selects the clean node-postgres code path during
-static generation; the current routes do not connect to it while building.
+- [v0.2 acceptance matrix](docs/releases/v0.2-acceptance.md)
+- [v0.2 verification report](docs/releases/v0.2-verification-report.md)
+- [v0.2 rollback runbook](docs/releases/v0.2-rollback.md)
+
+Rollback reactivates a previously complete composed catalog release and restores the prior compatible application build. It never deletes source snapshots, v2 plans, v1 backups, correction events, messages, notifications, or overlays.

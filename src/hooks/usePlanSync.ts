@@ -12,6 +12,23 @@ export type PlanSyncState =
   | { status: "error"; pending: true; message: string }
   | { status: "conflict"; local: PlanSnapshotV2; server: StoredPlanEnvelope };
 
+/**
+ * Order-independent serialization for equality checks. Client-built snapshots
+ * (object-literal key order) and server-returned snapshots (Zod schema order)
+ * hold identical content in different key orders; a plain JSON.stringify diff
+ * would treat them as changed and fire a redundant save after every sync.
+ */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 export interface UsePlanSyncOptions {
   snapshot: PlanSnapshotV2;
   authenticated: boolean;
@@ -33,7 +50,7 @@ export function usePlanSync({
   fetcher = fetch,
   debounceMs = 800,
 }: UsePlanSyncOptions) {
-  const serialized = JSON.stringify(snapshot);
+  const serialized = stableStringify(snapshot);
   const [state, setState] = useState<PlanSyncState>(() => {
     if (authenticated && enabled && initialRevision !== null && initiallySynced) {
       return { status: "saved", revision: initialRevision, savedAt: initialSavedAt };
@@ -82,7 +99,7 @@ export function usePlanSync({
       }
       const plan = body.plan as StoredPlanEnvelope;
       revisionRef.current = plan.revision;
-      acknowledgedRef.current = JSON.stringify(plan.snapshot);
+      acknowledgedRef.current = stableStringify(plan.snapshot);
       setState({ status: "saved", revision: plan.revision, savedAt: plan.updatedAt });
     } catch (error) {
       if (controller.signal.aborted || generation !== generationRef.current) return;
@@ -129,7 +146,7 @@ export function usePlanSync({
   const useServer = useCallback(() => {
     if (state.status !== "conflict" || state.server.snapshot.version !== 2) return null;
     revisionRef.current = state.server.revision;
-    acknowledgedRef.current = JSON.stringify(state.server.snapshot);
+    acknowledgedRef.current = stableStringify(state.server.snapshot);
     setState({
       status: "saved",
       revision: state.server.revision,

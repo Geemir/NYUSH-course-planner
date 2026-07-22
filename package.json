@@ -1,6 +1,6 @@
 {
   "name": "nyush-course-planner",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,6 +14,7 @@
     "verify:v0.2:sources": "node --conditions=react-server --import tsx scripts/verify-v0-2-sources.ts",
     "verify:v0.2:migration": "node --conditions=react-server --import tsx scripts/rehearse-v0-2-migration.ts",
     "bulletin:sync": "node --conditions=react-server --import tsx scripts/sync-bulletin.ts",
+    "db:seed": "node --conditions=react-server --import tsx scripts/seed-dev-catalog.ts",
     "catalog:generate-fallback": "node --conditions=react-server --import tsx scripts/generate-catalog-fallback.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",

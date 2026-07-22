@@ -136,7 +136,10 @@ export function CatalogProvider({
   const [status, setStatus] = useState<CatalogStatus>("loading");
   const [error, setError] = useState<CatalogClientError | null>(null);
   const reconcilePrograms = usePlannerStore((state) => state.reconcilePrograms);
+  const repointPlacements = usePlannerStore((state) => state.repointPlacements);
+  const customCourses = usePlannerStore((state) => state.customCourses);
   const placements = usePlannerStore((state) => state.placements);
+  const codeResolveAttempts = useRef(new Set<string>());
   const pinnedStableIds = useMemo(() => placementCatalogIds(placements), [placements]);
   const pinnedStableIdsRef = useRef(pinnedStableIds);
 
@@ -222,6 +225,53 @@ export function CatalogProvider({
     courseCache.pin([...pinnedStableIds, ...detailPinnedIds.current]);
     if (status === "ready") void ensureCourses(pinnedStableIds);
   }, [courseCache, ensureCourses, pinnedStableIds, status]);
+
+  // Resolve placed courses whose record isn't reachable by its stored stableId
+  // — e.g. placements from a previous catalog release, or courses outside the
+  // loaded search window. We look them up by stable code, cache the record, and
+  // re-point the placement so its chip, credits, and detail view resolve.
+  useEffect(() => {
+    if (status !== "ready") return;
+    const controller = new AbortController();
+    const controllers = requestControllers.current;
+    controllers.add(controller);
+    let active = true;
+    (async () => {
+      const loadedCodes = new Set(
+        [...recordsRef.current.values()].map((record) => record.code),
+      );
+      const customIds = new Set(customCourses.map((course) => course.id));
+      const codes = [...new Set(placements.map((placement) => placement.courseId))].filter(
+        (code) =>
+          !loadedCodes.has(code) &&
+          !customIds.has(code) &&
+          !codeResolveAttempts.current.has(code),
+      );
+      const resolved: { courseId: string; catalogCourseId: string; titleSnapshot?: string }[] = [];
+      for (const code of codes.slice(0, 40)) {
+        codeResolveAttempts.current.add(code);
+        try {
+          const page = await catalogClient.search(
+            { q: code, campuses: [], sourceIds: [], subjects: [], levels: ["undergraduate"], catalogTerms: [], limit: 5 },
+            controller.signal,
+          );
+          const match = page.items.find((record) => record.code === code);
+          if (match) {
+            upsertRecords([match]);
+            resolved.push({ courseId: code, catalogCourseId: match.stableId, titleSnapshot: match.course.title.slice(0, 200) });
+          }
+        } catch {
+          if (controller.signal.aborted) return;
+        }
+      }
+      if (active && resolved.length > 0) repointPlacements(resolved);
+    })();
+    return () => {
+      active = false;
+      controller.abort();
+      controllers.delete(controller);
+    };
+  }, [catalogClient, customCourses, placements, repointPlacements, status, upsertRecords]);
 
   const programsById = useMemo(
     () => new Map(programs.map((program) => [program.id, program])),

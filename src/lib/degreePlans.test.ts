@@ -82,18 +82,32 @@ describe("dynamic degree plans", () => {
     ).toEqual(["core", "cs"]);
   });
 
-  it("reconciles persisted active programs through the planner store", () => {
+  it("reconciles the program profile through the planner store, preserving roles", () => {
     usePlannerStore.setState({
-      activePrograms: ["core", "humanities", "retired-major"],
+      programProfile: {
+        coreProgramId: "core",
+        primaryMajorId: "humanities",
+        secondMajorId: null,
+        minorIds: ["writing-minor", "retired-minor"],
+      },
+      activePrograms: ["core", "humanities", "writing-minor", "retired-minor"],
     });
     usePlannerStore.getState().reconcilePrograms(
       ["core", "cs", "humanities", "writing-minor"],
       ["core", "cs"],
     );
 
+    // The retired program is dropped; the surviving minor stays a minor
+    // (it must not be promoted into the second-major slot).
     expect(usePlannerStore.getState().activePrograms).toEqual([
       "core",
       "humanities",
+      "writing-minor",
     ]);
+    expect(usePlannerStore.getState().programProfile).toMatchObject({
+      primaryMajorId: "humanities",
+      secondMajorId: null,
+      minorIds: ["writing-minor"],
+    });
   });
 });

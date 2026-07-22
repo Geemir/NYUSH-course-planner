@@ -108,6 +108,8 @@ const CursorPayloadSchema = z.object({
   releaseId: z.string().min(1),
   code: z.string().min(1),
   stableId: z.string().min(1),
+  /** Relevance tier of the last row; absent in pre-ranking cursors. */
+  rank: z.number().int().min(0).max(4).optional().default(0),
 }).strict();
 export type CatalogCursorPayload = z.infer<typeof CursorPayloadSchema>;
 

@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { reconcileProgramSelection } from "@/lib/degreePlans";
 import { activeProgramIds, type ProgramProfile } from "@/lib/programProfile";
 import type {
   Allocation,
@@ -53,6 +52,7 @@ interface PlannerState extends PlannerPresent {
   hydratePlan(snapshot: PlanSnapshotV2): void;
   replacePlanV2(snapshot: PlanSnapshotV2): void;
   reconcilePrograms(validIds: readonly string[], defaultIds: readonly string[]): void;
+  repointPlacements(resolved: readonly { courseId: string; catalogCourseId: string; titleSnapshot?: string }[]): void;
   addCustomCourse(course: Course): void;
   removeCustomCourse(courseId: string): void;
   recordFulfillmentFact(fact: FulfillmentFact): void;
@@ -235,12 +235,55 @@ export const usePlannerStore = create<PlannerState>()(
           startYear: snapshot.startYear,
         })),
         reconcilePrograms: (validIds, defaultIds) => set((state) => {
-          const activePrograms = reconcileProgramSelection(state.activePrograms, validIds, defaultIds);
+          // Preserve the profile's role structure; only drop ids the active
+          // catalog no longer contains (falling back to defaults for the two
+          // required roles). Re-deriving roles from a flat id list would
+          // mis-promote a minor into the second-major slot.
+          const valid = new Set(validIds);
+          const profile = state.programProfile;
+          const programProfile: ProgramProfile = {
+            coreProgramId: valid.has(profile.coreProgramId)
+              ? profile.coreProgramId
+              : valid.has(defaultIds[0]) ? defaultIds[0] : profile.coreProgramId,
+            // An unresolved primary major stays unresolved — substituting the
+            // catalog's first major would silently commit an arbitrary choice
+            // (alphabetically, Biology). The profile sheet shows a "Select a
+            // major…" placeholder instead.
+            primaryMajorId: profile.primaryMajorId,
+            secondMajorId:
+              profile.secondMajorId && valid.has(profile.secondMajorId)
+                ? profile.secondMajorId
+                : null,
+            minorIds: profile.minorIds.filter((id) => valid.has(id)),
+          };
           const present = {
             ...presentFromState(state),
-            activePrograms,
-            programProfile: profileFromIds(activePrograms),
+            activePrograms: activeProgramIds(programProfile),
+            programProfile,
           };
+          const history = { ...state.history, present };
+          return { ...present, ...historyFields(history) };
+        }),
+        repointPlacements: (resolved) => set((state) => {
+          // Re-point placements whose catalogCourseId is stale (from a previous
+          // catalog release) to the current release's record, matched by stable
+          // course code. Not an undoable edit — a background reconciliation.
+          const byCode = new Map(resolved.map((item) => [item.courseId, item]));
+          let changed = false;
+          const placements = state.placements.map((placement) => {
+            const match = byCode.get(placement.courseId);
+            if (match && match.catalogCourseId !== placement.catalogCourseId) {
+              changed = true;
+              return {
+                ...placement,
+                catalogCourseId: match.catalogCourseId,
+                titleSnapshot: match.titleSnapshot ?? placement.titleSnapshot,
+              };
+            }
+            return placement;
+          });
+          if (!changed) return state;
+          const present = { ...presentFromState(state), placements };
           const history = { ...state.history, present };
           return { ...present, ...historyFields(history) };
         }),

@@ -4,18 +4,18 @@ import { authenticateAs } from "./auth";
 type PlannerFixtures = { studentPage: Page; adminPage: Page };
 
 export const test = base.extend<PlannerFixtures>({
-  studentPage: async ({ browser }, use) => {
+  studentPage: async ({ browser }, provide) => {
     const context = await browser.newContext();
     await authenticateAs(context, "student");
     const page = await context.newPage();
-    await use(page);
+    await provide(page);
     await context.close();
   },
-  adminPage: async ({ browser }, use) => {
+  adminPage: async ({ browser }, provide) => {
     const context = await browser.newContext();
     await authenticateAs(context, "admin");
     const page = await context.newPage();
-    await use(page);
+    await provide(page);
     await context.close();
   },
 });

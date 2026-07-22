@@ -108,13 +108,29 @@ export function analyzeFeasibility(opts: AnalyzeOpts): FeasibilityReport {
   };
   for (const id of [...needed]) addPrereqClosure(id, new Set());
 
+  // A requirement gap only makes the plan *infeasible* when nothing can satisfy
+  // it (an exhausted credit pool / attribute with no candidate). An ambiguous
+  // gap that still lists candidate courses ("choose 2 more electives") is the
+  // normal state of an in-progress plan — a pending choice, not a dead end.
+  const blockingGaps = requirementGaps.filter(
+    (gap) => !(gap.kind === "ambiguous" && gap.candidateCourseIds.length > 0),
+  );
+
   // Remaining = needed courses not already placed.
   const toSchedule = [...needed].filter((id) => !placedIds.has(id));
   if (toSchedule.length === 0) {
+    const overloadedTerms = collectOverloads(placements, coursesById);
+    const status: FeasibilityStatus = blockingGaps.length > 0
+      ? "infeasible"
+      : overloadedTerms.length > 0
+        ? "feasible-with-overload"
+        : requirementGaps.length > 0
+          ? "feasible"
+          : "complete";
     return {
-      status: requirementGaps.length === 0 ? "complete" : "infeasible",
+      status,
       suggestion: [],
-      overloadedTerms: collectOverloads(placements, coursesById),
+      overloadedTerms,
       unplaceable: [],
       requirementGaps,
       remaining: { courses: 0, credits: 0 },
@@ -222,7 +238,7 @@ export function analyzeFeasibility(opts: AnalyzeOpts): FeasibilityReport {
   );
 
   let status: FeasibilityStatus;
-  if (unplaceable.length > 0 || requirementGaps.length > 0) status = "infeasible";
+  if (unplaceable.length > 0 || blockingGaps.length > 0) status = "infeasible";
   else if (neededOverload || overloadedTerms.length > 0) status = "feasible-with-overload";
   else status = "feasible";
 

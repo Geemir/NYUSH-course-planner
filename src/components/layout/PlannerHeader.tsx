@@ -113,7 +113,7 @@ export function PlannerHeader({
           {progress.credits.planned}/{progress.credits.goal} credits
         </Badge>
 
-        <div className="hidden min-w-0 items-center gap-2 lg:flex">
+        <div className="hidden min-w-0 flex-1 items-center gap-2 lg:flex">
           <ProgramProfileSummary profile={programProfile} programs={catalogPrograms} onClick={() => setProfileOpen(true)} />
           <Select
             value={String(startYear)}
@@ -121,7 +121,7 @@ export function PlannerHeader({
           >
             <SelectTrigger
               aria-label="Entry year"
-              className="h-11 w-52 text-sm"
+              className="h-11 w-52 min-w-24 shrink text-sm [&>span]:truncate"
             >
               <SelectValue>
                 {(value: string) =>

@@ -157,10 +157,17 @@ export function reconcilePlanV2(
   const profile = validateProgramProfile(input.programProfile, bootstrap.programs);
   profile.issues.forEach((issue) => issues.push({ code: "invalid-profile", value: issue.programId ?? undefined, message: issue.message, blocking: true }));
   const activeIds = new Set(records.map((record) => record.stableId));
+  const customIds = new Set(input.customCourses.map((course) => course.id));
   const placements = input.placements.map((placement) => {
     if (placement.catalogCourseId && activeIds.has(placement.catalogCourseId)) return placement;
     const matches = records.filter((record) => record.code === placement.courseId);
     if (matches.length === 1) return { ...placement, catalogCourseId: matches[0].stableId, titleSnapshot: matches[0].course.title.slice(0, 200) };
+    if (matches.length === 0 && customIds.has(placement.courseId)) {
+      // A user-authored custom course legitimately has no catalog record.
+      const { catalogCourseId: _retired, ...rest } = placement;
+      void _retired;
+      return rest;
+    }
     issues.push({
       code: matches.length > 1 ? "ambiguous-course" : "unresolved-course",
       value: placement.courseId,

@@ -205,7 +205,7 @@
 }
 
 .skyline-overlay {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--nyu-plum) 88%, black) 0%, color-mix(in srgb, var(--nyu-plum) 56%, transparent) 58%, rgb(20 16 23 / 16%) 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--nyu-plum) 80%, black) 0%, color-mix(in srgb, var(--nyu-plum) 40%, transparent) 52%, rgb(15 12 20 / 22%) 100%);
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

@@ -10,8 +10,12 @@ export function programProfileLabel(
   programs: readonly CatalogProgram[],
 ): string {
   const byId = new Map(programs.map((program) => [program.id, program]));
-  const primary = byId.get(profile.primaryMajorId)?.shortName ?? profile.primaryMajorId;
+  const resolved = byId.get(profile.primaryMajorId);
+  // With the catalog loaded but the major unresolved (fresh visitor / legacy
+  // id), prompt for a choice rather than showing a raw id like "cs".
+  const primary = resolved?.shortName ?? (programs.length > 0 ? "Choose your programs" : profile.primaryMajorId);
   const additions = Number(Boolean(profile.secondMajorId)) + profile.minorIds.length;
+  if (!resolved && programs.length > 0) return primary;
   if (additions === 0) return primary;
   const parts = [
     profile.secondMajorId ? "1 major" : null,
@@ -33,7 +37,7 @@ export function ProgramProfileSummary({
     <Button
       type="button"
       variant="outline"
-      className="h-11 max-w-64 justify-between gap-2 px-3"
+      className="h-11 min-w-0 max-w-64 shrink justify-between gap-2 px-3"
       aria-label="Edit Program Profile"
       onClick={onClick}
     >

@@ -49,7 +49,7 @@ export function InspirationStrip() {
         alt=""
         fill
         sizes="100vw"
-        className="-z-20 object-cover object-bottom"
+        className="-z-20 scale-105 object-cover object-[center_42%] blur-[2px]"
       />
       <div
         className="skyline-overlay absolute inset-0 -z-10"

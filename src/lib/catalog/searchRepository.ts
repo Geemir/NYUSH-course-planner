@@ -61,7 +61,25 @@ export async function searchCatalogCourses(
 ): Promise<CatalogCoursePage> {
   const { release, snapshotIds } = await activeMembership(db);
   const predicates = [inArray(schema.catalogCourse.snapshotId, snapshotIds)];
-  if (query.q) predicates.push(ilike(schema.catalogCourse.searchText, `%${escapedLike(query.q)}%`));
+  // Every word of the query must appear somewhere in the search text, so
+  // "intro data science" matches regardless of word order.
+  const phrase = query.q.trim();
+  const terms = phrase.split(/\s+/).filter(Boolean).slice(0, 6);
+  for (const term of terms) {
+    predicates.push(ilike(schema.catalogCourse.searchText, `%${escapedLike(term)}%`));
+  }
+  // Relevance: exact code, then code prefix, then title prefix, then title
+  // substring, then matches elsewhere (subject/description). Alphabetical
+  // order within each tier keeps the cursor deterministic.
+  const escapedPhrase = escapedLike(phrase);
+  const rankExpression = terms.length
+    ? sql<number>`case
+        when ${schema.catalogCourse.code} ilike ${escapedPhrase} then 0
+        when ${schema.catalogCourse.code} ilike ${`${escapedPhrase}%`} then 1
+        when ${schema.catalogCourse.title} ilike ${`${escapedPhrase}%`} then 2
+        when ${schema.catalogCourse.title} ilike ${`%${escapedPhrase}%`} then 3
+        else 4 end`
+    : sql<number>`0`;
   if (query.sourceIds.length) predicates.push(inArray(schema.catalogCourse.sourceId, query.sourceIds));
   if (query.subjects.length) predicates.push(inArray(schema.catalogCourse.subject, query.subjects));
   if (query.levels.length) predicates.push(inArray(schema.catalogCourse.level, query.levels));
@@ -88,27 +106,40 @@ export async function searchCatalogCourses(
     const cursor = decodeCatalogCursor(query.cursor, release.id);
     predicates.push(
       or(
-        gt(schema.catalogCourse.code, cursor.code),
-        and(eq(schema.catalogCourse.code, cursor.code), gt(schema.catalogCourse.stableId, cursor.stableId)),
+        sql`${rankExpression} > ${cursor.rank}`,
+        and(
+          sql`${rankExpression} = ${cursor.rank}`,
+          or(
+            gt(schema.catalogCourse.code, cursor.code),
+            and(eq(schema.catalogCourse.code, cursor.code), gt(schema.catalogCourse.stableId, cursor.stableId)),
+          )!,
+        )!,
       )!,
     );
   }
   const rows = await db
-    .select({ data: schema.catalogCourse.data })
+    .select({ data: schema.catalogCourse.data, rank: rankExpression.as("search_rank") })
     .from(schema.catalogCourse)
     .where(and(...predicates))
-    .orderBy(asc(schema.catalogCourse.code), asc(schema.catalogCourse.stableId))
+    .orderBy(sql`search_rank`, asc(schema.catalogCourse.code), asc(schema.catalogCourse.stableId))
     .limit(query.limit + 1);
   const hasMore = rows.length > query.limit;
+  const page = rows.slice(0, query.limit);
   const overlays = await activeOverlays(db);
-  const items = rows.slice(0, query.limit).map((row) => applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), overlays).value);
+  const items = page.map((row) => applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), overlays).value);
   const last = items.at(-1);
+  const lastRank = page.at(-1)?.rank;
   return CatalogCoursePageSchema.parse({
     releaseId: release.id,
     items,
     nextCursor:
       hasMore && last
-        ? encodeCatalogCursor({ releaseId: release.id, code: last.code, stableId: last.stableId })
+        ? encodeCatalogCursor({
+            releaseId: release.id,
+            code: last.code,
+            stableId: last.stableId,
+            rank: Number(lastRank ?? 0),
+          })
         : null,
     totalApproximate: null,
   });

@@ -109,6 +109,14 @@ export function PlanSync() {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [retryKey, setRetryKey] = useState(0);
   const hydratedRef = useRef<string | null>(null);
+  // The load/reconcile runs once per release, not on every course fetch. The
+  // records cache grows as courses hydrate; reading it through a ref keeps that
+  // churn out of the effect deps so it can't refetch and clobber local edits.
+  const catalogRef = useRef(catalog);
+  useEffect(() => {
+    catalogRef.current = catalog;
+  });
+  const releaseId = catalog.bootstrap.release.id;
 
   useEffect(() => {
     if (sessionStatus !== "authenticated" || catalog.status !== "ready") return;
@@ -121,7 +129,8 @@ export function PlanSync() {
         const response = await fetch("/api/plan", { signal: controller.signal });
         if (!response.ok) throw new Error("Could not load the server plan.");
         const envelope = await response.json() as StoredPlanEnvelope | null;
-        const records = [...catalog.recordsByStableId.values()];
+        const { bootstrap } = catalogRef.current;
+        const records = [...catalogRef.current.recordsByStableId.values()];
         const confirmedLocal = localV2Snapshot();
 
         let result: PlanMigrationResult;
@@ -129,14 +138,14 @@ export function PlanSync() {
         let originalV1Json = JSON.stringify(snapshotFromState(usePlannerStore.getState()));
         if (envelope?.snapshot.version === 1) {
           originalV1Json = JSON.stringify(envelope.snapshot);
-          result = migratePlanV1(envelope.snapshot, catalog.bootstrap, records);
+          result = migratePlanV1(envelope.snapshot, bootstrap, records);
         } else if (confirmedLocal && !envelope) {
-          result = reconcilePlanV2(confirmedLocal, catalog.bootstrap, records);
+          result = reconcilePlanV2(confirmedLocal, bootstrap, records);
           sourceEnvelope = null;
         } else if (envelope?.snapshot.version === 2) {
-          result = reconcilePlanV2(envelope.snapshot, catalog.bootstrap, records);
+          result = reconcilePlanV2(envelope.snapshot, bootstrap, records);
         } else {
-          result = migratePlanV1(snapshotFromState(usePlannerStore.getState()), catalog.bootstrap, records);
+          result = migratePlanV1(snapshotFromState(usePlannerStore.getState()), bootstrap, records);
         }
 
         if (!active) return;
@@ -175,7 +184,9 @@ export function PlanSync() {
       active = false;
       controller.abort();
     };
-  }, [catalog.bootstrap, catalog.recordsByStableId, catalog.status, hydratePlan, retryKey, sessionStatus]);
+    // Keyed on the stable release id — not the churning records cache — so a
+    // reconcile happens once per release instead of on every course hydration.
+  }, [releaseId, catalog.status, hydratePlan, retryKey, sessionStatus]);
 
   if (sessionStatus !== "authenticated") {
     return <PlanSyncStatus state={{ status: "local-only", message: "Saved on this device." }} />;
