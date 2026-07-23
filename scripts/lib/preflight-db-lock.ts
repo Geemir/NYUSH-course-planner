@@ -54,10 +54,15 @@ function isListening(port: number): Promise<boolean> {
   });
 }
 
+/** True when a dev server is listening on one of the project's likely ports. */
+export async function isDevServerListening(): Promise<boolean> {
+  return (await Promise.all(candidatePorts().map(isListening))).some(Boolean);
+}
+
 /** Exits with a clear message if a dev server is holding the local database. */
 export async function assertDatabaseUnlocked(): Promise<void> {
   if (process.env.DATABASE_URL || process.env.ALLOW_DB_LOCK === "1") return;
-  const busy = (await Promise.all(candidatePorts().map(isListening))).some(Boolean);
+  const busy = await isDevServerListening();
   if (!busy) return;
   process.stderr.write(
     `\n[db] A dev server appears to be running (a project port is listening).\n` +

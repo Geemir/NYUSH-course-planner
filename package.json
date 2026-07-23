@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:full": "node --conditions=react-server --import tsx scripts/dev.ts",
+    "catalog:status": "node --conditions=react-server --import tsx scripts/catalog-status.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

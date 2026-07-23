@@ -137,7 +137,14 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
           />
           <div className="min-w-0">
             <p className="text-xs font-semibold">{item.label}</p>
-            <p className="text-xs text-muted-foreground">
+            {/* Planner status — sans, uppercase, status-colored. */}
+            <p
+              className={`text-[10px] font-semibold uppercase tracking-wide ${
+                fact
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-amber-600 dark:text-amber-400"
+              }`}
+            >
               {fact ? "Recorded as fulfilled" : label}
             </p>
           </div>
@@ -152,9 +159,15 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
           {fact ? `Remove ${action}` : `Record ${action}`}
         </Button>
       </div>
-      <blockquote className="max-w-[65ch] text-xs leading-relaxed text-muted-foreground">
-        {item.sourceText}
-      </blockquote>
+      {/* Verbatim Bulletin text — distinct serif/italic quote, not planner UI. */}
+      <figure className="max-w-[65ch] border-l-2 border-primary/40 pl-2.5">
+        <figcaption className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          From the NYU Bulletin
+        </figcaption>
+        <blockquote className="mt-0.5 font-serif text-[13px] italic leading-relaxed text-foreground/80">
+          {item.sourceText}
+        </blockquote>
+      </figure>
     </li>
   );
 }

@@ -23,6 +23,14 @@ The checked-in recovery catalog contains 810 NYUSH courses and 43 programs. The 
 
 ## Quick start: local development
 
+**Fastest (one command):** after `npm.cmd install` and copying `.env.local`,
+`npm.cmd run dev:full` applies the schema, seeds the catalog if empty, fills the
+New York study-away catalog, verifies it, then starts the dev server — in the
+right order for single-process PGlite. Flags: `-- --fresh` (rebuild the local DB
+from scratch), `-- --no-ny` (NYUSH only), `-- --port 3000`.
+
+Or step by step:
+
 ```powershell
 npm.cmd install
 Copy-Item .env.example .env.local
@@ -30,6 +38,11 @@ npm.cmd run db:push
 npm.cmd run bulletin:sync
 npm.cmd run dev
 ```
+
+> **PGlite is single-process.** Never run a database script (`db:seed`,
+> `fill-ny-catalog`, `resync-source`, `dev:full`) while `npm run dev` is up — it
+> corrupts the local database. Those scripts now detect a running server and
+> refuse; `npm run catalog:status` prints the current catalog health.
 
 Open [http://localhost:3000](http://localhost:3000). `db:push` is for a disposable local database only. Teams using a shared or migration-managed database must review and apply the ordered SQL migrations in `drizzle/` instead.
 
