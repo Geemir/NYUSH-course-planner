@@ -50,3 +50,6 @@ next-env.d.ts
 
 # Subagent-driven development scratch artifacts
 .superpowers/
+
+# Isolated implementation worktrees
+.worktrees/
