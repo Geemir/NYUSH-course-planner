@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { animateGuideStep } from "@/lib/guideMotion";
 
+function animationSpy() {
+  return vi.fn<typeof HTMLElement.prototype.animate>(
+    () => ({ cancel: vi.fn() }) as unknown as Animation,
+  );
+}
+
 describe("animateGuideStep", () => {
   it("moves forward content in from the right", () => {
-    const animate = vi.fn(
-      (
-        _keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
-        _options?: number | KeyframeAnimationOptions,
-      ) => ({ cancel: vi.fn() }) as unknown as Animation,
-    );
+    const animate = animationSpy();
     const element = { animate } as unknown as HTMLElement;
 
     animateGuideStep(element, "forward", false);
@@ -27,12 +28,7 @@ describe("animateGuideStep", () => {
   });
 
   it("reverses the spatial direction for Back", () => {
-    const animate = vi.fn(
-      (
-        _keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
-        _options?: number | KeyframeAnimationOptions,
-      ) => ({ cancel: vi.fn() }) as unknown as Animation,
-    );
+    const animate = animationSpy();
 
     animateGuideStep(
       { animate } as unknown as HTMLElement,
@@ -47,12 +43,7 @@ describe("animateGuideStep", () => {
   });
 
   it("uses a restrained vertical entrance for the first step", () => {
-    const animate = vi.fn(
-      (
-        _keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
-        _options?: number | KeyframeAnimationOptions,
-      ) => ({ cancel: vi.fn() }) as unknown as Animation,
-    );
+    const animate = animationSpy();
 
     animateGuideStep({ animate } as unknown as HTMLElement, "enter", false);
 
