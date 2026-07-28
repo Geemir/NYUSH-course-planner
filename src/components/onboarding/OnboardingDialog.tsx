@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   CalendarRange,
   ChartNoAxesCombined,
@@ -16,6 +16,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import {
+  animateGuideStep,
+  type GuideMotionDirection,
+} from "@/lib/guideMotion";
 
 type GuideStep = {
   title: string;
@@ -69,18 +73,45 @@ export function OnboardingDialog({
   returnFocusRef,
 }: OnboardingDialogProps) {
   const [stepIndex, setStepIndex] = useState(0);
+  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const directionRef = useRef<GuideMotionDirection>("enter");
 
   const step = GUIDE_STEPS[stepIndex];
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === GUIDE_STEPS.length - 1;
   const StepIcon = step.icon;
+  useEffect(() => {
+    if (!open || !contentElement) return;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const animation = animateGuideStep(
+      contentElement,
+      directionRef.current,
+      reduceMotion,
+    );
+    return () => animation?.cancel();
+  }, [contentElement, open, stepIndex]);
+
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) setStepIndex(0);
+    if (!nextOpen) {
+      directionRef.current = "enter";
+      setStepIndex(0);
+    }
     onOpenChange(nextOpen);
   };
   const handleComplete = () => {
+    directionRef.current = "enter";
     setStepIndex(0);
     onComplete();
+  };
+  const moveToStep = (direction: "forward" | "backward") => {
+    directionRef.current = direction;
+    setStepIndex((current) =>
+      current + (direction === "forward" ? 1 : -1),
+    );
   };
 
   return (
@@ -112,18 +143,20 @@ export function OnboardingDialog({
             </div>
           </div>
 
-          <div className="mb-5 flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <StepIcon className="size-6" aria-hidden="true" />
+          <div ref={setContentElement}>
+            <div className="mb-5 flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <StepIcon className="size-6" aria-hidden="true" />
+            </div>
+            <DialogTitle className="text-xl leading-tight font-semibold tracking-[-0.02em]">
+              {step.title}
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-base leading-6 text-foreground">
+              {step.description}
+            </DialogDescription>
+            <p className="mt-3 max-w-[58ch] text-sm leading-6 text-muted-foreground">
+              {step.detail}
+            </p>
           </div>
-          <DialogTitle className="text-xl leading-tight font-semibold tracking-[-0.02em]">
-            {step.title}
-          </DialogTitle>
-          <DialogDescription className="mt-2 text-base leading-6 text-foreground">
-            {step.description}
-          </DialogDescription>
-          <p className="mt-3 max-w-[58ch] text-sm leading-6 text-muted-foreground">
-            {step.detail}
-          </p>
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -141,7 +174,7 @@ export function OnboardingDialog({
                 type="button"
                 variant="outline"
                 className="h-11 flex-1 px-5 sm:flex-none"
-                onClick={() => setStepIndex((current) => current - 1)}
+                onClick={() => moveToStep("backward")}
               >
                 Back
               </Button>
@@ -152,7 +185,7 @@ export function OnboardingDialog({
               onClick={
                 isLast
                   ? handleComplete
-                  : () => setStepIndex((current) => current + 1)
+                  : () => moveToStep("forward")
               }
             >
               {isLast ? "Done" : "Next"}
