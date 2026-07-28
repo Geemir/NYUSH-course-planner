@@ -137,9 +137,9 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
           />
           <div className="min-w-0">
             <p className="text-xs font-semibold">{item.label}</p>
-            {/* Planner status — sans, uppercase, status-colored. */}
+            {/* Planner status — compact, sans, and status-colored. */}
             <p
-              className={`text-[10px] font-semibold uppercase tracking-wide ${
+              className={`text-[11px] font-semibold ${
                 fact
                   ? "text-emerald-600 dark:text-emerald-400"
                   : "text-amber-600 dark:text-amber-400"
@@ -160,8 +160,8 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
         </Button>
       </div>
       {/* Verbatim Bulletin text — distinct serif/italic quote, not planner UI. */}
-      <figure className="max-w-[65ch] border-l-2 border-primary/40 pl-2.5">
-        <figcaption className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      <figure className="max-w-[65ch] rounded-lg bg-primary/5 px-3 py-2.5">
+        <figcaption className="text-[11px] font-medium text-muted-foreground">
           From the NYU Bulletin
         </figcaption>
         <blockquote className="mt-0.5 font-serif text-[13px] italic leading-relaxed text-foreground/80">
