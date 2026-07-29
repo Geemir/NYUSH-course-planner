@@ -390,6 +390,16 @@ function namedTableSelector(
   return null;
 }
 
+function coreTableCardinality(table: SourceTable): number | null {
+  const name = meaningfulTableName(table);
+  if (/Interdisciplinary Perspectives on China Courses/i.test(name)) return 2;
+  if (/Mathematics Courses/i.test(name)) return 1;
+  if (/Experimental Discovery in the Natural World/i.test(name)) return 1;
+  if (/Science, Technology, and Society Courses/i.test(name)) return 1;
+  if (/Algorithmic Thinking Courses/i.test(name)) return 1;
+  return null;
+}
+
 export function compileProgramRequirements(
   document: BulletinProgramDocument,
   courseTitles: ReadonlyMap<string, string>,
@@ -527,7 +537,7 @@ export function compileProgramRequirements(
           : compiled.requirement
             ? [compiled.requirement]
             : [];
-      const result =
+      let result: CompileResult =
         selector && compiled.requirement
           ? selector.count >= 1 && selector.count <= selectorChildren.length
             ? {
@@ -545,6 +555,29 @@ export function compileProgramRequirements(
                 selector.row.sourceIndex,
               )
           : compiled;
+      if (document.kind === "core") {
+        const count = coreTableCardinality(table);
+        if (count === null) {
+          result = unavailable(
+            "unresolved-core-cardinality",
+            `The Core prose does not define one safe course-list cardinality for ${name}.`,
+            table.id,
+          );
+        } else if (compiled.requirement) {
+          if (count > selectorChildren.length) {
+            result = unavailable(
+              "invalid-selector-cardinality",
+              `Core requirement requests ${count} of ${selectorChildren.length} eligible children.`,
+              table.id,
+            );
+          } else {
+            result = {
+              requirement: { kind: "choose", count, children: selectorChildren },
+              diagnostics: [],
+            };
+          }
+        }
+      }
       interpretations.push(
         interpretation(
           id,

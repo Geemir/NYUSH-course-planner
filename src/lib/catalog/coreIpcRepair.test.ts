@@ -86,7 +86,7 @@ describe("Core IPC repair planning", () => {
   it("fails closed when the deployed child list differs from the target", () => {
     const current = staleCore();
     const category = current.categories.find(
-      ({ id }) => id === "course-list-per-attribute",
+      ({ id }) => id === CORE_IPC_TARGETS[0].id,
     );
     if (!category) throw new Error("Core IPC category missing from fixture");
     const children = childrenOf(category.requirement);
@@ -100,7 +100,7 @@ describe("Core IPC repair planning", () => {
   it("rejects an incomplete or incorrectly counted target", () => {
     const target = checkedInCore();
     const category = target.categories.find(
-      ({ id }) => id === "course-list-per-attribute",
+      ({ id }) => id === CORE_IPC_TARGETS[0].id,
     );
     if (!category || category.requirement.kind !== "choose") {
       throw new Error("Core IPC category is not choose-N in fixture");

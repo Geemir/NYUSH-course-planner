@@ -19,6 +19,7 @@ import {
   Shield,
   Sun,
   Upload,
+  Undo2,
 } from "lucide-react";
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import { LanguageControl } from "@/components/i18n/LanguageControl";
@@ -31,6 +32,7 @@ import { toast } from "sonner";
 import { useCatalog } from "@/components/CatalogProvider";
 import { ProgramProfileSheet } from "@/components/programs/ProgramProfileSheet";
 import { ProgramProfileSummary } from "@/components/programs/ProgramProfileSummary";
+import { UndoButton } from "@/components/layout/UndoButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +79,9 @@ export function PlannerHeader({
   const startYear = usePlannerStore((state) => state.startYear);
   const setStartYear = usePlannerStore((state) => state.setStartYear);
   const reset = usePlannerStore((state) => state.reset);
+  const undo = usePlannerStore((state) => state.undo);
+  const canUndo = usePlannerStore((state) => state.canUndo);
+  const undoLabel = usePlannerStore((state) => state.undoLabel);
   const { resolvedTheme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -218,6 +223,10 @@ export function PlannerHeader({
             <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-1rem)]">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>{t("header.actions")}</DropdownMenuLabel>
+                <DropdownMenuItem className="min-h-11 sm:hidden" disabled={!canUndo} onClick={undo}>
+                  <Undo2 aria-hidden="true" />
+                  {undoLabel ? `Undo: ${undoLabel}` : "Undo unavailable"}
+                </DropdownMenuItem>
                 <DropdownMenuItem className="min-h-11 lg:hidden" onClick={() => setProfileOpen(true)}>
                   <GraduationCap aria-hidden="true" />
                   {t("header.editProfile")}
@@ -279,6 +288,8 @@ export function PlannerHeader({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <div className="hidden sm:block"><UndoButton /></div>
 
           <input
             ref={fileInputRef}

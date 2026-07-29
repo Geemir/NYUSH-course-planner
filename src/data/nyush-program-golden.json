@@ -244,16 +244,42 @@
     ],
     "categoryNames": [
       "Algorithmic Thinking Courses & Relevant Exams",
-      "English for Academic Purposes",
       "Experimental Discovery in the Natural World Courses and Relevant Exams",
       "Interdisciplinary Perspectives on China Courses",
       "Mathematics Courses & Relavant Exam Scores",
       "Science, Technology, and Society Courses"
     ],
-    "selectors": [],
+    "selectors": [
+      {
+        "label": "Algorithmic Thinking Courses & Relevant Exams",
+        "count": 1,
+        "childCount": 11
+      },
+      {
+        "label": "Experimental Discovery in the Natural World Courses and Relevant Exams",
+        "count": 1,
+        "childCount": 22
+      },
+      {
+        "label": "Interdisciplinary Perspectives on China Courses",
+        "count": 2,
+        "childCount": 62
+      },
+      {
+        "label": "Mathematics Courses & Relavant Exam Scores",
+        "count": 1,
+        "childCount": 3
+      },
+      {
+        "label": "Science, Technology, and Society Courses",
+        "count": 1,
+        "childCount": 42
+      }
+    ],
     "manualConditions": [],
     "unavailableGroups": [
-      "Chinese Language"
+      "Chinese Language",
+      "English for Academic Purposes"
     ],
     "samplePlanTermCount": 0
   },

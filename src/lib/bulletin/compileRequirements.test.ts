@@ -60,6 +60,21 @@ function document(requirementTables: SourceTable[]): BulletinProgramDocument {
   };
 }
 
+function coreDocument(requirementTables: SourceTable[]): BulletinProgramDocument {
+  return {
+    ...document(requirementTables),
+    kind: "core",
+    slug: "core-curriculum",
+    title: "Core Curriculum",
+    sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/core-curriculum/",
+    bulletinDisplay: {
+      schemaVersion: 2,
+      sourceUrl: "https://bulletins.nyu.edu/undergraduate/shanghai/core-curriculum/",
+      sections: [],
+    },
+  };
+}
+
 const titles = new Map([
   ["MATH-SHU 235", "Probability and Statistics"],
   ["MATH-SHU 238", "Honors Theory of Probability"],
@@ -68,6 +83,28 @@ const titles = new Map([
 ]);
 
 describe("compileProgramRequirements", () => {
+  it("uses the Core prose cardinality for per-attribute course tables", () => {
+    const [ipc] = compileProgramRequirements(
+      coreDocument([
+        table(
+          "ipc",
+          [
+            row("course", 0, "MATH-SHU 235 Probability and Statistics", "4", ["MATH-SHU 235"]),
+            row("course", 1, "MATH-SHU 238 Honors Theory of Probability", "4", ["MATH-SHU 238"]),
+            row("course", 2, "BUSF-SHU 101 Foundations of Finance", "4", ["BUSF-SHU 101"]),
+          ],
+          "Interdisciplinary Perspectives on China Courses",
+        ),
+      ]),
+      titles,
+    );
+
+    expect(ipc).toMatchObject({
+      status: "verified",
+      requirement: { kind: "choose", count: 2, children: expect.any(Array) },
+    });
+  });
+
   it("compiles Select one and keeps its credit cell out of the cardinality", () => {
     const result = compileProgramRequirements(
       document([

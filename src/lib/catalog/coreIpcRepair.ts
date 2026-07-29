@@ -6,11 +6,11 @@ import {
 } from "@/lib/types";
 
 export const CORE_IPC_TARGETS = [
-  { id: "course-list-per-attribute", count: 2, childCount: 62 },
-  { id: "course-list-per-attribute-2", count: 1, childCount: 3 },
-  { id: "course-list-per-attribute-3", count: 1, childCount: 22 },
-  { id: "course-list-per-attribute-4", count: 1, childCount: 42 },
-  { id: "course-list-per-attribute-5", count: 1, childCount: 11 },
+  { id: "interdisciplinary-perspectives-on-china-courses", count: 2, childCount: 62 },
+  { id: "mathematics-courses-relavant-exam-scores", count: 1, childCount: 3 },
+  { id: "experimental-discovery-in-the-natural-world-courses-and-relevant-exams", count: 1, childCount: 22 },
+  { id: "science-technology-and-society-courses", count: 1, childCount: 42 },
+  { id: "algorithmic-thinking-courses-relevant-exams", count: 1, childCount: 11 },
 ] as const;
 
 export type CoreIpcSummary = {
