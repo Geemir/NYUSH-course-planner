@@ -6,6 +6,7 @@ import { AdminRules } from "@/components/admin/AdminRules";
 import { AlbertImport } from "@/components/admin/AlbertImport";
 import { AdminCorrections } from "@/components/admin/AdminCorrections";
 import { AdminAnnouncements } from "@/components/admin/AdminAnnouncements";
+import { CatalogMaintenance } from "@/components/admin/CatalogMaintenance";
 import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Admin · NYUSH Course Planner" };
@@ -14,14 +15,13 @@ export default async function AdminPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
 
-  if (session.user.role !== "admin") {
+  if (session.user.role !== "admin" && session.user.role !== "maintainer") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
-        <h1 className="text-xl font-semibold">Admins only</h1>
+        <h1 className="text-xl font-semibold">Maintainers only</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Your account ({session.user.email}) isn&apos;t an admin. Ask an
-          administrator to add your NYU email to the <code>ADMIN_EMAILS</code>{" "}
-          allowlist.
+          Your account ({session.user.email}) cannot maintain catalog data. Ask an
+          administrator to assign the maintainer role.
         </p>
         <Button nativeButton={false} render={<Link href="/" />}>
           Back to planner
@@ -46,11 +46,14 @@ export default async function AdminPage() {
           Back to planner
         </Button>
       </header>
-      <AdminAnnouncements />
-      <AdminCorrections />
-      <AlbertImport />
-      <AdminRules />
-      <AdminCourses />
+      <CatalogMaintenance />
+      {session.user.role === "admin" && <>
+        <AdminAnnouncements />
+        <AdminCorrections />
+        <AlbertImport />
+        <AdminRules />
+        <AdminCourses />
+      </>}
     </div>
   );
 }

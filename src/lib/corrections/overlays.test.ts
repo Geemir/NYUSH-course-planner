@@ -9,7 +9,7 @@ const record: CatalogCourseRecord = {
   stableId: "stern:TEST-UA 1", sourceId: "stern", sourceSnapshotId: "snapshot", code: "TEST-UA 1", subject: "TEST-UA", level: "undergraduate", catalogOfferingTerms: ["Fall"], catalogOfferingText: "Fall", crossListedStableIds: [], reviewedOverlayIds: [], overlayProvenance: [],
   course: { id: "TEST-UA 1", title: "Original", credits: 4, department: "TEST-UA", description: "Source description", prereqs: [], sourceReferenceIds: [], offered: [], offeringKnown: false, sites: ["newyork"], fulfills: [], equivalentTo: [], attributes: [], tags: [] },
 };
-const overlay = (id: string, patchData: CorrectionOverlayInput, appliedAt = new Date("2026-07-18T00:00:00Z"), status: "active" | "superseded" = "active"): CatalogOverlayRow => ({ id, requestId: `request-${id}`, targetKind: patchData.kind, targetKey: "target", patchType: patchData.kind, patchData, sourceReleaseId: "release", status, appliedBy: "admin", appliedAt, supersededAt: status === "superseded" ? appliedAt : null, createdAt: appliedAt });
+const overlay = (id: string, patchData: CorrectionOverlayInput, appliedAt = new Date("2026-07-18T00:00:00Z"), status: "active" | "superseded" = "active"): CatalogOverlayRow => ({ id, requestId: `request-${id}`, origin: "correction", reason: null, targetKind: patchData.kind, targetKey: "target", patchType: patchData.kind, patchData, sourceReleaseId: "release", status, appliedBy: "admin", appliedAt, supersededAt: status === "superseded" ? appliedAt : null, createdAt: appliedAt });
 
 describe("reviewed overlay composition", () => {
   it("applies allowlisted course fields deterministically without mutating source truth", () => {
@@ -22,6 +22,22 @@ describe("reviewed overlay composition", () => {
     expect(result.value.crossListedStableIds).toEqual(["stern:TEST-UA 2"]);
     expect(result.appliedOverlayIds).toEqual(["earlier", "later"]);
     expect(record).toEqual(source);
+  });
+
+  it("applies offering edits and a course tombstone", () => {
+    const edited = applyCourseOverlays(record, [
+      overlay("terms", { kind: "course", stableId: record.stableId, changes: {
+        catalogOfferingTerms: ["Spring"], catalogOfferingText: "Every spring",
+        offered: ["spring"], offeringText: "Typically offered in spring", offeringKnown: true,
+      } }),
+    ]);
+    expect(edited.value).toMatchObject({
+      catalogOfferingTerms: ["Spring"], catalogOfferingText: "Every spring",
+      course: { offered: ["spring"], offeringText: "Typically offered in spring", offeringKnown: true },
+    });
+    expect(applyCourseOverlays(record, [
+      overlay("delete", { kind: "course-delete", stableId: record.stableId }),
+    ]).deleted).toBe(true);
   });
 
   it("adds/removes reviewed NYUSH fulfillment mappings and ignores stale/superseded overlays", () => {
@@ -47,6 +63,16 @@ describe("reviewed overlay composition", () => {
     expect(result.value.find((program) => program.id === "reviewed-minor")).toMatchObject({ auditAuthority: "reviewed-nyush-overlay", eligibleProfileRoles: ["minor"] });
   });
 
+  it("upserts and deletes requirement categories without mutating Bulletin data", () => {
+    const core: CatalogProgram = { id: "core", name: "Core", shortName: "Core", type: "core", categories: [], requirementRows: [], sourceRows: [], sourceReferenceIds: [], provenance: { sourceUrl: "https://bulletins.nyu.edu/", snapshotId: "s", sourceHash: "h" }, auditAuthority: "nyush-bulletin", eligibleProfileRoles: ["core"], reviewedOverlayIds: [], reviewedNotes: [] };
+    const category = { id: "ipc", name: "IPC", requirement: { kind: "choose" as const, count: 2, children: [{ kind: "attribute" as const, attribute: "IPC" }] }, sourceUrl: "https://bulletins.nyu.edu/", sourceTableId: "manual", sourceRowIndexes: [0] };
+    const added = applyProgramOverlays([core], [overlay("upsert", { kind: "requirement-upsert", programId: "core", category })]);
+    expect(added.value[0].categories).toEqual([category]);
+    expect(core.categories).toEqual([]);
+    const removed = applyProgramOverlays(added.value, [overlay("delete-category", { kind: "requirement-delete", programId: "core", categoryId: "ipc" })]);
+    expect(removed.value[0].categories).toEqual([]);
+  });
+
   it("supersedes source-resolved patches and carries still-needed patches", () => {
     const resolvedSource = { ...record, course: { ...record.course, title: "Official correction" } };
     const result = reconcileCatalogOverlays([resolvedSource], [], [
@@ -54,6 +80,15 @@ describe("reviewed overlay composition", () => {
       overlay("carry", { kind: "course", stableId: record.stableId, changes: { description: "Reviewed correction" } }),
     ]);
     expect(result.supersededOverlayIds).toEqual(["resolved"]);
+  });
+
+  it("reconciles direct tombstones and category overlays against new source truth", () => {
+    const program: CatalogProgram = { id: "core", name: "Core", shortName: "Core", type: "core", categories: [], requirementRows: [], sourceRows: [], sourceReferenceIds: [], provenance: { sourceUrl: "https://bulletins.nyu.edu/", snapshotId: "s", sourceHash: "h" }, auditAuthority: "nyush-bulletin", eligibleProfileRoles: ["core"], reviewedOverlayIds: [], reviewedNotes: [] };
+    const result = reconcileCatalogOverlays([], [program], [
+      overlay("removed-at-source", { kind: "course-delete", stableId: record.stableId }),
+      overlay("already-missing", { kind: "requirement-delete", programId: "core", categoryId: "retired" }),
+    ]);
+    expect(result.supersededOverlayIds).toEqual(["already-missing", "removed-at-source"]);
   });
 
   it("blocks release carry-forward when a reviewed target disappears", () => {

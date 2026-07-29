@@ -5,6 +5,7 @@ import {
   gt,
   ilike,
   inArray,
+  notInArray,
   lte,
   gte,
   or,
@@ -51,6 +52,10 @@ async function activeOverlays(db: CatalogDb) {
   return db.select().from(schema.catalogOverlay).where(eq(schema.catalogOverlay.status, "active"));
 }
 
+function deletedCourseIds(overlays: Awaited<ReturnType<typeof activeOverlays>>) {
+  return overlays.flatMap((overlay) => overlay.patchData.kind === "course-delete" ? [overlay.patchData.stableId] : []);
+}
+
 function escapedLike(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
@@ -60,7 +65,10 @@ export async function searchCatalogCourses(
   query: CatalogCourseQuery,
 ): Promise<CatalogCoursePage> {
   const { release, snapshotIds } = await activeMembership(db);
+  const overlays = await activeOverlays(db);
   const predicates = [inArray(schema.catalogCourse.snapshotId, snapshotIds)];
+  const deletedIds = deletedCourseIds(overlays);
+  if (deletedIds.length) predicates.push(notInArray(schema.catalogCourse.stableId, deletedIds));
   // Every word of the query must appear somewhere in the search text, so
   // "intro data science" matches regardless of word order.
   const phrase = query.q.trim();
@@ -125,7 +133,6 @@ export async function searchCatalogCourses(
     .limit(query.limit + 1);
   const hasMore = rows.length > query.limit;
   const page = rows.slice(0, query.limit);
-  const overlays = await activeOverlays(db);
   const items = page.map((row) => applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), overlays).value);
   const last = items.at(-1);
   const lastRank = page.at(-1)?.rank;
@@ -156,7 +163,8 @@ export async function readCatalogCourse(
     .where(and(inArray(schema.catalogCourse.snapshotId, snapshotIds), eq(schema.catalogCourse.stableId, stableId)))
     .limit(1);
   if (!row) return null;
-  return applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), await activeOverlays(db)).value;
+  const result = applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), await activeOverlays(db));
+  return result.deleted ? null : result.value;
 }
 
 export async function readCatalogCourseBatch(
@@ -172,7 +180,10 @@ export async function readCatalogCourseBatch(
         .where(and(inArray(schema.catalogCourse.snapshotId, snapshotIds), inArray(schema.catalogCourse.stableId, requested)))
     : [];
   const overlays = await activeOverlays(db);
-  const byId = new Map(rows.map((row) => [row.stableId, applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), overlays).value]));
+  const byId = new Map(rows.flatMap((row) => {
+    const result = applyCourseOverlays(CatalogCourseRecordSchema.parse(row.data), overlays);
+    return result.deleted ? [] : [[row.stableId, result.value] as const];
+  }));
   return CatalogCourseBatchResponseSchema.parse({
     releaseId: release.id,
     items: requested.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : [])),
@@ -190,6 +201,8 @@ export async function readCatalogBootstrap(db: CatalogDb): Promise<CatalogBootst
     getCatalogSourceStatuses(db),
   ]);
   const snapshotIds = Object.values(release.sourceSnapshotIds);
+  const overlays = await activeOverlays(db);
+  const deletedIds = deletedCourseIds(overlays);
   const metadata = await db
     .select({
       sourceId: schema.catalogCourse.sourceId,
@@ -199,7 +212,10 @@ export async function readCatalogBootstrap(db: CatalogDb): Promise<CatalogBootst
       terms: schema.catalogCourse.catalogOfferingTerms,
     })
     .from(schema.catalogCourse)
-    .where(inArray(schema.catalogCourse.snapshotId, snapshotIds));
+    .where(and(
+      inArray(schema.catalogCourse.snapshotId, snapshotIds),
+      deletedIds.length ? notInArray(schema.catalogCourse.stableId, deletedIds) : undefined,
+    ));
   const sourceCounts = new Map<string, number>();
   const subjectCounts = new Map<string, number>();
   const terms = new Set<string>();

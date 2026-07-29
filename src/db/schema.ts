@@ -43,7 +43,7 @@ export const users = pgTable("user", {
   email: text("email").unique(),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
-  role: text("role", { enum: ["student", "admin"] })
+  role: text("role", { enum: ["student", "maintainer", "admin"] })
     .notNull()
     .default("student"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
@@ -375,7 +375,9 @@ export const correctionEvent = pgTable("correctionEvent", {
 
 export const catalogOverlay = pgTable("catalogOverlay", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  requestId: text("requestId").notNull().references(() => correctionRequest.id),
+  requestId: text("requestId").references(() => correctionRequest.id),
+  origin: text("origin", { enum: ["correction", "direct"] }).notNull().default("correction"),
+  reason: text("reason"),
   targetKind: text("targetKind").notNull(),
   targetKey: text("targetKey").notNull(),
   patchType: text("patchType").notNull(),
@@ -390,6 +392,16 @@ export const catalogOverlay = pgTable("catalogOverlay", {
   uniqueIndex("catalog_overlay_request_unique").on(overlay.requestId),
   index("catalog_overlay_active_target").on(overlay.status, overlay.targetKind, overlay.targetKey),
 ]);
+
+export const catalogOverlayEvent = pgTable("catalogOverlayEvent", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  overlayId: text("overlayId").notNull().references(() => catalogOverlay.id, { onDelete: "cascade" }),
+  actorUserId: text("actorUserId").references(() => users.id, { onDelete: "set null" }),
+  eventType: text("eventType", { enum: ["created", "reverted", "restored"] }).notNull(),
+  reason: text("reason").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+}, (event) => [index("catalog_overlay_event_overlay_time").on(event.overlayId, event.createdAt)]);
 
 export const notification = pgTable("notification", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -434,4 +446,5 @@ export type RuleRow = typeof rules.$inferSelect;
 export type CatalogSnapshotRow = typeof catalogSnapshot.$inferSelect;
 export type CorrectionRequestRow = typeof correctionRequest.$inferSelect;
 export type CatalogOverlayRow = typeof catalogOverlay.$inferSelect;
+export type CatalogOverlayEventRow = typeof catalogOverlayEvent.$inferSelect;
 export type AnnouncementRow = typeof announcements.$inferSelect;

@@ -4,6 +4,7 @@ import { CatalogProgramSchema, type CatalogProgram } from "@/lib/types";
 
 export interface OverlayApplication<T> {
   value: T;
+  deleted?: boolean;
   appliedOverlayIds: string[];
   provenance: Array<{ kind: "bulletin" | "reviewed-overlay"; referenceId: string; appliedAt?: string }>;
 }
@@ -29,6 +30,8 @@ export function applyCourseOverlays(record: CatalogCourseRecord, overlays: reado
       const { changes } = patch;
       value = {
         ...value,
+        ...(changes.catalogOfferingTerms === undefined ? {} : { catalogOfferingTerms: [...changes.catalogOfferingTerms] }),
+        ...(changes.catalogOfferingText === undefined ? {} : { catalogOfferingText: changes.catalogOfferingText }),
         crossListedStableIds: changes.crossListedStableIds ?? value.crossListedStableIds,
         course: {
           ...value.course,
@@ -38,8 +41,13 @@ export function applyCourseOverlays(record: CatalogCourseRecord, overlays: reado
           ...(changes.maxCredits === undefined ? {} : { maxCredits: changes.maxCredits }),
           ...(changes.attributes === undefined ? {} : { attributes: [...changes.attributes] }),
           ...(changes.prerequisiteText === undefined ? {} : { prerequisiteText: changes.prerequisiteText }),
+          ...(changes.offered === undefined ? {} : { offered: [...changes.offered] }),
+          ...(changes.offeringText === undefined ? {} : { offeringText: changes.offeringText ?? undefined }),
+          ...(changes.offeringKnown === undefined ? {} : { offeringKnown: changes.offeringKnown }),
         },
       };
+      applied.push(overlay);
+    } else if (patch.kind === "course-delete" && patch.stableId === record.stableId) {
       applied.push(overlay);
     } else if (patch.kind === "requirement" && patch.courseStableId === record.stableId) {
       const mapping = { programId: patch.programId, categoryId: patch.requirementId };
@@ -54,7 +62,12 @@ export function applyCourseOverlays(record: CatalogCourseRecord, overlays: reado
     ...applied.map((overlay) => ({ kind: "reviewed-overlay" as const, referenceId: overlay.id, appliedAt: overlay.appliedAt.toISOString() })),
   ];
   value = CatalogCourseRecordSchema.parse({ ...value, reviewedOverlayIds: applied.map((overlay) => overlay.id), overlayProvenance: provenance.filter((item) => item.kind === "reviewed-overlay") });
-  return { value, appliedOverlayIds: applied.map((overlay) => overlay.id), provenance };
+  return {
+    value,
+    deleted: applied.some((overlay) => overlay.patchData.kind === "course-delete"),
+    appliedOverlayIds: applied.map((overlay) => overlay.id),
+    provenance,
+  };
 }
 
 export function applyProgramOverlays(programs: readonly CatalogProgram[], overlays: readonly CatalogOverlayRow[]): OverlayApplication<CatalogProgram[]> {
@@ -83,6 +96,25 @@ export function applyProgramOverlays(programs: readonly CatalogProgram[], overla
     } else if (patch.kind === "reviewed-program") {
       if (values.some((program) => program.id === patch.program.id)) continue;
       values.push(CatalogProgramSchema.parse({ ...patch.program, reviewedOverlayIds: [...(patch.program.reviewedOverlayIds ?? []), overlay.id] }));
+      applied.push(overlay);
+    } else if (patch.kind === "requirement-upsert") {
+      const index = values.findIndex((program) => program.id === patch.programId);
+      if (index < 0) continue;
+      const categories = values[index].categories.filter((category) => category.id !== patch.category.id);
+      categories.push(structuredClone(patch.category));
+      values[index] = CatalogProgramSchema.parse({
+        ...values[index], categories,
+        reviewedOverlayIds: [...(values[index].reviewedOverlayIds ?? []), overlay.id],
+      });
+      applied.push(overlay);
+    } else if (patch.kind === "requirement-delete") {
+      const index = values.findIndex((program) => program.id === patch.programId);
+      if (index < 0) continue;
+      values[index] = CatalogProgramSchema.parse({
+        ...values[index],
+        categories: values[index].categories.filter((category) => category.id !== patch.categoryId),
+        reviewedOverlayIds: [...(values[index].reviewedOverlayIds ?? []), overlay.id],
+      });
       applied.push(overlay);
     }
   }
@@ -116,8 +148,8 @@ export function reconcileCatalogOverlays(
       }
       const fields = Object.entries(patch.changes);
       const allResolved = fields.every(([key, expected]) => {
-        const actual = key === "crossListedStableIds"
-          ? course.crossListedStableIds
+        const actual = key === "crossListedStableIds" || key === "catalogOfferingTerms" || key === "catalogOfferingText"
+          ? course[key as "crossListedStableIds" | "catalogOfferingTerms" | "catalogOfferingText"]
           : course.course[key as keyof typeof course.course];
         return same(actual, expected);
       });
@@ -129,6 +161,11 @@ export function reconcileCatalogOverlays(
       const min = composed.minCredits ?? composed.credits;
       const max = composed.maxCredits ?? composed.credits;
       if (min > max) diagnostics.push(`${overlay.id}: reviewed credit range is invalid against new source truth`);
+      continue;
+    }
+
+    if (patch.kind === "course-delete") {
+      if (!courseById.has(patch.stableId)) supersededOverlayIds.push(overlay.id);
       continue;
     }
 
@@ -149,6 +186,20 @@ export function reconcileCatalogOverlays(
 
     if (patch.kind === "program-note") {
       if (!programById.has(patch.programId)) diagnostics.push(`${overlay.id}: program ${patch.programId} disappeared`);
+      continue;
+    }
+
+    if (patch.kind === "requirement-upsert") {
+      const program = programById.get(patch.programId);
+      if (!program) diagnostics.push(`${overlay.id}: program ${patch.programId} disappeared`);
+      else if (same(program.categories.find((category) => category.id === patch.category.id), patch.category)) supersededOverlayIds.push(overlay.id);
+      continue;
+    }
+
+    if (patch.kind === "requirement-delete") {
+      const program = programById.get(patch.programId);
+      if (!program) diagnostics.push(`${overlay.id}: program ${patch.programId} disappeared`);
+      else if (!program.categories.some((category) => category.id === patch.categoryId)) supersededOverlayIds.push(overlay.id);
       continue;
     }
 

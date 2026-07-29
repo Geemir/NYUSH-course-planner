@@ -54,13 +54,16 @@ describe("auth providers", () => {
     expect(isNyuEmail("attacker@nyu.edu.example.com")).toBe(false);
   });
 
-  it("derives admin only from the stored role or explicit allowlist", async () => {
+  it("derives admin and maintainer roles from stored roles or explicit allowlists", async () => {
     const { resolveSessionRole } = await loadAuthModule();
-    const allowlist = new Set(["maintainer@nyu.edu"]);
+    const admins = new Set(["admin@nyu.edu"]);
+    const maintainers = new Set(["maintainer@nyu.edu"]);
 
-    expect(resolveSessionRole("student@nyu.edu", "student", allowlist)).toBe("student");
-    expect(resolveSessionRole("maintainer@nyu.edu", "student", allowlist)).toBe("admin");
-    expect(resolveSessionRole("student@nyu.edu", "admin", allowlist)).toBe("admin");
+    expect(resolveSessionRole("student@nyu.edu", "student", admins, maintainers)).toBe("student");
+    expect(resolveSessionRole("maintainer@nyu.edu", "student", admins, maintainers)).toBe("maintainer");
+    expect(resolveSessionRole("student@nyu.edu", "maintainer", admins, maintainers)).toBe("maintainer");
+    expect(resolveSessionRole("admin@nyu.edu", "student", admins, maintainers)).toBe("admin");
+    expect(resolveSessionRole("student@nyu.edu", "admin", admins, maintainers)).toBe("admin");
   });
 });
 

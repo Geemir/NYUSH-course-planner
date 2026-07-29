@@ -144,7 +144,17 @@ export async function applyCorrectionOverlay(db: Db, adminId: string, requestId:
     const [row] = await tx.select().from(schema.correctionRequest).where(eq(schema.correctionRequest.id, requestId)).limit(1);
     if (!row) throw new CorrectionNotFoundError();
     if (row.status !== "approved") throw new CorrectionConflictError("Only approved reports can be applied.");
-    const inputKey = input.kind === "course" ? input.stableId : input.kind === "requirement" ? `${input.programId}:${input.requirementId}` : input.kind === "program-note" ? input.programId : input.program.id;
+    const inputKey = input.kind === "course" || input.kind === "course-delete"
+      ? input.stableId
+      : input.kind === "requirement"
+        ? `${input.programId}:${input.requirementId}`
+        : input.kind === "requirement-upsert"
+          ? `${input.programId}:${input.category.id}`
+          : input.kind === "requirement-delete"
+            ? `${input.programId}:${input.categoryId}`
+            : input.kind === "program-note"
+              ? input.programId
+              : input.program.id;
     if (targetKey(row.targetData) !== inputKey) throw new CorrectionConflictError("Overlay target does not match the reviewed report.");
     const existing = await tx.select({ id: schema.catalogOverlay.id }).from(schema.catalogOverlay).where(eq(schema.catalogOverlay.requestId, requestId)).limit(1);
     if (existing.length) throw new CorrectionConflictError("This report was already applied.");

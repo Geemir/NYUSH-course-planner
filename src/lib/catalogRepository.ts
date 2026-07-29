@@ -683,7 +683,10 @@ export async function getActiveReleaseCatalog(
   const overlays = await db.select().from(schema.catalogOverlay).where(eq(schema.catalogOverlay.status, "active"));
   return {
     release,
-    courses: courses.map((course) => applyCourseOverlays(course, overlays).value),
+    courses: courses.flatMap((course) => {
+      const result = applyCourseOverlays(course, overlays);
+      return result.deleted ? [] : [result.value];
+    }),
     programs: applyProgramOverlays(programs, overlays).value,
   };
 }

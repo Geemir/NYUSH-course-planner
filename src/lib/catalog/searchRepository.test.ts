@@ -176,4 +176,18 @@ describe("active release catalog queries", () => {
     await db.delete(schema.correctionRequest).where(eq(schema.correctionRequest.id, "overlay-request"));
     await db.delete(schema.users).where(eq(schema.users.id, "overlay-student"));
   });
+
+  it("hides directly tombstoned courses from search, detail, batch, and bootstrap filters", async () => {
+    const stableId = "nyu-shanghai:MATH-SHU 140";
+    await db.insert(schema.catalogOverlay).values({
+      id: "direct-course-delete", requestId: null, origin: "direct", reason: "Duplicate Bulletin record.",
+      targetKind: "course-delete", targetKey: stableId, patchType: "course-delete",
+      patchData: { kind: "course-delete", stableId }, sourceReleaseId: releaseId,
+    });
+
+    expect(await readCatalogCourse(db, stableId)).toBeNull();
+    expect((await searchCatalogCourses(db, CatalogCourseQuerySchema.parse({ q: "Linear Algebra" }))).items).toEqual([]);
+    expect((await readCatalogCourseBatch(db, [stableId])).missingStableIds).toEqual([stableId]);
+    expect((await readCatalogBootstrap(db)).filters.subjects.map((item) => item.subject)).not.toContain("MATH-SHU");
+  });
 });

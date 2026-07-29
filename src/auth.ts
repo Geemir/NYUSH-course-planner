@@ -17,17 +17,27 @@ export function isNyuEmail(email: string | null | undefined): boolean {
 
 export function resolveSessionRole(
   email: string | null | undefined,
-  storedRole: "student" | "admin" | null | undefined,
+  storedRole: "student" | "maintainer" | "admin" | null | undefined,
   adminEmails: ReadonlySet<string> = ADMIN_EMAILS,
-): "student" | "admin" {
-  return adminEmails.has((email ?? "").toLowerCase()) || storedRole === "admin"
-    ? "admin"
-    : "student";
+  maintainerEmails: ReadonlySet<string> = MAINTAINER_EMAILS,
+): "student" | "maintainer" | "admin" {
+  const normalizedEmail = (email ?? "").toLowerCase();
+  if (adminEmails.has(normalizedEmail) || storedRole === "admin") return "admin";
+  if (maintainerEmails.has(normalizedEmail) || storedRole === "maintainer") return "maintainer";
+  return "student";
 }
 
 /** Config-driven admin allowlist (comma-separated emails in ADMIN_EMAILS). */
 const ADMIN_EMAILS = new Set(
   (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+/** Config-driven catalog maintainer allowlist (comma-separated NYU emails). */
+const MAINTAINER_EMAILS = new Set(
+  (process.env.MAINTAINER_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
@@ -56,8 +66,8 @@ export const authConfig: NextAuthConfig = {
     session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
-        const dbRole = (user as { role?: "student" | "admin" }).role;
-        // Admin is granted by the ADMIN_EMAILS allowlist or a stored role.
+        const dbRole = (user as { role?: "student" | "maintainer" | "admin" }).role;
+        // Privileged roles are granted by their allowlist or a stored role.
         session.user.role = resolveSessionRole(session.user.email, dbRole);
       }
       return session;
