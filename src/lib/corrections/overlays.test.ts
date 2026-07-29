@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CatalogOverlayRow } from "@/db/schema";
-import { applyCourseOverlays, applyProgramOverlays, OverlayCarryForwardError, reconcileCatalogOverlays } from "@/lib/corrections/overlays";
+import { applyCourseOverlays, applyProgramOverlays, OverlayCarryForwardError, OverlayTrustError, reconcileCatalogOverlays } from "@/lib/corrections/overlays";
 import type { CorrectionOverlayInput } from "@/lib/corrections/policy";
 import type { CatalogCourseRecord } from "@/lib/catalog/types";
 import type { CatalogProgram } from "@/lib/types";
@@ -64,13 +64,59 @@ describe("reviewed overlay composition", () => {
   });
 
   it("upserts and deletes requirement categories without mutating Bulletin data", () => {
-    const core: CatalogProgram = { id: "core", name: "Core", shortName: "Core", type: "core", categories: [], requirementRows: [], sourceRows: [], sourceReferenceIds: [], provenance: { sourceUrl: "https://bulletins.nyu.edu/", snapshotId: "s", sourceHash: "h" }, auditAuthority: "nyush-bulletin", eligibleProfileRoles: ["core"], reviewedOverlayIds: [], reviewedNotes: [] };
-    const category = { id: "ipc", name: "IPC", requirement: { kind: "choose" as const, count: 2, children: [{ kind: "attribute" as const, attribute: "IPC" }] }, sourceUrl: "https://bulletins.nyu.edu/", sourceTableId: "manual", sourceRowIndexes: [0] };
+    const sourceUrl = "https://bulletins.nyu.edu/undergraduate/shanghai/core-curriculum/";
+    const display = {
+      schemaVersion: 2 as const,
+      sourceUrl,
+      sections: [{
+        id: "curriculumtext",
+        heading: "Curriculum",
+        blocks: [{
+          kind: "table" as const,
+          id: "ipc-table",
+          caption: null,
+          headingTrail: [],
+          rows: [{
+            sourceIndex: 0,
+            role: "course" as const,
+            text: "IPC elective",
+            creditsText: null,
+            linkedCourseCodes: [],
+            sourceAnchors: [],
+            footnoteMarkers: [],
+          }],
+        }],
+      }],
+    };
+    const core: CatalogProgram = { id: "core", name: "Core", shortName: "Core", type: "core", categories: [], bulletinDisplay: display, interpretations: [], requirementRows: [], sourceRows: [], sourceReferenceIds: [], provenance: { sourceUrl, snapshotId: "s", sourceHash: "h" }, auditAuthority: "nyush-bulletin", eligibleProfileRoles: ["core"], reviewedOverlayIds: [], reviewedNotes: [] };
+    const category = { id: "ipc", name: "IPC", requirement: { kind: "choose" as const, count: 1, children: [{ kind: "attribute" as const, attribute: "IPC" }] }, sourceUrl, sourceTableId: "ipc-table", sourceRowIndexes: [0] };
     const added = applyProgramOverlays([core], [overlay("upsert", { kind: "requirement-upsert", programId: "core", category })]);
     expect(added.value[0].categories).toEqual([category]);
+    expect(added.value[0].interpretations).toEqual([
+      expect.objectContaining({
+        id: "ipc",
+        status: "verified",
+        requirement: category.requirement,
+        sourceTableIds: ["ipc-table"],
+        sourceRowRefs: [{ tableId: "ipc-table", sourceIndex: 0 }],
+      }),
+    ]);
+    expect(added.value[0].bulletinDisplay).toEqual(display);
     expect(core.categories).toEqual([]);
     const removed = applyProgramOverlays(added.value, [overlay("delete-category", { kind: "requirement-delete", programId: "core", categoryId: "ipc" })]);
     expect(removed.value[0].categories).toEqual([]);
+    expect(removed.value[0].interpretations).toEqual([]);
+
+    const orphan = { ...category, sourceTableId: "missing-table" };
+    expect(() =>
+      applyProgramOverlays([core], [
+        overlay("orphan", {
+          kind: "requirement-upsert",
+          programId: "core",
+          category: orphan,
+        }),
+      ]),
+    ).toThrow(OverlayTrustError);
   });
 
   it("supersedes source-resolved patches and carries still-needed patches", () => {

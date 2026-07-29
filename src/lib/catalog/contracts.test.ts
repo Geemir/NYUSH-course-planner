@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CatalogCourseBatchRequestSchema,
+  CatalogCourseResolveRequestSchema,
+  CatalogCourseResolveResponseSchema,
   CatalogCourseQuerySchema,
   catalogCourseQueryToSearchParams,
   decodeCatalogCursor,
@@ -73,6 +75,31 @@ describe("catalog query contracts", () => {
     expect(() =>
       CatalogCourseBatchRequestSchema.parse({
         stableIds: Array.from({ length: 101 }, (_, index) => `id-${index}`),
+      }),
+    ).toThrow();
+  });
+
+  it("canonicalizes and deduplicates exact course-code resolution requests", () => {
+    expect(
+      CatalogCourseResolveRequestSchema.parse({
+        codes: [" math-shu   131 ", "MATH-SHU 131", "csci-ua 201"],
+      }),
+    ).toEqual({ codes: ["MATH-SHU 131", "CSCI-UA 201"] });
+    expect(() =>
+      CatalogCourseResolveRequestSchema.parse({ codes: [] }),
+    ).toThrow();
+    expect(() =>
+      CatalogCourseResolveRequestSchema.parse({
+        codes: Array.from({ length: 101 }, (_, index) => `TEST-SHU ${index}`),
+      }),
+    ).toThrow();
+  });
+
+  it("requires one deterministic match bucket per requested code", () => {
+    expect(() =>
+      CatalogCourseResolveResponseSchema.parse({
+        releaseId: "release",
+        matches: [{ code: "MATH-SHU 131", records: [{ wrong: true }] }],
       }),
     ).toThrow();
   });

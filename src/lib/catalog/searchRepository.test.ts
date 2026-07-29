@@ -8,6 +8,7 @@ import {
   readCatalogBootstrap,
   readCatalogCourse,
   readCatalogCourseBatch,
+  resolveActiveCourseCodes,
   searchCatalogCourses,
 } from "@/lib/catalog/searchRepository";
 import { CatalogCourseQuerySchema } from "@/lib/catalog/contracts";
@@ -141,6 +142,26 @@ describe("active release catalog queries", () => {
     const batch = await readCatalogCourseBatch(db, stableIds);
     expect(batch.items.map((item) => item.stableId)).toEqual([stableIds[0], stableIds[2]]);
     expect(batch.missingStableIds).toEqual(["missing"]);
+  });
+
+  it("resolves exact canonical codes only within the active release", async () => {
+    const response = await resolveActiveCourseCodes(db, [
+      "CSCI-SHU 101",
+      "ACCT-UB 1",
+      "MISSING-SHU 999",
+    ]);
+
+    expect(response.releaseId).toBe(releaseId);
+    expect(response.matches.map((match) => match.code)).toEqual([
+      "CSCI-SHU 101",
+      "ACCT-UB 1",
+      "MISSING-SHU 999",
+    ]);
+    expect(response.matches.map((match) => match.records.map((item) => item.sourceId))).toEqual([
+      ["nyu-shanghai"],
+      ["nyu-new-york-business"],
+      [],
+    ]);
   });
 
   it("returns bootstrap metadata without a course payload", async () => {

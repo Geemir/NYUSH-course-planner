@@ -21,6 +21,7 @@ import {
 import {
   CatalogBootstrapResponseSchema,
   CatalogCourseBatchResponseSchema,
+  CatalogCourseResolveResponseSchema,
   CatalogCoursePageSchema,
   decodeCatalogCursor,
   encodeCatalogCursor,
@@ -28,8 +29,10 @@ import {
   type CatalogCourseBatchResponse,
   type CatalogCoursePage,
   type CatalogCourseQuery,
+  type CatalogCourseResolveResponse,
 } from "@/lib/catalog/contracts";
 import { CatalogCourseRecordSchema, type CatalogCourseRecord } from "@/lib/catalog/types";
+import { canonicalCourseCode } from "@/lib/catalog/identity";
 import { CATALOG_SOURCES } from "@/lib/bulletin/sourceRegistry";
 import { getActiveRules } from "@/lib/repository";
 import sitesJson from "@/data/sites.json";
@@ -188,6 +191,52 @@ export async function readCatalogCourseBatch(
     releaseId: release.id,
     items: requested.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : [])),
     missingStableIds: requested.filter((id) => !byId.has(id)),
+  });
+}
+
+export async function resolveActiveCourseCodes(
+  db: CatalogDb,
+  codes: readonly string[],
+): Promise<CatalogCourseResolveResponse> {
+  const { release, snapshotIds } = await activeMembership(db);
+  const requested = [
+    ...new Set(codes.map((code) => canonicalCourseCode(code))),
+  ].slice(0, 100);
+  const rows = requested.length
+    ? await db
+        .select({ data: schema.catalogCourse.data })
+        .from(schema.catalogCourse)
+        .where(
+          and(
+            inArray(schema.catalogCourse.snapshotId, snapshotIds),
+            inArray(schema.catalogCourse.code, requested),
+          ),
+        )
+    : [];
+  const overlays = await activeOverlays(db);
+  const byCode = new Map<string, CatalogCourseRecord[]>();
+  for (const row of rows) {
+    const result = applyCourseOverlays(
+      CatalogCourseRecordSchema.parse(row.data),
+      overlays,
+    );
+    if (result.deleted) continue;
+    const code = canonicalCourseCode(result.value.code);
+    if (!requested.includes(code)) continue;
+    const records = byCode.get(code) ?? [];
+    records.push(result.value);
+    byCode.set(code, records);
+  }
+  byCode.forEach((records) =>
+    records.sort(
+      (left, right) =>
+        left.sourceId.localeCompare(right.sourceId) ||
+        left.stableId.localeCompare(right.stableId),
+    ),
+  );
+  return CatalogCourseResolveResponseSchema.parse({
+    releaseId: release.id,
+    matches: requested.map((code) => ({ code, records: byCode.get(code) ?? [] })),
   });
 }
 
