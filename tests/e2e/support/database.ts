@@ -45,6 +45,30 @@ function courseRecord(sourceId: string, snapshotId: string, index: number): Cata
   });
 }
 
+function shanghaiCourseRecords(snapshotId: string): CatalogCourseRecord[] {
+  return fallback.courses.map((input) => {
+    const parsed = CourseSchema.parse(input);
+    const course: Course = {
+      ...parsed,
+      provenance: parsed.provenance
+        ? { ...parsed.provenance, snapshotId }
+        : undefined,
+    };
+    return CatalogCourseRecordSchema.parse({
+      stableId: `nyu-shanghai:${course.id}`,
+      sourceId: "nyu-shanghai",
+      sourceSnapshotId: snapshotId,
+      code: course.id,
+      subject: course.department,
+      level: "undergraduate",
+      catalogOfferingTerms: [...course.offered],
+      catalogOfferingText: course.offeringText ?? null,
+      course,
+      crossListedStableIds: [],
+    });
+  });
+}
+
 export async function seedE2EDatabase() {
   const client = new PGlite(E2E_DB_DIR);
   const db = drizzle(client, { schema });
@@ -71,16 +95,19 @@ export async function seedE2EDatabase() {
   const sourceSnapshotIds: Record<string, string> = {};
   for (const [index, source] of CATALOG_SOURCES.entries()) {
     const snapshotId = `e2e-snapshot-${index}`;
-    const record = courseRecord(source.id, snapshotId, index);
+    const records = source.id === "nyu-shanghai"
+      ? shanghaiCourseRecords(snapshotId)
+      : [courseRecord(source.id, snapshotId, index)];
     const programCount = source.id === "nyu-shanghai" ? fallback.programs.length : 0;
     sourceSnapshotIds[source.id] = snapshotId;
     await db.insert(schema.catalogSource).values({ id: source.id, schoolName: source.schoolName, campus: source.campus, bulletinRoot: source.bulletinRoot });
-    await db.insert(schema.catalogSnapshot).values({ id: snapshotId, sourceId: source.id, sourceHash: `e2e-hash-${index}`, status: "active", validationReport: validationReport(snapshotId, `e2e-hash-${index}`, 1, programCount), documentCount: 1, courseCount: 1, programCount, quarantinedCount: 0, sourceReferenceIds: [], externalCourseIds: [], unresolvedCourseIds: [], completedAt: new Date() });
+    await db.insert(schema.catalogSnapshot).values({ id: snapshotId, sourceId: source.id, sourceHash: `e2e-hash-${index}`, status: "active", validationReport: validationReport(snapshotId, `e2e-hash-${index}`, records.length, programCount), documentCount: 1, courseCount: records.length, programCount, quarantinedCount: 0, sourceReferenceIds: [], externalCourseIds: [], unresolvedCourseIds: [], completedAt: new Date() });
     await db.insert(schema.catalogSourceDocument).values({ snapshotId, sourceUrl: source.courseIndexUrl, data: { sourceUrl: source.courseIndexUrl } });
-    await db.insert(schema.catalogCourse).values({ snapshotId, courseId: record.stableId, stableId: record.stableId, sourceId: source.id, code: record.code, subject: record.subject, title: record.course.title, minCredits: record.course.minCredits ?? record.course.credits, maxCredits: record.course.maxCredits ?? record.course.credits, level: "undergraduate", catalogOfferingTerms: [], searchText: `${record.code} ${record.course.title}`.toLowerCase(), data: record });
+    await db.insert(schema.catalogCourse).values(records.map((record) => ({ snapshotId, courseId: record.stableId, stableId: record.stableId, sourceId: source.id, code: record.code, subject: record.subject, title: record.course.title, minCredits: record.course.minCredits ?? record.course.credits, maxCredits: record.course.maxCredits ?? record.course.credits, level: "undergraduate" as const, catalogOfferingTerms: record.catalogOfferingTerms, searchText: `${record.code} ${record.course.title}`.toLowerCase(), data: record })));
     if (source.id === "nyu-shanghai") {
       await db.insert(schema.catalogProgram).values(fallback.programs.map((input) => {
-        const program = CatalogProgramSchema.parse(input);
+        const parsed = CatalogProgramSchema.parse(input);
+        const program = { ...parsed, provenance: { ...parsed.provenance, snapshotId } };
         return { snapshotId, programId: program.id, data: program };
       }));
     }

@@ -6,8 +6,9 @@ import {
   PLAN_V2_STORAGE_KEY,
   migratePlanV1,
   persistPlanMigration,
+  reconcilePlanV2,
 } from "@/lib/planMigration";
-import type { CatalogProgram, PlanSnapshotV1 } from "@/lib/types";
+import type { CatalogProgram, PlanSnapshotV1, PlanSnapshotV2 } from "@/lib/types";
 
 function program(id: string, type: "core" | "major" | "minor"): CatalogProgram {
   return {
@@ -51,6 +52,7 @@ describe("plan migration", () => {
     expect(result.status).toBe("ready");
     expect(result.snapshot.programProfile).toEqual({ coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: ["math-minor"] });
     expect(result.snapshot.placements[0]).toMatchObject({ courseId: "CSCI-SHU 101", catalogCourseId: "nyu-shanghai:CSCI-SHU 101", titleSnapshot: "Intro", selectedCredits: 3 });
+    expect(result.snapshot.planningSlots).toEqual([]);
     expect(result.snapshot).toMatchObject({ studyAway: base.studyAway, completedSemesters: base.completedSemesters, fulfillmentFacts: base.fulfillmentFacts, dismissedWarnings: base.dismissedWarnings, startYear: 2025 });
   });
 
@@ -101,5 +103,37 @@ describe("plan migration", () => {
     expect(JSON.parse(values.get(PLAN_V2_STORAGE_KEY)!)).toMatchObject({ version: 2, catalogReleaseId: "release" });
     expect(() => persistPlanMigration("corrupt", result, storage)).toThrow();
     expect(values.get(PLAN_V1_BACKUP_KEY)).toBe(existing);
+  });
+
+  it("retains slot provenance while reconciling only the plan release pointer", () => {
+    const migrated = migratePlanV1(base, bootstrap, []).snapshot;
+    const slot = {
+      id: "slot-elective",
+      sourceKey: "cs/sample/0/0",
+      semesterId: "Y1F" as const,
+      label: "General Elective",
+      credits: 4,
+      source: {
+        kind: "bulletin-sample-plan" as const,
+        programId: "cs",
+        catalogReleaseId: "release-before",
+        sectionId: "sampleplanofstudytext",
+        termSourceIndex: 0,
+        rowSourceIndex: 0,
+      },
+    };
+    const input: PlanSnapshotV2 = {
+      ...migrated,
+      catalogReleaseId: "release-before",
+      planningSlots: [slot],
+    };
+
+    const result = reconcilePlanV2(input, bootstrap, []);
+
+    expect(result.snapshot.catalogReleaseId).toBe("release");
+    expect(result.snapshot.planningSlots).toEqual([slot]);
+    expect(result.snapshot.planningSlots[0].source.catalogReleaseId).toBe(
+      "release-before",
+    );
   });
 });

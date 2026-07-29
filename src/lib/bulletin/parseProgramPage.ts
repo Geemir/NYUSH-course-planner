@@ -1,5 +1,12 @@
 import * as cheerio from "cheerio";
 import type { BulletinProgramKind } from "@/lib/bulletin/sourceTypes";
+import type {
+  BulletinDisplayRow,
+  BulletinRequirementDocument,
+  BulletinSamplePlan,
+  BulletinSamplePlanRow,
+  BulletinSamplePlanTerm,
+} from "@/lib/bulletin/displayTypes";
 
 export type BulletinProgramPageSource =
   | {
@@ -36,6 +43,7 @@ export interface SourceTable {
   id: string;
   sectionId: string;
   caption?: string;
+  headingTrail?: Array<{ level: 2 | 3 | 4 | 5 | 6; text: string }>;
   rows: SourceTableRow[];
 }
 
@@ -59,28 +67,17 @@ export interface SourceFootnote {
   text: string;
 }
 
-export interface SourceSamplePlanTerm {
-  id: string;
-  heading: string;
-  rows: SourceTableRow[];
-}
-
-export interface SourceSamplePlan {
-  sectionId: string;
-  heading: string;
-  terms: SourceSamplePlanTerm[];
-}
-
 export interface BulletinProgramDocument {
   kind: "program" | "core";
   slug: string;
   title: string;
   sourceUrl: string;
+  bulletinDisplay: BulletinRequirementDocument;
   sections: SourceSection[];
   requirementTables: SourceTable[];
   policies: SourcePolicy[];
   footnotes: SourceFootnote[];
-  samplePlan?: SourceSamplePlan;
+  samplePlan?: BulletinSamplePlan;
 }
 
 export class BulletinProgramParseError extends Error {
@@ -176,7 +173,31 @@ function tableSection($: LoadedPage, table: PageNode) {
   const section = $(table).parents("section[id], [id$='textcontainer']").first();
   const id = normalizedText(section.attr("id") ?? "");
   const heading = normalizedText(section.find("h2, h3, h4").first().text());
-  return { id, heading, element: section };
+  return {
+    id,
+    heading,
+    headingTrail: headingTrailForTable($, section, table),
+    element: section,
+  };
+}
+
+function headingTrailForTable(
+  $: LoadedPage,
+  section: PageSelection,
+  table: PageNode,
+): Array<{ level: 2 | 3 | 4 | 5 | 6; text: string }> {
+  const trail: Array<{ level: 2 | 3 | 4 | 5 | 6; text: string }> = [];
+  for (const element of section.find("h2, h3, h4, h5, h6, table").toArray()) {
+    if (element === table) return trail;
+    const tag = (element as { tagName?: string }).tagName?.toLowerCase();
+    if (!tag || !/^h[2-6]$/.test(tag)) continue;
+    const level = Number(tag[1]) as 2 | 3 | 4 | 5 | 6;
+    const text = visibleText($(element));
+    if (!text) continue;
+    while (trail.at(-1) && trail.at(-1)!.level >= level) trail.pop();
+    trail.push({ level, text });
+  }
+  return trail;
 }
 
 function isSamplePlanSection(id: string, heading: string): boolean {
@@ -253,6 +274,7 @@ function parseRequirementTable(
   table: PageNode,
   id: string,
   sectionId: string,
+  headingTrail: NonNullable<SourceTable["headingTrail"]>,
 ): SourceTable {
   const elements = bodyRows($, table);
   const rows = elements.map((row, sourceIndex) => {
@@ -278,23 +300,186 @@ function parseRequirementTable(
     id,
     sectionId,
     ...(caption ? { caption } : {}),
+    headingTrail,
     rows,
   };
 }
 
-function parseSamplePlanTerm(
+function samplePlanOrdinal(heading: string): number | null {
+  const semester = heading.match(/^(\d+)(?:st|nd|rd|th)\s+Semester(?:\/Term)?/i);
+  if (semester) return Number(semester[1]);
+  const yearTerm = heading.match(/^Year\s+(\d+)\s+(Fall|Spring)$/i);
+  if (!yearTerm) return null;
+  return (Number(yearTerm[1]) - 1) * 2 +
+    (yearTerm[2].toLowerCase() === "fall" ? 1 : 2);
+}
+
+function samplePlanRow(
+  $: LoadedPage,
+  row: PageNode,
+  sourceIndex: number,
+): BulletinSamplePlanRow | null {
+  const parsed = parseRow($, row, sourceIndex, rowRole($, row) ?? "course");
+  const creditsText = parsed.creditsText ?? null;
+  if (parsed.linkedCourseCodes.length > 0) {
+    return {
+      kind: "course",
+      sourceIndex,
+      text: parsed.text,
+      creditsText,
+      linkedCourseCodes: parsed.linkedCourseCodes,
+      sourceAnchors: parsed.sourceAnchors,
+    };
+  }
+  const label = normalizedText(
+    $(row)
+      .children("th, td")
+      .filter((_index, cell) => !$(cell).hasClass("hourscol"))
+      .toArray()
+      .map((cell) => visibleText($(cell)))
+      .filter(Boolean)
+      .join(" "),
+  );
+  return label
+    ? { kind: "placeholder", sourceIndex, label, creditsText }
+    : null;
+}
+
+function samplePlanTermsFromTable(
   $: LoadedPage,
   table: PageNode,
-  id: string,
-): SourceSamplePlanTerm {
-  const rows = bodyRows($, table).map((row, sourceIndex) => {
-    const role = rowRole($, row) ?? "course";
-    return parseRow($, row, sourceIndex, role);
+  termOffset: number,
+): { terms: BulletinSamplePlanTerm[]; totalCreditsText: string | null } {
+  const rows = bodyRows($, table);
+  const hasTermHeaders = rows.some((row) => {
+    const classes = normalizedText($(row).attr("class") ?? "").toLowerCase();
+    return classes.includes("plangridterm") || samplePlanOrdinal(rowText($, row)) !== null;
   });
-  const heading =
-    visibleText($(table).find("caption").first()) ||
-    normalizedText($(table).prevAll("h3, h4").first().text());
-  return { id, heading, rows };
+  if (!hasTermHeaders) {
+    const heading =
+      visibleText($(table).find("caption").first()) ||
+      normalizedText($(table).prevAll("h3, h4").first().text());
+    const termRows = rows.flatMap((row, sourceIndex) => {
+      const parsed = samplePlanRow($, row, sourceIndex);
+      return parsed ? [parsed] : [];
+    });
+    return {
+      terms: [{
+        sourceIndex: termOffset,
+        heading,
+        ordinal: samplePlanOrdinal(heading),
+        creditsText: null,
+        rows: termRows,
+      }],
+      totalCreditsText: null,
+    };
+  }
+
+  const terms: BulletinSamplePlanTerm[] = [];
+  let current: BulletinSamplePlanTerm | undefined;
+  let totalCreditsText: string | null = null;
+  rows.forEach((row, sourceIndex) => {
+    const text = rowText($, row);
+    const classes = normalizedText($(row).attr("class") ?? "").toLowerCase();
+    const ordinal = samplePlanOrdinal(text);
+    if (classes.includes("plangridterm") || ordinal !== null) {
+      current = {
+        sourceIndex: termOffset + terms.length,
+        heading: text.replace(/\s+Credits$/i, "").trim(),
+        ordinal,
+        creditsText: null,
+        rows: [],
+      };
+      terms.push(current);
+      return;
+    }
+    if (classes.includes("plangridtotal") || /^(?:Credits|Total Credits)\b/i.test(text)) {
+      const credits = visibleText($(row).find(".hourscol").first()) || null;
+      if (/Total Credits/i.test(text)) totalCreditsText = credits;
+      else if (current) current.creditsText = credits;
+      return;
+    }
+    if (!current) return;
+    const parsed = samplePlanRow($, row, sourceIndex);
+    if (parsed) current.rows.push(parsed);
+  });
+  return { terms, totalCreditsText };
+}
+
+function displayRow(row: SourceTableRow): BulletinDisplayRow {
+  const role: BulletinDisplayRow["role"] =
+    row.role === "total"
+      ? "total"
+      : row.linkedCourseCodes.length > 0
+        ? "course"
+        : /^(?:select|choose|complete)\b/i.test(row.text)
+          ? "directive"
+          : row.role === "areaHeader" || row.role === "areaSubheader"
+            ? "heading"
+            : "note";
+  return {
+    sourceIndex: row.sourceIndex,
+    role,
+    text: row.text,
+    creditsText: row.creditsText ?? null,
+    linkedCourseCodes: row.linkedCourseCodes,
+    sourceAnchors: row.sourceAnchors,
+    footnoteMarkers: row.footnoteMarkers,
+  };
+}
+
+function requirementDisplay(
+  $: LoadedPage,
+  sourceUrl: string,
+  tables: SourceTable[],
+  tableSourceIds: ReadonlyMap<PageNode, string>,
+): BulletinRequirementDocument {
+  const tablesById = new Map(tables.map((table) => [table.id, table]));
+  const sections = sourceContainers($).flatMap((element) => {
+    const section = $(element);
+    const sectionTables = section
+      .find(REQUIREMENT_TABLE_SELECTOR)
+      .toArray()
+      .flatMap((table) => {
+        const id = tableSourceIds.get(table) ?? normalizedText($(table).attr("id") ?? "");
+        return tablesById.has(id) ? [tablesById.get(id)!] : [];
+      });
+    if (sectionTables.length === 0) return [];
+    const blocks: BulletinRequirementDocument["sections"][number]["blocks"] = [];
+    for (const node of section.find("h2, h3, h4, h5, h6, p, table").toArray()) {
+      const selection = $(node);
+      const tag = (node as { tagName?: string }).tagName?.toLowerCase() ?? "";
+      if (/^h[2-6]$/.test(tag)) {
+        const text = visibleText(selection);
+        if (text) blocks.push({ kind: "heading", level: Number(tag[1]) as 2 | 3 | 4 | 5 | 6, text });
+        continue;
+      }
+      if (tag === "p" && selection.parents("table, .footnotes").length === 0) {
+        const text = visibleText(selection);
+        if (text) blocks.push({ kind: "prose", paragraphs: [text] });
+        continue;
+      }
+      if (tag === "table") {
+        const id = tableSourceIds.get(node) ?? normalizedText(selection.attr("id") ?? "");
+        const table = tablesById.get(id);
+        if (table) {
+          blocks.push({
+            kind: "table",
+            id: table.id,
+            caption: table.caption ?? null,
+            headingTrail: table.headingTrail ?? [],
+            rows: table.rows.map(displayRow),
+          });
+        }
+      }
+    }
+    return [{
+      id: normalizedText(section.attr("id") ?? ""),
+      heading: normalizedText(section.find("h2, h3, h4").first().text()),
+      blocks,
+    }];
+  });
+  return { schemaVersion: 2, sourceUrl, sections };
 }
 
 function sourceContainers($: LoadedPage): PageNode[] {
@@ -415,7 +600,11 @@ export function parseProgramPage(
   }
 
   const requirementTables: SourceTable[] = [];
-  const sampleTerms: SourceSamplePlanTerm[] = [];
+  const sampleTables: Array<{
+    table: PageNode;
+    sectionId: string;
+    heading: string;
+  }> = [];
   let samplePlanSection: { id: string; heading: string } | undefined;
   for (const table of allTables) {
     const id = tableSourceIds.get(table)!;
@@ -425,9 +614,21 @@ export function parseProgramPage(
       isSamplePlanSection(section.id, section.heading);
     if (samplePlan) {
       samplePlanSection ??= { id: section.id, heading: section.heading };
-      sampleTerms.push(parseSamplePlanTerm($, table, id));
+      sampleTables.push({
+        table,
+        sectionId: section.id,
+        heading: section.heading,
+      });
     } else {
-      requirementTables.push(parseRequirementTable($, table, id, section.id));
+      requirementTables.push(
+        parseRequirementTable(
+          $,
+          table,
+          id,
+          section.id,
+          section.headingTrail,
+        ),
+      );
     }
   }
 
@@ -461,23 +662,53 @@ export function parseProgramPage(
       };
     });
 
+  let samplePlan: BulletinSamplePlan | undefined;
+  if (samplePlanSection) {
+    const terms: BulletinSamplePlanTerm[] = [];
+    let totalCreditsText: string | null = null;
+    for (const { table } of sampleTables) {
+      const parsed = samplePlanTermsFromTable($, table, terms.length);
+      terms.push(...parsed.terms);
+      if (parsed.totalCreditsText !== null) {
+        totalCreditsText = parsed.totalCreditsText;
+      }
+    }
+
+    const importEligible =
+      terms.length === 8 &&
+      terms.every((term, index) => term.ordinal === index + 1);
+    samplePlan = {
+      sectionId: samplePlanSection.id,
+      heading: samplePlanSection.heading,
+      terms,
+      totalCreditsText,
+      importStatus: importEligible ? "eligible" : "display-only",
+      diagnostics: importEligible
+        ? []
+        : [
+            {
+              code: "nonstandard-term-sequence",
+              message: `Sample plan has ${terms.length} terms without one unambiguous 1–8 sequence.`,
+            },
+          ],
+    };
+  }
+
   return {
     kind: sourceMeta.kind === "core" ? "core" : "program",
     slug: sourceMeta.slug,
     title: sourceMeta.title,
     sourceUrl: sourceMeta.url,
+    bulletinDisplay: requirementDisplay(
+      $,
+      sourceMeta.url,
+      requirementTables,
+      tableSourceIds,
+    ),
     sections,
     requirementTables,
     policies,
     footnotes: parseFootnotes($),
-    ...(samplePlanSection
-      ? {
-          samplePlan: {
-            sectionId: samplePlanSection.id,
-            heading: samplePlanSection.heading,
-            terms: sampleTerms,
-          },
-        }
-      : {}),
+    ...(samplePlan ? { samplePlan } : {}),
   };
 }

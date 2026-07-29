@@ -17,7 +17,7 @@ import { GET, PUT } from "@/app/api/plan/route";
 const snapshot = {
   version: 2 as const,
   catalogReleaseId: "release",
-  placements: [], studyAway: {}, completedSemesters: [],
+  placements: [], planningSlots: [], studyAway: {}, completedSemesters: [],
   programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
   unresolvedProgramIds: [], customCourses: [], fulfillmentFacts: [],
   dismissedWarnings: [], startYear: 2026,

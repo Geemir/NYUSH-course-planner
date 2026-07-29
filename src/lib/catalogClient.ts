@@ -5,11 +5,14 @@ import {
   CatalogCourseBatchResponseSchema,
   CatalogCourseDetailResponseSchema,
   CatalogCoursePageSchema,
+  CatalogCourseResolveRequestSchema,
+  CatalogCourseResolveResponseSchema,
   catalogCourseQueryToSearchParams,
   type CatalogBootstrapResponse,
   type CatalogCourseBatchResponse,
   type CatalogCoursePage,
   type CatalogCourseQuery,
+  type CatalogCourseResolveResponse,
 } from "@/lib/catalog/contracts";
 import type { CatalogCourseRecord } from "@/lib/catalog/types";
 
@@ -64,6 +67,10 @@ export interface CatalogClient {
   search(query: CatalogCourseQuery, signal?: AbortSignal): Promise<CatalogCoursePage>;
   getCourse(stableId: string, signal?: AbortSignal): Promise<CatalogCourseRecord>;
   getCourses(stableIds: string[], signal?: AbortSignal): Promise<CatalogCourseBatchResponse>;
+  resolveCourseCodes(
+    codes: string[],
+    signal?: AbortSignal,
+  ): Promise<CatalogCourseResolveResponse>;
 }
 
 async function catalogRequest<T>(
@@ -129,6 +136,20 @@ export function createCatalogClient(fetcher: typeof fetch = fetch): CatalogClien
         body: JSON.stringify(body),
         signal,
       });
+    },
+    resolveCourseCodes: (codes, signal) => {
+      const body = CatalogCourseResolveRequestSchema.parse({ codes });
+      return catalogRequest(
+        fetcher,
+        "/api/catalog/courses/resolve",
+        CatalogCourseResolveResponseSchema,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal,
+        },
+      );
     },
   };
 }

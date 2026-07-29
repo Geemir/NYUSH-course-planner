@@ -26,4 +26,44 @@ describe("correction policy", () => {
     expect(CorrectionOverlayInputSchema.safeParse({ kind: "requirement", programId: "cs", requirementId: "elective", action: "note", note: "Reviewed explanation" }).success).toBe(true);
     expect(CorrectionOverlayInputSchema.safeParse({ kind: "requirement", programId: "cs", requirementId: "elective", action: "add_fulfillment" }).success).toBe(false);
   });
+
+  it("rejects requirement overlays that cross the verified trust boundary", () => {
+    const category = (name: string, requirement: unknown) => ({
+      kind: "requirement-upsert",
+      programId: "data-science-bs",
+      category: {
+        id: "probability",
+        name,
+        requirement,
+        sourceUrl:
+          "https://bulletins.nyu.edu/undergraduate/shanghai/programs/data-science-bs/",
+        sourceTableId: "probability",
+        sourceRowIndexes: [0, 1, 2],
+      },
+    });
+
+    expect(
+      CorrectionOverlayInputSchema.safeParse(
+        category("Course List", { kind: "course", courseId: "MATH-SHU 235" }),
+      ).success,
+    ).toBe(false);
+    expect(
+      CorrectionOverlayInputSchema.safeParse(
+        category("Probability", {
+          kind: "manualConfirmation",
+          label: "Probability",
+          sourceText: "Select one of the following:",
+        }),
+      ).success,
+    ).toBe(false);
+    expect(
+      CorrectionOverlayInputSchema.safeParse(
+        category("Probability", {
+          kind: "choose",
+          count: 2,
+          children: [{ kind: "course", courseId: "MATH-SHU 235" }],
+        }),
+      ).success,
+    ).toBe(false);
+  });
 });

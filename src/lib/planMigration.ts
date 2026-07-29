@@ -131,6 +131,7 @@ export function migratePlanV1(
     version: 2,
     catalogReleaseId: bootstrap.release.id,
     placements,
+    planningSlots: [],
     studyAway: { ...input.studyAway },
     completedSemesters: [...input.completedSemesters],
     programProfile: profile.profile,
@@ -184,6 +185,7 @@ export function reconcilePlanV2(
     requirementStatusOverrides: [...(input.requirementStatusOverrides ?? [])],
     catalogReleaseId: bootstrap.release.id,
     placements,
+    planningSlots: structuredClone(input.planningSlots ?? []),
     programProfile: profile.normalized,
   };
   return { snapshot, status: issues.some((issue) => issue.blocking) ? "needs-resolution" : "ready", issues };

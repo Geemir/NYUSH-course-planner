@@ -7,7 +7,7 @@ import {
 } from "@/store/plannerStore";
 
 const initial: PlannerPresent = {
-  placements: [], studyAway: {}, completedSemesters: [],
+  placements: [], planningSlots: [], studyAway: {}, completedSemesters: [],
   activePrograms: ["core", "cs"],
   programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
   unresolvedProgramIds: [],
@@ -97,5 +97,80 @@ describe("planner semantic history", () => {
     const first = store().placements[0];
     store().removeCourse(first.placementId);
     expect(store().placements.map((placement) => placement.catalogCourseId)).toEqual(["tandon:math-1"]);
+  });
+
+  it("applies a sample plan and undoes courses and slots atomically", () => {
+    const store = () => usePlannerStore.getState();
+    const slot = {
+      id: "slot-chinese",
+      sourceKey: "cs/sample/0/1",
+      semesterId: "Y1F" as const,
+      label: "Chinese or EAP",
+      credits: 4,
+      source: {
+        kind: "bulletin-sample-plan" as const,
+        programId: "computer-science-bs",
+        catalogReleaseId: "release-a",
+        sectionId: "sampleplanofstudytext",
+        termSourceIndex: 0,
+        rowSourceIndex: 1,
+      },
+    };
+
+    store().applySamplePlan({
+      placements: [
+        {
+          courseId: "MATH-SHU 131",
+          catalogCourseId: "nyu-shanghai:MATH-SHU 131",
+          titleSnapshot: "Calculus",
+          semesterId: "Y1F",
+        },
+      ],
+      slots: [slot],
+    });
+
+    expect(store().placements).toHaveLength(1);
+    expect(store().planningSlots).toEqual([slot]);
+    expect(store().undoLabel).toBe("Apply sample study plan");
+    store().undo();
+    expect(store().placements).toEqual([]);
+    expect(store().planningSlots).toEqual([]);
+  });
+
+  it("replaces, edits, and removes planning slots with one history entry each", () => {
+    const store = () => usePlannerStore.getState();
+    const slot = {
+      id: "slot-elective",
+      sourceKey: "cs/sample/2/0",
+      semesterId: "Y2F" as const,
+      label: "General Elective",
+      credits: 4,
+      source: {
+        kind: "bulletin-sample-plan" as const,
+        programId: "computer-science-bs",
+        catalogReleaseId: "release-a",
+        sectionId: "sampleplanofstudytext",
+        termSourceIndex: 2,
+        rowSourceIndex: 0,
+      },
+    };
+    store().applySamplePlan({ placements: [], slots: [slot] });
+    store().updatePlanningSlot(slot.id, { label: "Open Elective" });
+    expect(store().planningSlots[0].label).toBe("Open Elective");
+    store().replacePlanningSlot(slot.id, {
+      courseId: "CSCI-SHU 210",
+      catalogCourseId: "nyu-shanghai:CSCI-SHU 210",
+      titleSnapshot: "Data Structures",
+    });
+    expect(store().planningSlots).toEqual([]);
+    expect(store().placements[0]).toMatchObject({
+      courseId: "CSCI-SHU 210",
+      semesterId: "Y2F",
+    });
+    expect(store().undoLabel).toBe("Choose course for planning slot");
+    store().undo();
+    expect(store().planningSlots[0].label).toBe("Open Elective");
+    store().removePlanningSlot(slot.id);
+    expect(store().planningSlots).toEqual([]);
   });
 });

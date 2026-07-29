@@ -16,6 +16,13 @@ export class OverlayCarryForwardError extends Error {
   }
 }
 
+export class OverlayTrustError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OverlayTrustError";
+  }
+}
+
 const activeOrdered = (overlays: readonly CatalogOverlayRow[]) => overlays
   .filter((overlay) => overlay.status === "active" && !overlay.supersededAt)
   .toSorted((left, right) => left.appliedAt.getTime() - right.appliedAt.getTime() || left.id.localeCompare(right.id));
@@ -71,7 +78,9 @@ export function applyCourseOverlays(record: CatalogCourseRecord, overlays: reado
 }
 
 export function applyProgramOverlays(programs: readonly CatalogProgram[], overlays: readonly CatalogOverlayRow[]): OverlayApplication<CatalogProgram[]> {
-  const values = programs.map((program) => structuredClone(program));
+  const values = programs.map((program) =>
+    structuredClone(CatalogProgramSchema.parse(program)),
+  );
   const applied: CatalogOverlayRow[] = [];
   for (const overlay of activeOrdered(overlays)) {
     const patch = overlay.patchData;
@@ -100,10 +109,43 @@ export function applyProgramOverlays(programs: readonly CatalogProgram[], overla
     } else if (patch.kind === "requirement-upsert") {
       const index = values.findIndex((program) => program.id === patch.programId);
       if (index < 0) continue;
+      const displayTable = values[index].bulletinDisplay?.sections
+        .flatMap((section) => section.blocks)
+        .find(
+          (block) =>
+            block.kind === "table" && block.id === patch.category.sourceTableId,
+        );
+      if (
+        !displayTable ||
+        displayTable.kind !== "table" ||
+        patch.category.sourceRowIndexes.some(
+          (sourceIndex) =>
+            !displayTable.rows.some((row) => row.sourceIndex === sourceIndex),
+        )
+      ) {
+        throw new OverlayTrustError(
+          `Requirement overlay ${overlay.id} has an orphaned source-row reference.`,
+        );
+      }
       const categories = values[index].categories.filter((category) => category.id !== patch.category.id);
       categories.push(structuredClone(patch.category));
+      const interpretations = values[index].interpretations.filter(
+        (interpretation) => interpretation.id !== patch.category.id,
+      );
+      interpretations.push({
+        id: patch.category.id,
+        name: patch.category.name,
+        status: "verified",
+        requirement: structuredClone(patch.category.requirement),
+        sourceTableIds: [patch.category.sourceTableId],
+        sourceRowRefs: patch.category.sourceRowIndexes.map((sourceIndex) => ({
+          tableId: patch.category.sourceTableId,
+          sourceIndex,
+        })),
+        diagnostics: [],
+      });
       values[index] = CatalogProgramSchema.parse({
-        ...values[index], categories,
+        ...values[index], categories, interpretations,
         reviewedOverlayIds: [...(values[index].reviewedOverlayIds ?? []), overlay.id],
       });
       applied.push(overlay);
@@ -113,6 +155,9 @@ export function applyProgramOverlays(programs: readonly CatalogProgram[], overla
       values[index] = CatalogProgramSchema.parse({
         ...values[index],
         categories: values[index].categories.filter((category) => category.id !== patch.categoryId),
+        interpretations: values[index].interpretations.filter(
+          (interpretation) => interpretation.id !== patch.categoryId,
+        ),
         reviewedOverlayIds: [...(values[index].reviewedOverlayIds ?? []), overlay.id],
       });
       applied.push(overlay);

@@ -20,10 +20,11 @@ export function exportModelFixture(): PlanExportModel {
           code: "CSCI-SHU 101", title: "=Unsafe title", credits: 4,
           expectedGrade: "A-", allocations: ["Computer Science / Foundations"], resolved: true,
         }],
+        slots: [{ label: "=General Elective", credits: 4, sourceProgramId: "cs", tentative: true }],
       },
       ...(["Y1S", "Y2F", "Y2S", "Y3F", "Y3S", "Y4F", "Y4S"] as const).map((id) => ({
         id, academicYear: "2025–26", term: id, site: "NYU Shanghai",
-        completed: false, credits: 0, courses: [],
+        completed: false, credits: 0, courses: [], slots: [],
       })),
     ],
     requirements: [{
@@ -36,6 +37,6 @@ export function exportModelFixture(): PlanExportModel {
       severity: "warning", kind: "underload", message: "-Review semester load",
       courseCode: null, semesterId: "Y1F",
     }],
-    disclaimer: "This export is planning guidance. Confirm with your academic advisor.",
+    disclaimer: "This export is planning guidance. Confirm with your academic advisor. Planning slots are tentative placeholders and do not represent registered or completed courses.",
   };
 }

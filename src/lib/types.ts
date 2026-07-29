@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  BulletinDiagnosticSchema,
+  BulletinRequirementDocumentSchema,
+  BulletinSamplePlanSchema,
+} from "@/lib/bulletin/displayTypes";
 
 // ---------------------------------------------------------------------------
 // Semesters & terms
@@ -287,6 +292,44 @@ export const CatalogCategorySchema = z.object({
 });
 export type CatalogCategory = z.infer<typeof CatalogCategorySchema>;
 
+export const CatalogRequirementInterpretationSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    status: z.enum(["verified", "unavailable"]),
+    requirement: RequirementNodeSchema.nullable(),
+    sourceTableIds: z.array(z.string().min(1)).min(1),
+    sourceRowRefs: z.array(
+      z
+        .object({
+          tableId: z.string().min(1),
+          sourceIndex: z.number().int().nonnegative(),
+        })
+        .strict(),
+    ),
+    diagnostics: z.array(BulletinDiagnosticSchema),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.status === "verified" && value.requirement === null) {
+      context.addIssue({
+        code: "custom",
+        message: "Verified interpretations require an executable AST.",
+        path: ["requirement"],
+      });
+    }
+    if (value.status === "unavailable" && value.requirement !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "Unavailable interpretations cannot contain an executable AST.",
+        path: ["requirement"],
+      });
+    }
+  });
+export type CatalogRequirementInterpretation = z.infer<
+  typeof CatalogRequirementInterpretationSchema
+>;
+
 export const CatalogProgramAuditAuthoritySchema = z.enum([
   "nyush-bulletin",
   "reviewed-nyush-overlay",
@@ -320,6 +363,9 @@ const CatalogProgramInputSchema = z.object({
   shortName: z.string().min(1),
   type: z.enum(["major", "core", "minor"]),
   categories: z.array(CatalogCategorySchema),
+  bulletinDisplay: BulletinRequirementDocumentSchema.optional(),
+  interpretations: z.array(CatalogRequirementInterpretationSchema).optional(),
+  samplePlan: BulletinSamplePlanSchema.optional(),
   requirementRows: z.array(CatalogRequirementRowSchema),
   sourceRows: z.array(CatalogSourceRowSchema),
   sourceReferenceIds: z.array(z.string()),
@@ -333,6 +379,20 @@ const CatalogProgramInputSchema = z.object({
 export const CatalogProgramSchema = CatalogProgramInputSchema.transform(
   (program) => ({
     ...program,
+    interpretations:
+      program.interpretations ??
+      program.categories.map((category) => ({
+        id: category.id,
+        name: category.name,
+        status: "verified" as const,
+        requirement: category.requirement,
+        sourceTableIds: [category.sourceTableId],
+        sourceRowRefs: category.sourceRowIndexes.map((sourceIndex) => ({
+          tableId: category.sourceTableId,
+          sourceIndex,
+        })),
+        diagnostics: [],
+      })),
     eligibleProfileRoles:
       program.eligibleProfileRoles ??
       (program.auditAuthority === "raw-nyu-bulletin"
@@ -513,10 +573,36 @@ export interface PlanPlacementV2 extends Placement {
   titleSnapshot?: string;
 }
 
+export const PlanningSlotSchema = z
+  .object({
+    id: z.string().min(1),
+    sourceKey: z.string().min(1),
+    semesterId: SemesterIdSchema,
+    label: z.string().min(1).max(200),
+    credits: z.number().nonnegative().nullable(),
+    source: z
+      .object({
+        kind: z.literal("bulletin-sample-plan"),
+        programId: z.string().min(1),
+        catalogReleaseId: z.string().min(1),
+        sectionId: z.string().min(1),
+        termSourceIndex: z.number().int().nonnegative(),
+        rowSourceIndex: z.number().int().nonnegative(),
+      })
+      .strict(),
+  })
+  .strict();
+export type PlanningSlot = z.infer<typeof PlanningSlotSchema>;
+export const PlanningSlotsSchema = z
+  .array(PlanningSlotSchema)
+  .optional()
+  .default([]);
+
 export interface PlanSnapshotV2 {
   version: 2;
   catalogReleaseId: string | null;
   placements: PlanPlacementV2[];
+  planningSlots: PlanningSlot[];
   studyAway: Partial<Record<SemesterId, string>>;
   completedSemesters: SemesterId[];
   programProfile: import("@/lib/programProfile").ProgramProfile;
@@ -602,5 +688,14 @@ export interface ProgramProgress {
   /** 0..1, weighted across categories by requiredUnits. */
   plannedFraction: number;
   completedFraction: number;
+  /** Whether all, some, or none of the official source groups are executable. */
+  interpretationStatus: "verified" | "partial" | "unavailable";
+  verifiedCategoryCount: number;
+  totalInterpretationCount: number;
+  /** 0..1 share of source interpretations that can be calculated. */
+  automationCoverage: number;
+  /** Null unless every source interpretation is verified. */
+  authoritativePlannedFraction: number | null;
+  authoritativeCompletedFraction: number | null;
   categories: CategoryProgress[];
 }

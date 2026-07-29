@@ -2,6 +2,7 @@
 
 import { GraduationCap } from "lucide-react";
 import { SemesterColumn } from "@/components/planner/SemesterColumn";
+import type { PlanningSlotSelection } from "@/components/planner/PlanningSlotCard";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { type PlanPlacementV2, SemesterId } from "@/lib/types";
@@ -9,8 +10,10 @@ import { usePlannerStore } from "@/store/plannerStore";
 
 export function PlannerBoard({
   onSelectCourse,
+  onChooseSlot,
 }: {
   onSelectCourse: (placement: PlanPlacementV2) => void;
+  onChooseSlot?: (selection: PlanningSlotSelection) => void;
 }) {
   const { t } = useLocale();
   const yearLabels = [t("plan.freshman"), t("plan.sophomore"), t("plan.junior"), t("plan.senior")];
@@ -60,10 +63,12 @@ export function PlannerBoard({
               <SemesterColumn
                 semesterId={`Y${year}F` as SemesterId}
                 onSelectCourse={onSelectCourse}
+                onChooseSlot={onChooseSlot}
               />
               <SemesterColumn
                 semesterId={`Y${year}S` as SemesterId}
                 onSelectCourse={onSelectCourse}
+                onChooseSlot={onChooseSlot}
               />
             </div>
           </section>

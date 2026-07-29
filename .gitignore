@@ -47,6 +47,7 @@ next-env.d.ts
 .pglite-staging
 /playwright-report/
 /test-results/
+/artifacts/
 
 # Subagent-driven development scratch artifacts
 .superpowers/

@@ -22,6 +22,13 @@ export interface ExportCourse {
   resolved: boolean;
 }
 
+export interface ExportPlanningSlot {
+  label: string;
+  credits: number | null;
+  sourceProgramId: string;
+  tentative: true;
+}
+
 export interface ExportSemester {
   id: SemesterId;
   academicYear: string;
@@ -30,6 +37,7 @@ export interface ExportSemester {
   completed: boolean;
   credits: number;
   courses: ExportCourse[];
+  slots: ExportPlanningSlot[];
 }
 
 export interface ExportRequirement {
@@ -70,7 +78,7 @@ export interface PlanExportModel {
 }
 
 const DISCLAIMER =
-  "This export is planning guidance based on published Bulletin requirements. Confirm degree progress and course choices with your academic advisor.";
+  "This export is planning guidance based on published Bulletin requirements. Confirm degree progress and course choices with your academic advisor. Planning slots are tentative placeholders and do not represent registered or completed courses.";
 
 function academicYear(id: SemesterId, startYear: number): string {
   const firstYear = startYear + semesterYear(id) - 1;
@@ -126,6 +134,14 @@ export function buildPlanExportModel(
         resolved: Boolean(course),
       };
     });
+    const slots = snapshot.planningSlots
+      .filter((slot) => slot.semesterId === id)
+      .map<ExportPlanningSlot>((slot) => ({
+        label: slot.label,
+        credits: slot.credits,
+        sourceProgramId: slot.source.programId,
+        tentative: true,
+      }));
     return {
       id,
       academicYear: academicYear(id, snapshot.startYear),
@@ -134,6 +150,7 @@ export function buildPlanExportModel(
       completed: snapshot.completedSemesters.includes(id),
       credits: derived.creditsBySemester.get(id) ?? 0,
       courses,
+      slots,
     };
   });
 

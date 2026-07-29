@@ -78,6 +78,76 @@ function bulletinResponse(): BulletinCatalogResponse {
             sourceRowIndexes: [0],
           },
         ],
+        bulletinDisplay: {
+          schemaVersion: 2,
+          sourceUrl,
+          sections: [
+            {
+              id: "curriculumtext",
+              heading: "Curriculum",
+              blocks: [
+                {
+                  kind: "table",
+                  id: "requirements",
+                  caption: null,
+                  headingTrail: [],
+                  rows: [
+                    {
+                      sourceIndex: 0,
+                      role: "course",
+                      text: "TEST-SHU 101 Test Course",
+                      creditsText: "4",
+                      linkedCourseCodes: ["TEST-SHU 101"],
+                      sourceAnchors: ["/search/?P=TEST-SHU%20101"],
+                      footnoteMarkers: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        interpretations: [
+          {
+            id: "foundation",
+            name: "Foundation",
+            status: "verified",
+            requirement: { kind: "course", courseId: "TEST-SHU 101" },
+            sourceTableIds: ["requirements"],
+            sourceRowRefs: [{ tableId: "requirements", sourceIndex: 0 }],
+            diagnostics: [],
+          },
+        ],
+        samplePlan: {
+          sectionId: "sampleplanofstudytext",
+          heading: "Sample Plan of Study",
+          terms: [
+            {
+              sourceIndex: 0,
+              heading: "First Semester",
+              ordinal: 1,
+              creditsText: "4",
+              rows: [
+                {
+                  kind: "course",
+                  sourceIndex: 0,
+                  text: "TEST-SHU 101 Test Course",
+                  creditsText: "4",
+                  linkedCourseCodes: ["TEST-SHU 101"],
+                  sourceAnchors: ["/search/?P=TEST-SHU%20101"],
+                },
+              ],
+            },
+          ],
+          totalCreditsText: "4",
+          importStatus: "display-only",
+          diagnostics: [
+            {
+              code: "nonstandard-term-sequence",
+              message: "Fixture contains one term.",
+            },
+          ],
+        },
         requirementRows: [
           {
             sourceUrl,
@@ -122,6 +192,11 @@ describe("CatalogResponseSchema", () => {
         expect.objectContaining({ id: "test", provenance: expect.any(Object) }),
       ]),
     );
+    expect(dataModule.BULLETIN_PROGRAMS[0]).toMatchObject({
+      bulletinDisplay: bulletin.programs[0].bulletinDisplay,
+      interpretations: bulletin.programs[0].interpretations,
+      samplePlan: bulletin.programs[0].samplePlan,
+    });
     await expect(import("@/lib/repository")).resolves.toBeDefined();
 
     const directory = await mkdtemp(join(tmpdir(), "catalog-fallback-"));

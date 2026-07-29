@@ -6,6 +6,7 @@ import { AlertCircle, AlertTriangle, GraduationCap, Leaf, Sprout } from "lucide-
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { CourseChip } from "@/components/planner/CourseChip";
+import { PlanningSlotCard, type PlanningSlotSelection } from "@/components/planner/PlanningSlotCard";
 import { StudyAwaySelect } from "@/components/planner/StudyAwaySelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,11 @@ import { usePlannerStore } from "@/store/plannerStore";
 export function SemesterColumn({
   semesterId,
   onSelectCourse,
+  onChooseSlot,
 }: {
   semesterId: SemesterId;
   onSelectCourse: (placement: PlanPlacementV2) => void;
+  onChooseSlot?: (selection: PlanningSlotSelection) => void;
 }) {
   const { t } = useLocale();
   const { isOver, setNodeRef } = useDroppable({ id: semesterId });
@@ -40,11 +43,14 @@ export function SemesterColumn({
   );
   const toggleCompleted = usePlannerStore((s) => s.toggleCompletedSemester);
   const startYear = usePlannerStore((s) => s.startYear);
+  const planningSlots = usePlannerStore((s) => s.planningSlots);
+  const slots = planningSlots.filter((slot) => slot.semesterId === semesterId);
   const isFall = semesterTerm(semesterId) === "fall";
 
   const placements = placementsBySemester.get(semesterId) ?? [];
   const warnings = warningsBySemester.get(semesterId) ?? [];
   const credits = creditsBySemester.get(semesterId) ?? 0;
+  const tentativeCredits = slots.reduce((sum, slot) => sum + (slot.credits ?? 0), 0);
   const overloaded = credits > MAX_SEMESTER_CREDITS;
   const underloaded = credits > 0 && credits < MIN_SEMESTER_CREDITS;
   const hasCapstone = placements.some((p) =>
@@ -116,6 +122,11 @@ export function SemesterColumn({
           >
             {credits} cr
           </Badge>
+          {tentativeCredits > 0 && (
+            <Badge variant="outline" className="px-1.5 text-xs tabular-nums" title="Tentative sample-plan workload">
+              +{tentativeCredits} tentative
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -140,7 +151,8 @@ export function SemesterColumn({
             onSelect={() => onSelectCourse(p as PlanPlacementV2)}
           />
         ))}
-        {placements.length === 0 && (
+        {slots.map((slot) => <PlanningSlotCard key={slot.id} slot={slot} onChoose={onChooseSlot ?? (() => undefined)} />)}
+        {placements.length === 0 && slots.length === 0 && (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed px-5 py-7 text-center text-sm leading-relaxed text-muted-foreground">
             {t("plan.emptySemester")}
           </div>

@@ -1,11 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { rename, rm, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, resolve } from "node:path";
 import {
   PublicCatalogResponseSchema,
   type PublicCatalogResponse,
 } from "@/lib/data";
+import { assertPublishable } from "@/lib/bulletin/validateSnapshot";
+import {
+  CatalogCourseRecordSchema,
+  type SourceCatalogCandidate,
+} from "@/lib/catalog/types";
+import { CatalogProgramSchema } from "@/lib/types";
 
 export const CATALOG_FALLBACK_PATH = resolve(
   process.cwd(),
@@ -100,7 +106,55 @@ export async function writeCatalogFallback(
   }
 }
 
-export async function generateCatalogFallback(): Promise<void> {
+export function parseFallbackArgs(args: readonly string[]) {
+  const candidate = args
+    .find((arg) => arg.startsWith("--candidate="))
+    ?.slice("--candidate=".length);
+  return { candidate, help: args.includes("--help") };
+}
+
+async function fallbackFromCandidate(candidatePath: string): Promise<PublicCatalogResponse> {
+  const root = JSON.parse(await readFile(resolve(candidatePath), "utf8")) as Record<string, unknown>;
+  if (!("candidate" in root) || !("validationReport" in root)) {
+    throw new Error("Fallback regeneration requires a generated candidate artifact.");
+  }
+  if (!root.candidate || typeof root.candidate !== "object") {
+    throw new Error("Candidate payload is invalid.");
+  }
+  const raw = root.candidate as SourceCatalogCandidate;
+  const candidate: SourceCatalogCandidate = {
+    ...raw,
+    courses: CatalogCourseRecordSchema.array().parse(raw.courses),
+    programs: CatalogProgramSchema.array().parse(raw.programs),
+  };
+  assertPublishable(root.validationReport as Parameters<typeof assertPublishable>[0]);
+  if (candidate.sourceId !== "nyu-shanghai") {
+    throw new Error("The checked-in fallback must use the NYU Shanghai source.");
+  }
+  const current = PublicCatalogResponseSchema.parse(
+    JSON.parse(await readFile(CATALOG_FALLBACK_PATH, "utf8")),
+  );
+  return PublicCatalogResponseSchema.parse({
+    snapshot: {
+      id: candidate.snapshotId,
+      kind: "bulletin",
+      sourceHash: candidate.sourceHash,
+    },
+    courses: candidate.courses.map((record) => record.course),
+    programs: candidate.programs,
+    rules: current.rules,
+  });
+}
+
+export async function generateCatalogFallback(candidatePath?: string): Promise<void> {
+  if (candidatePath) {
+    const candidate = await fallbackFromCandidate(candidatePath);
+    await writeCatalogFallback(candidate);
+    process.stdout.write(
+      `Wrote ${candidate.courses.length} courses and ${candidate.programs.length} programs from certified candidate to ${CATALOG_FALLBACK_PATH}.\n`,
+    );
+    return;
+  }
   // Keep server-only imports behind the executable boundary so serialization
   // helpers remain importable in Vitest and other non-React-server contexts.
   const [{ db }, { readActiveCatalogResponse }] = await Promise.all([
@@ -139,8 +193,13 @@ export async function runCatalogFallbackCli({
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined;
 if (invokedPath === fileURLToPath(import.meta.url)) {
+  const options = parseFallbackArgs(process.argv.slice(2));
+  if (options.help) {
+    process.stdout.write("Usage: catalog:generate-fallback -- [--candidate=<candidate-json>]\n");
+    process.exit(0);
+  }
   void runCatalogFallbackCli({
-    execute: generateCatalogFallback,
+    execute: () => generateCatalogFallback(options.candidate),
     stderr: (line) => process.stderr.write(`${line}\n`),
   }).then((exitCode) => {
     process.exit(exitCode);

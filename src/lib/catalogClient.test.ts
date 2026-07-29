@@ -114,6 +114,31 @@ describe("typed catalog client", () => {
     );
   });
 
+  it("resolves canonical course codes through the release-scoped endpoint", async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        releaseId: "release",
+        matches: [
+          { code: "MATH-SHU 131", records: [] },
+          { code: "CSCI-UA 201", records: [] },
+        ],
+      }),
+    );
+    const controller = new AbortController();
+
+    await createCatalogClient(fetcher as typeof fetch).resolveCourseCodes(
+      [" math-shu 131 ", "CSCI-UA 201"],
+      controller.signal,
+    );
+
+    expect(fetcher).toHaveBeenCalledWith("/api/catalog/courses/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codes: ["MATH-SHU 131", "CSCI-UA 201"] }),
+      signal: controller.signal,
+    });
+  });
+
   it.each([
     [400, "invalid-request"],
     [404, "not-found"],

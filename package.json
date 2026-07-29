@@ -20,6 +20,9 @@
     "bulletin:sync": "node --conditions=react-server --import tsx scripts/sync-bulletin.ts",
     "db:seed": "node --conditions=react-server --import tsx scripts/seed-dev-catalog.ts",
     "catalog:generate-fallback": "node --conditions=react-server --import tsx scripts/generate-catalog-fallback.ts",
+    "catalog:generate-nyush-candidate": "node --conditions=react-server --import tsx scripts/regenerate-nyush-fallback.ts",
+    "catalog:certify-nyush": "node --conditions=react-server --import tsx scripts/certify-nyush-programs.ts",
+    "catalog:publish-certified-nyush": "node --conditions=react-server --import tsx scripts/publish-certified-nyush.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"

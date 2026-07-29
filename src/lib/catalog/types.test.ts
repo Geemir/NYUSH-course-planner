@@ -89,5 +89,38 @@ describe("catalog domain schemas", () => {
       "primaryMajor",
       "secondMajor",
     ]);
+    expect(program.interpretations).toEqual([]);
+  });
+
+  it("requires verified interpretations to contain an executable AST", () => {
+    expect(() =>
+      CatalogProgramSchema.parse({
+        id: "computer-science",
+        name: "Computer Science",
+        shortName: "CS",
+        type: "major",
+        categories: [],
+        interpretations: [
+          {
+            id: "probability",
+            name: "Probability",
+            status: "verified",
+            requirement: null,
+            sourceTableIds: ["requirements"],
+            sourceRowRefs: [{ tableId: "requirements", sourceIndex: 1 }],
+            diagnostics: [],
+          },
+        ],
+        requirementRows: [],
+        sourceRows: [],
+        sourceReferenceIds: [],
+        provenance: {
+          sourceUrl:
+            "https://bulletins.nyu.edu/undergraduate/shanghai/programs/computer-science-bs/",
+          snapshotId: "snapshot-shanghai",
+          sourceHash: "hash",
+        },
+      }),
+    ).toThrow(/verified interpretations require/i);
   });
 });

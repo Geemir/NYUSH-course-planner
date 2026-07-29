@@ -71,6 +71,71 @@ const programDocument: BulletinProgramDocument = {
   slug: "mathematics-bs",
   title: "Mathematics (BS)",
   sourceUrl: PROGRAM_URL,
+  bulletinDisplay: {
+    schemaVersion: 2,
+    sourceUrl: PROGRAM_URL,
+    sections: [
+      {
+        id: "requirements",
+        heading: "",
+        blocks: [
+          {
+            kind: "table",
+            id: "major-requirements",
+            caption: null,
+            headingTrail: [],
+            rows: [
+              {
+                sourceIndex: 0,
+                role: "heading",
+                text: "Foundations",
+                creditsText: null,
+                linkedCourseCodes: [],
+                sourceAnchors: [],
+                footnoteMarkers: [],
+              },
+              {
+                sourceIndex: 1,
+                role: "course",
+                text: "MATH-SHU 101 Algebra",
+                creditsText: null,
+                linkedCourseCodes: ["MATH-SHU 101"],
+                sourceAnchors: [],
+                footnoteMarkers: [],
+              },
+              {
+                sourceIndex: 2,
+                role: "course",
+                text: "CSCI-UA 101",
+                creditsText: null,
+                linkedCourseCodes: ["CSCI-UA 101"],
+                sourceAnchors: [],
+                footnoteMarkers: [],
+              },
+              {
+                sourceIndex: 3,
+                role: "note",
+                text: "Another course requires advisor approval.",
+                creditsText: null,
+                linkedCourseCodes: [],
+                sourceAnchors: [],
+                footnoteMarkers: [],
+              },
+              {
+                sourceIndex: 4,
+                role: "total",
+                text: "Total Credits 8",
+                creditsText: null,
+                linkedCourseCodes: [],
+                sourceAnchors: [],
+                footnoteMarkers: [],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
   sections: [],
   policies: [],
   footnotes: [],
@@ -214,6 +279,117 @@ describe("validateCatalogCandidate", () => {
     });
     expect(validateCatalogCandidate(input)).toEqual(report);
     expect(() => assertPublishable(report)).not.toThrow();
+  });
+
+  it("blocks selector text represented as manual confirmation", () => {
+    const input = candidate();
+    const manual = {
+      kind: "manualConfirmation" as const,
+      label: "Probability",
+      sourceText: "Select one of the following:",
+    };
+    input.programs[0].categories[0].requirement = manual;
+    input.programs[0].interpretations[0].requirement = manual;
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "selector-manual-confirmation",
+    );
+  });
+
+  it("blocks generic executable category names", () => {
+    const input = candidate();
+    input.programs[0].categories[0].name = "Course List";
+    input.programs[0].interpretations[0].name = "Course List";
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "generic-category-name",
+    );
+  });
+
+  it("blocks a source table row missing from the faithful display", () => {
+    const input = candidate();
+    const document = programIn(input);
+    const table = document.bulletinDisplay.sections[0].blocks[0];
+    if (table.kind !== "table") throw new Error("Expected table fixture.");
+    table.rows.pop();
+    resealCandidate(input);
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "display-row-fidelity",
+    );
+  });
+
+  it("blocks an import-eligible sample plan without eight ordered terms", () => {
+    const input = candidate();
+    const document = programIn(input);
+    const samplePlan = {
+      sectionId: "sampleplanofstudytext",
+      heading: "Sample Plan of Study",
+      terms: Array.from({ length: 7 }, (_, index) => ({
+        sourceIndex: index,
+        heading: `${index + 1}th Semester`,
+        ordinal: index + 1,
+        creditsText: "16",
+        rows: [],
+      })),
+      totalCreditsText: "112",
+      importStatus: "eligible" as const,
+      diagnostics: [],
+    };
+    document.samplePlan = samplePlan;
+    input.programs[0].samplePlan = structuredClone(samplePlan);
+    resealCandidate(input);
+
+    expect(codes(validateCatalogCandidate(input))).toContain(
+      "sample-plan-fidelity",
+    );
+  });
+
+  it("blocks unavailable interpretations and invalid choose cardinality", () => {
+    const unavailable = candidate();
+    unavailable.programs[0].interpretations[0] = {
+      ...unavailable.programs[0].interpretations[0],
+      status: "unavailable",
+      requirement: null,
+      diagnostics: [
+        { code: "unsupported", message: "Fixture is intentionally unavailable." },
+      ],
+    };
+    unavailable.programs[0].categories = [];
+
+    expect(codes(validateCatalogCandidate(unavailable))).toContain(
+      "unavailable-interpretation",
+    );
+
+    const invalidChoose = candidate();
+    const requirement = {
+      kind: "choose" as const,
+      count: 2,
+      children: [{ kind: "course" as const, courseId: "MATH-SHU 101" }],
+    };
+    invalidChoose.programs[0].categories[0].requirement = requirement;
+    invalidChoose.programs[0].interpretations[0].requirement = requirement;
+
+    expect(codes(validateCatalogCandidate(invalidChoose))).toContain(
+      "invalid-choose-cardinality",
+    );
+  });
+
+  it("blocks a compiled credit minimum that disagrees with its directive", () => {
+    const input = candidate();
+    const document = programIn(input);
+    document.requirementTables[0].rows[3].text =
+      "Complete 8 credits from the following:";
+    const requirement = {
+      kind: "credits" as const,
+      minimum: 4,
+      children: [{ kind: "course" as const, courseId: "MATH-SHU 101" }],
+    };
+    input.programs[0].interpretations[0].requirement = requirement;
+    input.programs[0].categories[0].requirement = requirement;
+    resealCandidate(input);
+
+    expect(codes(validateCatalogCandidate(input))).toContain("credit-mismatch");
   });
 
   it.each([
@@ -746,6 +922,32 @@ describe("validateSourceCatalogCandidate", () => {
         "course-count-drop",
         "unresolved-reference-spike",
       ]),
+    );
+  });
+
+  it("accepts only explicitly reviewed unresolved source references", () => {
+    const input = sourceCandidate();
+    input.unresolvedCourseIds = ["LEGACY-SHU 1"];
+    const reviewed = validateSourceCatalogCandidate(input, {
+      source: getCatalogSource("nyu-new-york-arts-science"),
+      expectedSubjectCount: 1,
+      reviewedUnresolvedCourseIds: ["LEGACY-SHU 1"],
+    });
+    expect(reviewed.errors.map((error) => error.code)).not.toContain(
+      "unresolved-reference-spike",
+    );
+
+    input.unresolvedCourseIds.push("NEW-SHU 2");
+    const changed = validateSourceCatalogCandidate(input, {
+      source: getCatalogSource("nyu-new-york-arts-science"),
+      expectedSubjectCount: 1,
+      reviewedUnresolvedCourseIds: ["LEGACY-SHU 1"],
+    });
+    expect(changed.errors).toContainEqual(
+      expect.objectContaining({
+        code: "unresolved-reference-spike",
+        entityId: "NEW-SHU 2",
+      }),
     );
   });
 });

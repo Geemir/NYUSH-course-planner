@@ -1,10 +1,14 @@
 import { createHash } from "node:crypto";
-import { isDirectiveRow } from "@/lib/bulletin/normalize";
+import {
+  BulletinRequirementDocumentSchema,
+  BulletinSamplePlanSchema,
+  type BulletinDisplayRow,
+  type BulletinTableBlock,
+} from "@/lib/bulletin/displayTypes";
 import type { BulletinSourceDocument } from "@/lib/bulletin/parseCoursePage";
 import type {
   BulletinProgramDocument,
   SourceTableRow,
-  SourceTableRowRole,
 } from "@/lib/bulletin/parseProgramPage";
 import type {
   CatalogCandidate,
@@ -48,7 +52,16 @@ export type SnapshotValidationCode =
   | "missing-course-code"
   | "missing-credit-value"
   | "invalid-canonical-url"
-  | "structural-selector-miss";
+  | "structural-selector-miss"
+  | "selector-manual-confirmation"
+  | "invalid-choose-cardinality"
+  | "generic-category-name"
+  | "duplicate-source-reference"
+  | "unavailable-interpretation"
+  | "credit-mismatch"
+  | "display-row-fidelity"
+  | "sample-plan-fidelity"
+  | "unexpected-manual-condition";
 
 export interface SnapshotValidationDiagnostic {
   code: SnapshotValidationCode;
@@ -215,24 +228,22 @@ function isRequirementTable(value: unknown): boolean {
     value.id.trim() !== "" &&
     typeof value.sectionId === "string" &&
     isOptionalString(value.caption) &&
+    (value.headingTrail === undefined ||
+      (Array.isArray(value.headingTrail) &&
+        value.headingTrail.every(
+          (heading) =>
+            isRecord(heading) &&
+            typeof heading.level === "number" &&
+            heading.level >= 2 &&
+            heading.level <= 6 &&
+            typeof heading.text === "string",
+        ))) &&
     isSourceRows(value.rows)
   );
 }
 
 function isSamplePlan(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return (
-    typeof value.sectionId === "string" &&
-    typeof value.heading === "string" &&
-    Array.isArray(value.terms) &&
-    value.terms.every(
-      (term) =>
-        isRecord(term) &&
-        typeof term.id === "string" &&
-        typeof term.heading === "string" &&
-        isSourceRows(term.rows),
-    )
-  );
+  return BulletinSamplePlanSchema.safeParse(value).success;
 }
 
 function isBulletinDocument(value: unknown): value is BulletinDocument {
@@ -276,6 +287,8 @@ function isBulletinDocument(value: unknown): value is BulletinDocument {
     value.policies.every(isSourcePolicy) &&
     Array.isArray(value.footnotes) &&
     value.footnotes.every(isSourceFootnote) &&
+    (value.bulletinDisplay === undefined ||
+      BulletinRequirementDocumentSchema.safeParse(value.bulletinDisplay).success) &&
     (value.samplePlan === undefined || isSamplePlan(value.samplePlan))
   );
 }
@@ -327,133 +340,8 @@ function duplicates(values: readonly string[]): string[] {
   return [...repeated].sort(compareText);
 }
 
-function expectedRepresentation(role: SourceTableRowRole) {
-  if (role === "areaHeader") return "categoryBoundary" as const;
-  if (role === "total") return "publishedTotal" as const;
-  return "requirementNode" as const;
-}
-
 function rowKey(sourceUrlValue: string, tableId: string, sourceIndex: number) {
   return `${sourceUrlValue}\u0000${tableId}\u0000${sourceIndex}`;
-}
-
-function slug(value: string): string {
-  const result = value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return result || "requirements";
-}
-
-function uniqueCategoryId(name: string, used: Map<string, number>): string {
-  const base = slug(name);
-  const sequence = (used.get(base) ?? 0) + 1;
-  used.set(base, sequence);
-  return sequence === 1 ? base : `${base}-${sequence}`;
-}
-
-function sourceRowGroups(rows: SourceTableRow[]): SourceTableRow[][] {
-  const groups: SourceTableRow[][] = [];
-  for (const row of rows) {
-    if (row.role === "areaHeader" || groups.length === 0) groups.push([]);
-    groups.at(-1)!.push(row);
-  }
-  return groups;
-}
-
-function semanticRowPaths(rows: SourceTableRow[]): Map<number, number[]> {
-  // Mirrors normalize.ts's semanticRowGroups + normalizeSemanticGroup exactly,
-  // reusing its directive detector so the two never drift out of sync.
-  const groups: SourceTableRow[][] = [];
-  for (const row of rows) {
-    if (row.role === "areaSubheader" || isDirectiveRow(row) || groups.length === 0) {
-      groups.push([]);
-    }
-    groups.at(-1)!.push(row);
-  }
-  const paths = new Map<number, number[]>();
-  groups.forEach((group, groupIndex) => {
-    const directive = group.length > 1 && isDirectiveRow(group[0]);
-    group.forEach((row, rowIndex) => {
-      const localPath = directive
-        ? rowIndex === 0
-          ? []
-          : [rowIndex - 1]
-        : group.length === 1
-          ? []
-          : [rowIndex];
-      paths.set(
-        row.sourceIndex,
-        groups.length === 1 ? localPath : [groupIndex, ...localPath],
-      );
-    });
-  });
-  return paths;
-}
-
-interface ExpectedCategorySource {
-  id: string;
-  name: string;
-  sourceUrl: string;
-  sourceTableId: string;
-  sourceRowIndexes: number[];
-}
-
-function expectedCoverage(document: BulletinProgramDocument): {
-  sourceRows: CatalogSourceRow[];
-  categories: ExpectedCategorySource[];
-} {
-  const sourceRows: CatalogSourceRow[] = [];
-  const categories: ExpectedCategorySource[] = [];
-  const usedCategoryIds = new Map<string, number>();
-  for (const table of document.requirementTables) {
-    for (const group of sourceRowGroups(table.rows)) {
-      const header = group.find((row) => row.role === "areaHeader");
-      const categoryName = header?.text ?? table.caption ?? table.id;
-      const categoryId = uniqueCategoryId(categoryName, usedCategoryIds);
-      const semanticRows = group.filter(
-        (row) => row.role !== "areaHeader" && row.role !== "total",
-      );
-      const nodePaths = semanticRowPaths(semanticRows);
-      if (semanticRows.length > 0) {
-        categories.push({
-          id: categoryId,
-          name: categoryName,
-          sourceUrl: document.sourceUrl,
-          sourceTableId: table.id,
-          sourceRowIndexes: group.map((row) => row.sourceIndex),
-        });
-      }
-      group.forEach((row) => {
-        const common = {
-          sourceUrl: document.sourceUrl,
-          tableId: table.id,
-          sourceIndex: row.sourceIndex,
-          sourceText: row.text,
-        };
-        const representation = expectedRepresentation(row.role);
-        if (representation === "categoryBoundary") {
-          sourceRows.push({ representation, ...common, categoryId });
-        } else if (representation === "publishedTotal") {
-          sourceRows.push({
-            representation,
-            ...common,
-            ...(row.creditsText ? { creditsText: row.creditsText } : {}),
-          });
-        } else {
-          sourceRows.push({
-            representation,
-            ...common,
-            categoryId,
-            nodePath: nodePaths.get(row.sourceIndex) ?? [],
-          });
-        }
-      });
-    }
-  }
-  return { sourceRows, categories };
 }
 
 function nodeAtPath(
@@ -481,14 +369,69 @@ function hasExactSourceRowCoverage(
   program: CatalogProgram,
   document: BulletinProgramDocument,
 ): boolean {
-  const expected = expectedCoverage(document);
-  if (expected.sourceRows.length !== program.sourceRows.length) return false;
-  const expectedByKey = new Map(
-    expected.sourceRows.map((row) => [
-      rowKey(row.sourceUrl, row.tableId, row.sourceIndex),
-      row,
-    ] as const),
+  const tableById = new Map(
+    document.requirementTables.map((table) => [table.id, table]),
   );
+  const sourceRow = (tableId: string, sourceIndex: number) =>
+    tableById
+      .get(tableId)
+      ?.rows.find((candidate) => candidate.sourceIndex === sourceIndex);
+  const verified = program.interpretations.filter(
+    (interpretation) =>
+      interpretation.status === "verified" && interpretation.requirement,
+  );
+  const expectedCategories = verified.map((interpretation) => ({
+    id: interpretation.id,
+    name: interpretation.name,
+    requirement: interpretation.requirement,
+    sourceUrl: document.sourceUrl,
+    sourceTableId: interpretation.sourceTableIds[0],
+    sourceRowIndexes: interpretation.sourceRowRefs.map(
+      (reference) => reference.sourceIndex,
+    ),
+  }));
+  if (JSON.stringify(program.categories) !== JSON.stringify(expectedCategories)) {
+    return false;
+  }
+
+  const expectedRows = new Map<
+    string,
+    { representation: CatalogSourceRow["representation"]; categoryId?: string }
+  >();
+  for (const table of document.requirementTables) {
+    for (const row of table.rows) {
+      if (row.role === "total") {
+        expectedRows.set(rowKey(document.sourceUrl, table.id, row.sourceIndex), {
+          representation: "publishedTotal",
+        });
+      }
+    }
+  }
+  const expectedRequirementKeys = new Set<string>();
+  for (const interpretation of verified) {
+    for (const reference of interpretation.sourceRowRefs) {
+      const row = sourceRow(reference.tableId, reference.sourceIndex);
+      if (!row) return false;
+      const key = rowKey(
+        document.sourceUrl,
+        reference.tableId,
+        reference.sourceIndex,
+      );
+      if (row.role === "areaHeader") {
+        expectedRows.set(key, {
+          representation: "categoryBoundary",
+          categoryId: interpretation.id,
+        });
+      } else if (row.role !== "total") {
+        expectedRows.set(key, {
+          representation: "requirementNode",
+          categoryId: interpretation.id,
+        });
+        expectedRequirementKeys.add(key);
+      }
+    }
+  }
+
   const actualByKey = new Map(
     program.sourceRows.map((row) => [
       rowKey(row.sourceUrl, row.tableId, row.sourceIndex),
@@ -496,34 +439,31 @@ function hasExactSourceRowCoverage(
     ] as const),
   );
   if (
-    expectedByKey.size !== expected.sourceRows.length ||
+    expectedRows.size !== program.sourceRows.length ||
     actualByKey.size !== program.sourceRows.length
   ) {
     return false;
   }
-  if (
-    [...expectedByKey].some(
-      ([key, row]) => JSON.stringify(actualByKey.get(key)) !== JSON.stringify(row),
-    )
-  ) {
-    return false;
+  for (const [key, expected] of expectedRows) {
+    const actual = actualByKey.get(key);
+    if (!actual || actual.representation !== expected.representation) return false;
+    const source = sourceRow(actual.tableId, actual.sourceIndex);
+    if (!source || actual.sourceText !== source.text) return false;
+    if (
+      "categoryId" in actual &&
+      actual.categoryId !== expected.categoryId
+    ) {
+      return false;
+    }
+    if (
+      actual.representation === "publishedTotal" &&
+      actual.creditsText !== source.creditsText
+    ) {
+      return false;
+    }
   }
 
-  const actualCategories = program.categories.map((category) => ({
-    id: category.id,
-    name: category.name,
-    sourceUrl: category.sourceUrl,
-    sourceTableId: category.sourceTableId,
-    sourceRowIndexes: category.sourceRowIndexes,
-  }));
-  if (JSON.stringify(actualCategories) !== JSON.stringify(expected.categories)) {
-    return false;
-  }
-
-  const expectedRequirements = expected.sourceRows.filter(
-    (row) => row.representation === "requirementNode",
-  );
-  if (program.requirementRows.length !== expectedRequirements.length) return false;
+  if (program.requirementRows.length !== expectedRequirementKeys.size) return false;
   const requirementsByKey = new Map(
     program.requirementRows.map((row) => [
       rowKey(row.sourceUrl, row.tableId, row.sourceIndex),
@@ -535,25 +475,191 @@ function hasExactSourceRowCoverage(
     (row) => `${row.categoryId}\u0000${JSON.stringify(row.nodePath)}`,
   );
   if (new Set(requirementPaths).size !== requirementPaths.length) return false;
-  return expectedRequirements.every((expected) => {
-    const key = rowKey(expected.sourceUrl, expected.tableId, expected.sourceIndex);
+  return [...expectedRequirementKeys].every((key) => {
     const requirement = requirementsByKey.get(key);
+    if (!requirement) return false;
+    const source = sourceRow(requirement.tableId, requirement.sourceIndex);
     const category = program.categories.find(
-      (candidate) => candidate.id === requirement?.categoryId,
+      (candidate) => candidate.id === requirement.categoryId,
     );
     const representedNode = category
-      ? nodeAtPath(category.requirement, requirement?.nodePath ?? [])
+      ? nodeAtPath(category.requirement, requirement.nodePath)
       : undefined;
     return (
-      requirement?.sourceText === expected.sourceText &&
-      requirement.sourceUrl === expected.sourceUrl &&
-      requirement.tableId === expected.tableId &&
-      requirement.sourceIndex === expected.sourceIndex &&
-      requirement.categoryId === expected.categoryId &&
-      JSON.stringify(requirement.nodePath) === JSON.stringify(expected.nodePath) &&
+      source !== undefined &&
+      requirement.sourceText === source.text &&
+      requirement.sourceUrl === document.sourceUrl &&
       JSON.stringify(representedNode) === JSON.stringify(requirement.node)
     );
   });
+}
+
+function displayRole(row: SourceTableRow): BulletinDisplayRow["role"] {
+  if (row.role === "total") return "total";
+  if (row.linkedCourseCodes.length > 0) return "course";
+  if (/^(?:select|choose|complete)\b/i.test(row.text)) return "directive";
+  if (row.role === "areaHeader" || row.role === "areaSubheader") {
+    return "heading";
+  }
+  return "note";
+}
+
+function displayTables(document: BulletinProgramDocument): BulletinTableBlock[] {
+  return document.bulletinDisplay?.sections.flatMap((section) =>
+    section.blocks.filter(
+      (block): block is BulletinTableBlock => block.kind === "table",
+    ),
+  ) ?? [];
+}
+
+function hasDisplayFidelity(
+  program: CatalogProgram,
+  document: BulletinProgramDocument,
+): boolean {
+  if (
+    !document.bulletinDisplay ||
+    !BulletinRequirementDocumentSchema.safeParse(document.bulletinDisplay).success ||
+    document.bulletinDisplay.sourceUrl !== document.sourceUrl ||
+    JSON.stringify(program.bulletinDisplay) !==
+      JSON.stringify(document.bulletinDisplay)
+  ) {
+    return false;
+  }
+  const displayed = displayTables(document);
+  if (displayed.length !== document.requirementTables.length) return false;
+  return document.requirementTables.every((table, tableIndex) => {
+    const block = displayed[tableIndex];
+    return (
+      block.id === table.id &&
+      block.caption === (table.caption ?? null) &&
+      JSON.stringify(block.headingTrail) ===
+        JSON.stringify(table.headingTrail ?? []) &&
+      block.rows.length === table.rows.length &&
+      table.rows.every((row, rowIndex) => {
+        const display = block.rows[rowIndex];
+        return (
+          display.sourceIndex === row.sourceIndex &&
+          display.role === displayRole(row) &&
+          display.text === row.text &&
+          display.creditsText === (row.creditsText ?? null) &&
+          JSON.stringify(display.linkedCourseCodes) ===
+            JSON.stringify(row.linkedCourseCodes) &&
+          JSON.stringify(display.sourceAnchors) ===
+            JSON.stringify(row.sourceAnchors) &&
+          JSON.stringify(display.footnoteMarkers) ===
+            JSON.stringify(row.footnoteMarkers)
+        );
+      })
+    );
+  });
+}
+
+function hasSamplePlanFidelity(
+  program: CatalogProgram,
+  document: BulletinProgramDocument,
+): boolean {
+  if (JSON.stringify(program.samplePlan) !== JSON.stringify(document.samplePlan)) {
+    return false;
+  }
+  const samplePlan = document.samplePlan;
+  if (!samplePlan) return true;
+  if (!BulletinSamplePlanSchema.safeParse(samplePlan).success) return false;
+  if (
+    new Set(samplePlan.terms.map((term) => term.sourceIndex)).size !==
+    samplePlan.terms.length
+  ) {
+    return false;
+  }
+  if (
+    samplePlan.importStatus === "eligible" &&
+    (samplePlan.terms.length !== 8 ||
+      !samplePlan.terms.every((term, index) => term.ordinal === index + 1))
+  ) {
+    return false;
+  }
+  return samplePlan.terms.every(
+    (term) =>
+      new Set(term.rows.map((row) => row.sourceIndex)).size === term.rows.length &&
+      term.rows.every((row) =>
+        row.kind === "course"
+          ? row.linkedCourseCodes.length > 0
+          : row.label.trim() !== "",
+      ),
+  );
+}
+
+function requirementValidationCodes(node: RequirementNode): Set<SnapshotValidationCode> {
+  const codes = new Set<SnapshotValidationCode>();
+  if (
+    node.kind === "choose" &&
+    (node.count < 1 || node.count > node.children.length)
+  ) {
+    codes.add("invalid-choose-cardinality");
+  }
+  if (node.kind === "manualConfirmation") {
+    if (/^(?:select|choose|complete\s+one\s+of)\b/i.test(node.sourceText)) {
+      codes.add("selector-manual-confirmation");
+    }
+    if (!/(?:advisor approval|placement|proficiency|petition)/i.test(node.sourceText)) {
+      codes.add("unexpected-manual-condition");
+    }
+  }
+  if (
+    node.kind === "all" ||
+    node.kind === "any" ||
+    node.kind === "choose" ||
+    node.kind === "credits"
+  ) {
+    node.children.forEach((child) =>
+      requirementValidationCodes(child).forEach((code) => codes.add(code)),
+    );
+  } else if (node.kind === "exclusion") {
+    requirementValidationCodes(node.child).forEach((code) => codes.add(code));
+  }
+  return codes;
+}
+
+function creditMinimums(node: RequirementNode): number[] {
+  if (node.kind === "credits") {
+    return [
+      node.minimum,
+      ...node.children.flatMap((child) => creditMinimums(child)),
+    ];
+  }
+  if (
+    node.kind === "all" ||
+    node.kind === "any" ||
+    node.kind === "choose"
+  ) {
+    return node.children.flatMap((child) => creditMinimums(child));
+  }
+  return node.kind === "exclusion" ? creditMinimums(node.child) : [];
+}
+
+function hasCreditDirectiveMismatch(
+  interpretation: CatalogProgram["interpretations"][number],
+  document: BulletinProgramDocument,
+): boolean {
+  if (!interpretation.requirement) return false;
+  const tableById = new Map(
+    document.requirementTables.map((table) => [table.id, table]),
+  );
+  const sourceMinimums = interpretation.sourceRowRefs.flatMap((reference) => {
+    const text = tableById
+      .get(reference.tableId)
+      ?.rows.find((row) => row.sourceIndex === reference.sourceIndex)?.text;
+    const match = text?.match(
+      /^(?:complete|select|choose|take)\s+(\d+(?:\.\d+)?)\s+credits?\b/i,
+    );
+    return match ? [Number(match[1])] : [];
+  });
+  if (sourceMinimums.length === 0) return false;
+  return (
+    JSON.stringify(sourceMinimums.sort((left, right) => left - right)) !==
+    JSON.stringify(
+      creditMinimums(interpretation.requirement).sort((left, right) => left - right),
+    )
+  );
 }
 
 function executableCourseIds(node: RequirementNode): string[] {
@@ -786,9 +892,78 @@ export function validateCatalogCandidate(
       coverageErrorUrls.add(program.provenance.sourceUrl);
       return;
     }
-    if (!hasExactSourceRowCoverage(program, matchingDocuments[0])) {
+    const sourceDocument = matchingDocuments[0];
+    if (!hasExactSourceRowCoverage(program, sourceDocument)) {
       coverageErrorUrls.add(program.provenance.sourceUrl);
     }
+    if (!hasDisplayFidelity(program, sourceDocument)) {
+      errors.push({
+        code: "display-row-fidelity",
+        sourceUrl: program.provenance.sourceUrl,
+        entityId: program.id,
+      });
+    }
+    if (!hasSamplePlanFidelity(program, sourceDocument)) {
+      errors.push({
+        code: "sample-plan-fidelity",
+        sourceUrl: program.provenance.sourceUrl,
+        entityId: program.id,
+      });
+    }
+
+    const referenceKeys = program.interpretations.flatMap((interpretation) =>
+      interpretation.sourceRowRefs.map(
+        (reference) => `${reference.tableId}\u0000${reference.sourceIndex}`,
+      ),
+    );
+    if (new Set(referenceKeys).size !== referenceKeys.length) {
+      errors.push({
+        code: "duplicate-source-reference",
+        sourceUrl: program.provenance.sourceUrl,
+        entityId: program.id,
+      });
+    }
+    program.interpretations.forEach((interpretation) => {
+      if (interpretation.status === "unavailable") {
+        errors.push({
+          code: "unavailable-interpretation",
+          sourceUrl: program.provenance.sourceUrl,
+          entityId: `${program.id}/${interpretation.id}`,
+        });
+      }
+      if (interpretation.requirement) {
+        requirementValidationCodes(interpretation.requirement).forEach((code) =>
+          errors.push({
+            code,
+            sourceUrl: program.provenance.sourceUrl,
+            entityId: `${program.id}/${interpretation.id}`,
+          }),
+        );
+        if (hasCreditDirectiveMismatch(interpretation, sourceDocument)) {
+          errors.push({
+            code: "credit-mismatch",
+            sourceUrl: program.provenance.sourceUrl,
+            entityId: `${program.id}/${interpretation.id}`,
+          });
+        }
+      }
+    });
+    program.categories.forEach((category) => {
+      if (/^(?:course list|curriculum|requirements?)$/i.test(category.name.trim())) {
+        errors.push({
+          code: "generic-category-name",
+          sourceUrl: program.provenance.sourceUrl,
+          entityId: `${program.id}/${category.id}`,
+        });
+      }
+      requirementValidationCodes(category.requirement).forEach((code) =>
+        errors.push({
+          code,
+          sourceUrl: program.provenance.sourceUrl,
+          entityId: `${program.id}/${category.id}`,
+        }),
+      );
+    });
   });
   documents
     .filter(
@@ -879,6 +1054,7 @@ export interface SourceValidationOptions {
   expectedSubjectCount: number;
   previousCourseCount?: number;
   previousUnresolvedCount?: number;
+  reviewedUnresolvedCourseIds?: readonly string[];
   maximumCourseDropRatio?: number;
   maximumUnresolvedIncrease?: number;
 }
@@ -980,13 +1156,20 @@ export function validateSourceCatalogCandidate(
   ) {
     addError("course-count-drop", source.id);
   }
-  const previousUnresolved = options.previousUnresolvedCount ?? 0;
-  const maximumUnresolvedIncrease = options.maximumUnresolvedIncrease ?? 3;
-  if (
-    candidate.unresolvedCourseIds.length - previousUnresolved >
-    maximumUnresolvedIncrease
-  ) {
-    addError("unresolved-reference-spike", source.id);
+  if (options.reviewedUnresolvedCourseIds) {
+    const reviewed = new Set(options.reviewedUnresolvedCourseIds);
+    candidate.unresolvedCourseIds
+      .filter((courseId) => !reviewed.has(courseId))
+      .forEach((courseId) => addError("unresolved-reference-spike", courseId));
+  } else {
+    const previousUnresolved = options.previousUnresolvedCount ?? 0;
+    const maximumUnresolvedIncrease = options.maximumUnresolvedIncrease ?? 3;
+    if (
+      candidate.unresolvedCourseIds.length - previousUnresolved >
+      maximumUnresolvedIncrease
+    ) {
+      addError("unresolved-reference-spike", source.id);
+    }
   }
   candidate.quarantinedCourses.forEach((course) =>
     warnings.push({

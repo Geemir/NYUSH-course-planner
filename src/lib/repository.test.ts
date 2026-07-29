@@ -142,6 +142,23 @@ describe("revision-aware plan repository", () => {
     version: 2,
     catalogReleaseId: "release",
     placements: [],
+    planningSlots: [
+      {
+        id: "slot-elective",
+        sourceKey: "cs/sample/0/0",
+        semesterId: "Y1F",
+        label: "General Elective",
+        credits: 4,
+        source: {
+          kind: "bulletin-sample-plan",
+          programId: "cs",
+          catalogReleaseId: "release",
+          sectionId: "sampleplanofstudytext",
+          termSourceIndex: 0,
+          rowSourceIndex: 0,
+        },
+      },
+    ],
     studyAway: {},
     completedSemesters: [],
     programProfile: {
@@ -163,6 +180,9 @@ describe("revision-aware plan repository", () => {
       await isolated.db.insert(schema.users).values({ id: "revision-user", email: "revision@nyu.edu" });
       const first = await saveActivePlanRevision(isolated.db, "revision-user", v2(2026), null);
       expect(first).toMatchObject({ status: "saved", plan: { revision: 1, snapshot: { startYear: 2026 } } });
+      expect(first.status === "saved" && first.plan.snapshot.version === 2
+        ? first.plan.snapshot.planningSlots
+        : []).toHaveLength(1);
       const second = await saveActivePlanRevision(isolated.db, "revision-user", v2(2027), 1);
       expect(second).toMatchObject({ status: "saved", plan: { revision: 2, snapshot: { startYear: 2027 } } });
       const stale = await saveActivePlanRevision(isolated.db, "revision-user", v2(2030), 1);

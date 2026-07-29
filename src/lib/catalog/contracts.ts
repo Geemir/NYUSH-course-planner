@@ -3,6 +3,7 @@ import {
   CatalogCourseRecordSchema,
   CatalogReleaseRefSchema,
 } from "@/lib/catalog/types";
+import { canonicalCourseCode } from "@/lib/catalog/identity";
 import {
   CatalogProgramSchema,
   SiteSchema,
@@ -187,3 +188,37 @@ export const CatalogCourseBatchResponseSchema = z.object({
 }).strict();
 export type CatalogCourseBatchResponse = z.infer<typeof CatalogCourseBatchResponseSchema>;
 export const CatalogCourseDetailResponseSchema = CatalogCourseRecordSchema;
+
+export const CatalogCourseResolveRequestSchema = z
+  .object({
+    codes: z
+      .array(z.string().trim().min(1))
+      .min(1)
+      .max(100)
+      .transform((codes) => [
+        ...new Set(codes.map((code) => canonicalCourseCode(code))),
+      ]),
+  })
+  .strict();
+export type CatalogCourseResolveRequest = z.infer<
+  typeof CatalogCourseResolveRequestSchema
+>;
+
+export const CatalogCourseResolveResponseSchema = z
+  .object({
+    releaseId: z.string().min(1),
+    matches: z
+      .array(
+        z
+          .object({
+            code: z.string().min(1),
+            records: z.array(CatalogCourseRecordSchema),
+          })
+          .strict(),
+      )
+      .max(100),
+  })
+  .strict();
+export type CatalogCourseResolveResponse = z.infer<
+  typeof CatalogCourseResolveResponseSchema
+>;

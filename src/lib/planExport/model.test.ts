@@ -43,6 +43,11 @@ function exportFixture() {
     version: 2,
     catalogReleaseId: "release-2026",
     placements,
+    planningSlots: [{
+      id: "slot-1", sourceKey: "cs:sample:1:2:general-elective", semesterId: "Y1F",
+      label: "General Elective", credits: 4,
+      source: { kind: "bulletin-sample-plan", programId: "computer-science-bs", catalogReleaseId: "release-2026", sectionId: "sample", termSourceIndex: 0, rowSourceIndex: 2 },
+    }],
     studyAway: { Y1F: "newyork", Y2S: "future-campus" },
     completedSemesters: ["Y1F"],
     programProfile: {
@@ -100,6 +105,8 @@ describe("buildPlanExportModel", () => {
       credits: 3,
       expectedGrade: "A-",
     });
+    expect(model.semesters[0].slots).toEqual([{ label: "General Elective", credits: 4, sourceProgramId: "computer-science-bs", tentative: true }]);
+    expect(model.credits.planned).toBe(3);
     expect(model.profile.map(({ role }) => role)).toEqual([
       "core",
       "primary-major",

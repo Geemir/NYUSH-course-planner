@@ -12,7 +12,7 @@ import {
 describe("generated catalog fallback", () => {
   it("loads a non-empty official Bulletin snapshot", () => {
     expect(CATALOG_FALLBACK.snapshot.kind).toBe("bulletin");
-    expect(CATALOG_FALLBACK.snapshot.id).toMatch(/^bulletin-/);
+    expect(CATALOG_FALLBACK.snapshot.id).toMatch(/^(?:bulletin|nyu-shanghai)-/);
     expect(CATALOG_FALLBACK.snapshot.sourceHash).not.toBe("");
     expect(COURSES.length).toBeGreaterThan(0);
     expect(BULLETIN_PROGRAMS.length).toBeGreaterThan(0);

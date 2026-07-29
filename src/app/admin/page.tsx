@@ -7,6 +7,7 @@ import { AlbertImport } from "@/components/admin/AlbertImport";
 import { AdminCorrections } from "@/components/admin/AdminCorrections";
 import { AdminAnnouncements } from "@/components/admin/AdminAnnouncements";
 import { CatalogMaintenance } from "@/components/admin/CatalogMaintenance";
+import { BulletinCertificationStatus } from "@/components/admin/BulletinCertificationStatus";
 import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Admin · NYUSH Course Planner" };
@@ -46,6 +47,7 @@ export default async function AdminPage() {
           Back to planner
         </Button>
       </header>
+      <BulletinCertificationStatus />
       <CatalogMaintenance />
       {session.user.role === "admin" && <>
         <AdminAnnouncements />

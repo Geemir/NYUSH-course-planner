@@ -110,6 +110,44 @@ function candidate(label: "A" | "B"): CatalogCandidate {
     slug: "test-program",
     title: `Test Program ${label}`,
     sourceUrl: PROGRAM_URL,
+    bulletinDisplay: {
+      schemaVersion: 2,
+      sourceUrl: PROGRAM_URL,
+      sections: [
+        {
+          id: "requirements",
+          heading: "",
+          blocks: [
+            {
+              kind: "table",
+              id: "program-requirements",
+              caption: null,
+              headingTrail: [],
+              rows: [
+                {
+                  sourceIndex: 0,
+                  role: "heading",
+                  text: "Foundations",
+                  creditsText: null,
+                  linkedCourseCodes: [],
+                  sourceAnchors: [],
+                  footnoteMarkers: [],
+                },
+                {
+                  sourceIndex: 1,
+                  role: "course",
+                  text: `TEST-SHU 101 Test Course ${label}`,
+                  creditsText: null,
+                  linkedCourseCodes: ["TEST-SHU 101"],
+                  sourceAnchors: [],
+                  footnoteMarkers: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
     sections: [],
     policies: [],
     footnotes: [],
@@ -128,6 +166,20 @@ function candidate(label: "A" | "B"): CatalogCandidate {
         ],
       },
     ],
+    samplePlan: {
+      sectionId: "sampleplanofstudytext",
+      heading: "Sample Plan of Study",
+      terms: Array.from({ length: 8 }, (_, index) => ({
+        sourceIndex: index,
+        heading: `Term ${index + 1}`,
+        ordinal: index + 1,
+        creditsText: null,
+        rows: [],
+      })),
+      totalCreditsText: null,
+      importStatus: "eligible",
+      diagnostics: [],
+    },
   };
   return normalizeBulletin(discovery, [subjectDocument, programDocument]);
 }
@@ -142,7 +194,17 @@ describe("catalog snapshot publication", () => {
 
     await publishCatalogCandidate(db, input, reportFor(input));
 
-    expect(await getActiveCatalog(db)).toEqual(input);
+    const active = await getActiveCatalog(db);
+    expect(active).toEqual(input);
+    expect(active).toMatchObject({
+      programs: [
+        expect.objectContaining({
+          bulletinDisplay: input.programs[0].bulletinDisplay,
+          interpretations: input.programs[0].interpretations,
+          samplePlan: input.programs[0].samplePlan,
+        }),
+      ],
+    });
     expect(await getCatalogStatus(db)).toMatchObject({
       active: {
         id: input.snapshotId,
