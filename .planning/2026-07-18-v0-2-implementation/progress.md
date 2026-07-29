@@ -282,6 +282,25 @@
   551 tests plus ESLint, TypeScript, and the Next.js production build.
 - Began Phase 5, NYU Academic Glass, after completing all Correction Hub gates.
 
+## Session: 2026-07-28
+
+- Reopened the active implementation goal after the user reported that the
+  project is now deployed on Neon + Vercel.
+- Restored the persistent planning context and found it stale at Phase 5.
+- Confirmed the current authoritative branch is `main` at v0.3.2 and matches
+  `origin/main`.
+- Identified six uncommitted database/catalog script changes that predate this
+  inspection and will be preserved.
+- Initial inspection command for planning files used an invalid three-argument
+  `Join-Path`; corrected it by resolving the active plan directory first.
+- Read the deployment guide, current README, requirements-maintenance guide,
+  recent v0.2.1-v0.3.2 commit history, and every uncommitted Neon/catalog diff.
+- Identified the effective production boundary and two items needing explicit
+  reconciliation before new implementation: 11 enabled versus 13 configured
+  New York sources, and in-place program edits versus immutable snapshots.
+- Confirmed there is no local Vercel project metadata and ran a clean TypeScript
+  check plus diff whitespace validation over the current uncommitted changes.
+
 ## Files created or modified
 
 - `.planning/.active_plan`

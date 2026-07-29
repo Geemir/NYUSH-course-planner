@@ -8,7 +8,7 @@ publishing to production.
 
 ## Current Phase
 
-Phase 5
+Phase 7
 
 ## Phases
 
@@ -48,6 +48,11 @@ Phase 5
 - [ ] Update v0.2 documentation and pass every final gate
 - **Status:** pending
 
+### Phase 7: Rebaseline deployed Neon + Vercel architecture
+- [x] Inspect current `main`, deployment/runtime configuration, database access, and post-v0.2 commits
+- [ ] Reconcile the active goal and release evidence with the deployed architecture and new user requirements
+- **Status:** in_progress
+
 ## Decisions
 
 | Decision | Rationale |
@@ -57,6 +62,7 @@ Phase 5
 | Preserve the six-plan dependency order | Stable source identities and query contracts are prerequisites for plan migration, corrections, and UI integration |
 | Use strict red-green-refactor | The approved plans and TDD skill require observed failing tests before production behavior |
 | Do not deploy or publish production data | The implementation scope ends at verified release readiness unless the user separately authorizes deployment |
+| Treat current `main` and deployed Neon/Vercel state as authoritative | The repository advanced to v0.3.2 after the original v0.2 plan, and the user reports that production now runs on Neon + Vercel |
 
 ## Errors Encountered
 

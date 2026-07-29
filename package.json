@@ -7,6 +7,7 @@
     "dev:full": "node --conditions=react-server --import tsx scripts/dev.ts",
     "catalog:status": "node --conditions=react-server --import tsx scripts/catalog-status.ts",
     "catalog:repair-core-ipc": "node --conditions=react-server --import tsx scripts/repair-core-ipc.ts",
+    "catalog:update-programs": "node --conditions=react-server --import tsx scripts/update-nyush-programs.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

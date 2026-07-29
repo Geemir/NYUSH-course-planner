@@ -2,6 +2,7 @@ import "server-only";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { PGlite } from "@electric-sql/pglite";
+import { Pool } from "pg";
 import * as schema from "@/db/schema";
 
 /**
@@ -17,7 +18,20 @@ import * as schema from "@/db/schema";
 function createDb() {
   const url = process.env.DATABASE_URL;
   if (url) {
-    return drizzlePg(url, { schema });
+    // Explicit pool so we can (a) attach an `error` handler — an idle client
+    // dropped by a flaky/remote host (e.g. Neon) otherwise emits an *unhandled*
+    // 'error' event and crashes the process — and (b) keep sockets alive to
+    // reduce mid-session drops.
+    const pool = new Pool({
+      connectionString: url,
+      keepAlive: true,
+      connectionTimeoutMillis: 20_000,
+      idleTimeoutMillis: 30_000,
+    });
+    pool.on("error", (error) => {
+      console.error("[db] idle Postgres client error:", error.message);
+    });
+    return drizzlePg(pool, { schema });
   }
   const client = new PGlite(process.env.PGLITE_DIR ?? ".pglite");
   return drizzlePglite(client, { schema });

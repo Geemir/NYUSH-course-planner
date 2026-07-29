@@ -7,6 +7,7 @@
  * Exit codes: 0 = an active release exists, 3 = none (needs seeding/sync).
  */
 import { assertDatabaseUnlocked } from "./lib/preflight-db-lock";
+import { withDbRetry } from "./lib/db-retry";
 
 async function main(): Promise<number> {
   await assertDatabaseUnlocked();
@@ -16,7 +17,9 @@ async function main(): Promise<number> {
   );
 
   try {
-    const bootstrap = await readCatalogBootstrap(db);
+    const bootstrap = await withDbRetry(() => readCatalogBootstrap(db), {
+      label: "catalog status read",
+    });
     const total = bootstrap.sources.reduce((sum, source) => sum + source.courseCount, 0);
     console.log(`active release: ${bootstrap.release.id}`);
     console.log(`sources: ${bootstrap.sources.length} | total courses: ${total}`);
