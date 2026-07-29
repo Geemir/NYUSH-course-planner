@@ -26,6 +26,7 @@ import { PlannerHeader } from "@/components/layout/PlannerHeader";
 import { PlannerWorkspace } from "@/components/layout/PlannerWorkspace";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { PlannerBoard } from "@/components/planner/PlannerBoard";
+import type { PlanningSlotSelection } from "@/components/planner/PlanningSlotCard";
 import { PlanDerivedProvider } from "@/components/planner/PlanDerivedProvider";
 import { ProgressGuide } from "@/components/progress/ProgressGuide";
 import { ProgressRings } from "@/components/progress/ProgressRings";
@@ -71,6 +72,8 @@ export function PlannerApp() {
     CatalogCourseSelection | { kind: "legacy"; courseId: string } | null
   >(null);
   const [dragCourseId, setDragCourseId] = useState<string | null>(null);
+  const [slotSelection, setSlotSelection] = useState<PlanningSlotSelection | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const onboarding = useOnboarding();
   const progressGuide = useProgressGuide();
   const visitProgressGuide = progressGuide.visit;
@@ -81,6 +84,7 @@ export function PlannerApp() {
   const suppressClicksUntil = useRef(0);
   const placeCourse = usePlannerStore((s) => s.placeCourse);
   const importPlan = usePlannerStore((s) => s.importPlan);
+  const replacePlanningSlot = usePlannerStore((s) => s.replacePlanningSlot);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -171,14 +175,27 @@ export function PlannerApp() {
             >
               <PlannerWorkspace
                 onProgressVisit={handleProgressVisit}
+                catalogOpen={catalogOpen}
+                onCatalogOpenChange={setCatalogOpen}
                 catalog={
                   <CourseCatalog
                     onSelectCourse={handleSelectCatalogCourse}
                     onMenuClosed={handleMenuClosed}
+                    slotSelection={slotSelection}
+                    onChooseForSlot={(course) => {
+                      if (!slotSelection) return;
+                      replacePlanningSlot(slotSelection.slotId, course);
+                      setSlotSelection(null);
+                      setCatalogOpen(false);
+                      toast.success("Planning slot replaced. Undo is available.");
+                    }}
                   />
                 }
                 timeline={
-                  <PlannerBoard onSelectCourse={handleSelectPlannedCourse} />
+                  <PlannerBoard onSelectCourse={handleSelectPlannedCourse} onChooseSlot={(selection) => {
+                    setSlotSelection(selection);
+                    setCatalogOpen(true);
+                  }} />
                 }
                 progress={
                   <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">

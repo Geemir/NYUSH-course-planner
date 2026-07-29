@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -31,9 +31,10 @@ import { useCatalogSearch } from "@/hooks/useCatalogSearch";
 import { useCourseData } from "@/hooks/useCourseData";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
 import type { CatalogCourseRecord } from "@/lib/catalog/types";
+import type { PlanningSlotSelection } from "@/components/planner/PlanningSlotCard";
 import { cn } from "@/lib/utils";
 import { type Course, SEMESTER_IDS, semesterFullLabel } from "@/lib/types";
-import { usePlannerStore } from "@/store/plannerStore";
+import { usePlannerStore, type CoursePlacementInput } from "@/store/plannerStore";
 
 export type CatalogCourseSelection =
   | { kind: "bulletin"; stableId: string }
@@ -82,11 +83,13 @@ function CatalogCard({
   sourceName,
   onSelect,
   onMenuClosed,
+  onChooseForSlot,
 }: {
   item: DisplayItem;
   sourceName: string;
   onSelect(selection: CatalogCourseSelection): void;
   onMenuClosed(): void;
+  onChooseForSlot?: (course: CoursePlacementInput) => void;
 }) {
   const { t } = useLocale();
   const { course, record, isCustom } = item;
@@ -106,9 +109,17 @@ function CatalogCard({
     ? placementByCatalogId.get(record.stableId)
     : placementByCustomCourse.get(course.id);
   const isNewYork = record && record.sourceId !== "nyu-shanghai";
-  const select = () => onSelect(record
-    ? { kind: "bulletin", stableId: record.stableId }
-    : { kind: "custom", courseId: course.id });
+  const select = () => {
+    if (onChooseForSlot) {
+      onChooseForSlot(record
+        ? { courseId: record.code, catalogCourseId: record.stableId, titleSnapshot: record.course.title.slice(0, 200) }
+        : { courseId: course.id, titleSnapshot: course.title.slice(0, 200) });
+      return;
+    }
+    onSelect(record
+      ? { kind: "bulletin", stableId: record.stableId }
+      : { kind: "custom", courseId: course.id });
+  };
 
   return (
     <div className="relative">
@@ -181,9 +192,13 @@ function CatalogCard({
 export function CourseCatalog({
   onSelectCourse,
   onMenuClosed,
+  slotSelection,
+  onChooseForSlot,
 }: {
   onSelectCourse(selection: CatalogCourseSelection): void;
   onMenuClosed(): void;
+  slotSelection?: PlanningSlotSelection | null;
+  onChooseForSlot?: (course: CoursePlacementInput) => void;
 }) {
   const { t } = useLocale();
   const search = useCatalogSearch();
@@ -193,6 +208,11 @@ export function CourseCatalog({
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const [localFilter, setLocalFilter] = useState("all");
   const customCourses = courses.filter((course) => customIds.has(course.id));
+  const setSearchQuery = search.setQuery;
+
+  useEffect(() => {
+    if (slotSelection) setSearchQuery({ q: slotSelection.query });
+  }, [setSearchQuery, slotSelection]);
 
   const displayItems = useMemo<DisplayItem[]>(() => {
     if (localFilter === "custom") {
@@ -241,6 +261,11 @@ export function CourseCatalog({
 
   return (
     <section className="flex flex-col gap-3" aria-label={t("workspace.courseCatalog")}>
+      {slotSelection && (
+        <p role="status" className="rounded-xl bg-primary/7 p-3 text-sm ring-1 ring-primary/20">
+          Choosing a course for <span className="font-medium">{slotSelection.query}</span>. The selected course will replace the placeholder in the same semester.
+        </p>
+      )}
       <div className="flex items-center justify-between gap-2">
         <AddCourseDialog />
       </div>
@@ -271,7 +296,7 @@ export function CourseCatalog({
           {displayItems.length > 0 && <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const item = displayItems[virtualRow.index];
-              return <div key={virtualRow.key} ref={rowVirtualizer.measureElement} data-index={virtualRow.index} role="listitem" className="absolute top-0 left-0 w-full pb-2" style={{ transform: `translateY(${virtualRow.start}px)` }}><CatalogCard item={item} sourceName={item.record ? sourceNames.get(item.record.sourceId) ?? item.record.sourceId : "Custom course"} onSelect={onSelectCourse} onMenuClosed={onMenuClosed} /></div>;
+              return <div key={virtualRow.key} ref={rowVirtualizer.measureElement} data-index={virtualRow.index} role="listitem" className="absolute top-0 left-0 w-full pb-2" style={{ transform: `translateY(${virtualRow.start}px)` }}><CatalogCard item={item} sourceName={item.record ? sourceNames.get(item.record.sourceId) ?? item.record.sourceId : "Custom course"} onSelect={onSelectCourse} onMenuClosed={onMenuClosed} onChooseForSlot={slotSelection ? onChooseForSlot : undefined} /></div>;
             })}
           </div>}
           {(search.status === "empty" || (search.status === "ready" && displayItems.length === 0)) && <p className="py-10 text-center text-sm text-muted-foreground">{t("catalog.noResults")}</p>}

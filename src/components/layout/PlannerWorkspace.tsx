@@ -70,15 +70,19 @@ function WorkspaceSheet({
   side,
   trigger,
   children,
+  open,
+  onOpenChange,
 }: {
   label: string;
   description: string;
   side: "left" | "right";
   trigger: ReactElement;
   children: ReactNode;
+  open?: boolean;
+  onOpenChange?(open: boolean): void;
 }) {
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger render={trigger} />
       <SheetContent side={side}>
         <SheetHeader>
@@ -101,11 +105,15 @@ export function PlannerWorkspace({
   timeline,
   progress,
   onProgressVisit,
+  catalogOpen,
+  onCatalogOpenChange,
 }: {
   catalog: ReactNode;
   timeline: ReactNode;
   progress: ReactNode;
   onProgressVisit?: () => void;
+  catalogOpen?: boolean;
+  onCatalogOpenChange?(open: boolean): void;
 }) {
   const { t } = useLocale();
   const showCatalogRail = useMediaQuery(LG_QUERY);
@@ -153,6 +161,8 @@ export function PlannerWorkspace({
                   {t("workspace.courses")}
                 </Button>
               }
+              open={catalogOpen}
+              onOpenChange={onCatalogOpenChange}
             >
               {catalog}
             </WorkspaceSheet>

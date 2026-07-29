@@ -26,6 +26,7 @@ describe("PlannerBoard", () => {
   beforeEach(() => {
     usePlannerStore.setState({
       placements: [],
+      planningSlots: [],
       studyAway: {},
       completedSemesters: [],
       startYear: 2025,
@@ -36,6 +37,17 @@ describe("PlannerBoard", () => {
     derived.warningsByCourse = new Map();
     derived.warningsBySemester = new Map();
     derived.placementByCourse = new Map();
+  });
+
+  it("renders sample-plan slots in their source term", async () => {
+    const user = userEvent.setup();
+    const onChooseSlot = vi.fn();
+    usePlannerStore.setState({ planningSlots: [{ id: "slot-1", sourceKey: "cs:sample:5:0:elective", semesterId: "Y3F", label: "Computer Science Elective", credits: 4, source: { kind: "bulletin-sample-plan", programId: "cs", catalogReleaseId: "release", sectionId: "sample", termSourceIndex: 4, rowSourceIndex: 0 } }] });
+    render(<PlannerBoard onSelectCourse={() => undefined} onChooseSlot={onChooseSlot} />);
+    const semester = screen.getByTestId("semester-Y3F");
+    expect(within(semester).getByText("Tentative · 4 cr")).toBeDefined();
+    await user.click(within(semester).getByRole("button", { name: /choose course/i }));
+    expect(onChooseSlot).toHaveBeenCalledWith({ query: "Computer Science Elective", slotId: "slot-1", semesterId: "Y3F" });
   });
 
   it("renders all eight semesters as one chronological column", () => {

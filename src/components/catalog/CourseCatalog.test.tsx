@@ -83,6 +83,15 @@ describe("CourseCatalog", () => {
     expect(onSelect).toHaveBeenCalledWith({ kind: "bulletin", stableId: "stern:TEST-UA 1" });
   });
 
+  it("hands a selected result to an active planning slot", async () => {
+    const user = userEvent.setup();
+    const onChooseForSlot = vi.fn();
+    render(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} slotSelection={{ query: "Computer Science Elective", slotId: "slot-1", semesterId: "Y3F" }} onChooseForSlot={onChooseForSlot} />);
+    expect(mocks.search.setQuery).toHaveBeenCalledWith({ q: "Computer Science Elective" });
+    await user.click(screen.getByTestId("catalog-stern:TEST-UA 1"));
+    expect(onChooseForSlot).toHaveBeenCalledWith({ courseId: "TEST-UA 1", catalogCourseId: "stern:TEST-UA 1", titleSnapshot: "New York Seminar" });
+  });
+
   it("keeps the assign control outside the interactive draggable card", () => {
     render(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} />);
     const card = screen.getByTestId("catalog-stern:TEST-UA 1");
