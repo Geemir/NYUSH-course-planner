@@ -243,12 +243,19 @@ function compileRows(
 
   const segments: SourceTableRow[][] = [];
   for (const row of executableRows) {
+    const startsDirective =
+      directiveCount(row.text) !== null || CREDIT_DIRECTIVE.test(row.text);
+    const previous = segments.at(-1);
     if (
-      segments.length === 0 ||
-      directiveCount(row.text) !== null ||
-      CREDIT_DIRECTIVE.test(row.text) ||
-      row.role === "areaSubheader"
+      startsDirective &&
+      previous?.length === 1 &&
+      previous[0].role === "areaSubheader" &&
+      directiveCount(previous[0].text) === null
     ) {
+      previous[0] = row;
+      continue;
+    }
+    if (segments.length === 0 || startsDirective || row.role === "areaSubheader") {
       segments.push([]);
     }
     segments.at(-1)!.push(row);
@@ -260,16 +267,16 @@ function compileRows(
     const count = directiveCount(first.text);
     const creditMinimum = Number(first.text.match(CREDIT_DIRECTIVE)?.[1]);
     const hasDirective = count !== null || Number.isFinite(creditMinimum);
-    if (first.role === "areaSubheader" && !hasDirective) {
+    const structuralHeading = first.role === "areaSubheader" && !hasDirective;
+    const childRows = hasDirective || structuralHeading ? segment.slice(1) : segment;
+    if (structuralHeading && childRows.length === 0) {
       return unavailable(
-        "unsupported-structural-row",
-        `Unsupported structural row: ${first.text}`,
+        "heading-without-rows",
+        `Structural heading has no requirement rows: ${first.text}`,
         tableId,
         first.sourceIndex,
       );
     }
-
-    const childRows = hasDirective ? segment.slice(1) : segment;
     const children: RequirementNode[] = [];
     for (const row of childRows) {
       const node = explicitNode(
@@ -358,6 +365,31 @@ function concentrationTables(
   return candidates;
 }
 
+function namedTableSelector(
+  tables: readonly SourceTable[],
+  tableIndex: number,
+  table: SourceTable,
+): { table: SourceTable; row: SourceTableRow; count: number } | null {
+  const target = meaningfulTableName(table).trim().toLowerCase();
+  for (let index = tableIndex - 1; index >= 0; index -= 1) {
+    const candidate = tables[index];
+    if (candidate.sectionId !== table.sectionId) break;
+    for (let rowIndex = 0; rowIndex < candidate.rows.length - 1; rowIndex += 1) {
+      const heading = candidate.rows[rowIndex];
+      const directive = candidate.rows[rowIndex + 1];
+      const count = directiveCount(directive.text);
+      if (
+        heading.role === "areaSubheader" &&
+        heading.text.trim().toLowerCase() === target &&
+        count !== null
+      ) {
+        return { table: candidate, row: directive, count };
+      }
+    }
+  }
+  return null;
+}
+
 export function compileProgramRequirements(
   document: BulletinProgramDocument,
   courseTitles: ReadonlyMap<string, string>,
@@ -383,6 +415,31 @@ export function compileProgramRequirements(
         );
         const children: RequirementNode[] = [];
         const diagnostics: CatalogRequirementInterpretation["diagnostics"] = [];
+        const selectorIndex = group.rows.indexOf(concentrationSelector);
+        const preceding = group.rows[selectorIndex - 1];
+        const baseRows = group.rows.slice(
+          0,
+          preceding?.role === "areaSubheader" &&
+            directiveCount(preceding.text) === null
+            ? selectorIndex - 1
+            : selectorIndex,
+        );
+        const hasBaseRows = baseRows.some(
+          (row) => row.role !== "areaHeader" && row.role !== "total",
+        );
+        const base = hasBaseRows
+          ? compileRows(
+              baseRows,
+              table.id,
+              programId,
+              id,
+              name,
+              courseTitles,
+            )
+          : { requirement: null, diagnostics: [] };
+        if (hasBaseRows && !base.requirement) {
+          diagnostics.push(...base.diagnostics);
+        }
         for (const namedTable of namedTables) {
           const result = compileRows(
             namedTable.rows,
@@ -428,9 +485,16 @@ export function compileProgramRequirements(
             ]),
           );
         } else {
+          const concentration: RequirementNode = {
+            kind: "choose",
+            count: 1,
+            children,
+          };
           interpretations.push(
             interpretation(id, name, allTables, {
-              requirement: { kind: "choose", count: 1, children },
+              requirement: base.requirement
+                ? combine([base.requirement, concentration])
+                : concentration,
               diagnostics: [],
             }, [
               ...group.rows.map((row) => ({
@@ -444,23 +508,58 @@ export function compileProgramRequirements(
         continue;
       }
 
+      const selector = namedTableSelector(
+        document.requirementTables,
+        tableIndex,
+        table,
+      );
+      const compiled = compileRows(
+        group.rows,
+        table.id,
+        programId,
+        id,
+        name,
+        courseTitles,
+      );
+      const selectorChildren =
+        compiled.requirement?.kind === "all"
+          ? compiled.requirement.children
+          : compiled.requirement
+            ? [compiled.requirement]
+            : [];
+      const result =
+        selector && compiled.requirement
+          ? selector.count >= 1 && selector.count <= selectorChildren.length
+            ? {
+                requirement: {
+                  kind: "choose" as const,
+                  count: selector.count,
+                  children: selectorChildren,
+                },
+                diagnostics: [],
+              }
+            : unavailable(
+                "invalid-selector-cardinality",
+                `Selector requests ${selector.count} of ${selectorChildren.length} eligible children.`,
+                selector.table.id,
+                selector.row.sourceIndex,
+              )
+          : compiled;
       interpretations.push(
         interpretation(
           id,
           name,
-          [table],
-          compileRows(
-            group.rows,
-            table.id,
-            programId,
-            id,
-            name,
-            courseTitles,
-          ),
-          group.rows.map((row) => ({
-            tableId: table.id,
-            sourceIndex: row.sourceIndex,
-          })),
+          selector ? [selector.table, table] : [table],
+          result,
+          [
+            ...(selector
+              ? [{ tableId: selector.table.id, sourceIndex: selector.row.sourceIndex }]
+              : []),
+            ...group.rows.map((row) => ({
+              tableId: table.id,
+              sourceIndex: row.sourceIndex,
+            })),
+          ],
         ),
       );
     }

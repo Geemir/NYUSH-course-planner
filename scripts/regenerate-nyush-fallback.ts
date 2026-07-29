@@ -1,85 +1,63 @@
-/**
- * Re-scrapes the NYU Shanghai Bulletin with the current parser and rewrites the
- * checked-in recovery catalog `src/data/catalog-fallback.json` (used by
- * `npm run db:seed`). Pure/read-only against the database — it only fetches the
- * live Bulletin and writes the file atomically — so it does NOT disturb an
- * active multi-source catalog release in the dev DB.
- *
- *   npx tsx --conditions=react-server scripts/regenerate-nyush-fallback.ts
- *
- * Run this after changing the requirement parser (e.g. pool-selection semantics)
- * so the seeded NYUSH programs match the corrected engine output.
- */
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createBulletinFetch } from "@/lib/bulletin/fetch";
 import { discoverBulletinSources } from "@/lib/bulletin/discover";
-import { normalizeBulletin, type BulletinDocument } from "@/lib/bulletin/normalize";
+import { normalizeBulletinSource, type BulletinDocument } from "@/lib/bulletin/normalize";
 import { parseCoursePage } from "@/lib/bulletin/parseCoursePage";
 import { parseProgramPage, type BulletinProgramPageSource } from "@/lib/bulletin/parseProgramPage";
-import { validateCatalogCandidate, assertPublishable } from "@/lib/bulletin/validateSnapshot";
-import { writeCatalogFallback } from "./generate-catalog-fallback";
+import { assertPublishable, validateSourceCatalogCandidate } from "@/lib/bulletin/validateSnapshot";
 
-const CORE_SOURCE = {
-  kind: "core",
-  slug: "core-curriculum",
-  title: "Core Curriculum",
-  url: "https://bulletins.nyu.edu/undergraduate/shanghai/core-curriculum/",
-} as const satisfies BulletinProgramPageSource;
+const CORE_SOURCE = { kind: "core", slug: "core-curriculum", title: "Core Curriculum", url: "https://bulletins.nyu.edu/undergraduate/shanghai/core-curriculum/" } as const satisfies BulletinProgramPageSource;
 
-async function main() {
-  const fetcher = createBulletinFetch({
-    timeoutMs: 30_000,
-    retries: 2,
-    userAgent: "NYUSH Course Planner Bulletin Synchronizer",
-  });
-  const started = Date.now();
+export function parseCandidateArgs(args: readonly string[]) {
+  const output = args.find((arg) => arg.startsWith("--output="))?.slice("--output=".length);
+  return { output, help: args.includes("--help") };
+}
+
+export async function generateNyushCandidate() {
+  const fetcher = createBulletinFetch({ timeoutMs: 30_000, retries: 2, userAgent: "NYUSH Course Planner Bulletin Synchronizer" });
   const discovery = await discoverBulletinSources(fetcher);
   const programSources = [...discovery.majors, ...discovery.minors];
   const sources = [...programSources, ...discovery.subjects, CORE_SOURCE];
   const fetched = new Map<string, string>();
   for (const source of sources) fetched.set(source.url, await fetcher(source.url));
-
   const documents: BulletinDocument[] = [
     ...programSources.map((source) => parseProgramPage(fetched.get(source.url)!, source)),
-    ...discovery.subjects.map((source) =>
-      parseCoursePage({ source: discovery.source, sourceUrl: source.url, html: fetched.get(source.url)! }),
-    ),
+    ...discovery.subjects.map((source) => parseCoursePage({ source: discovery.source, sourceUrl: source.url, html: fetched.get(source.url)! })),
     parseProgramPage(fetched.get(CORE_SOURCE.url)!, CORE_SOURCE),
   ];
-
-  const candidate = normalizeBulletin(discovery, documents);
-  assertPublishable(validateCatalogCandidate(candidate));
-
-  await writeCatalogFallback({
-    snapshot: { id: candidate.snapshotId, sourceHash: candidate.sourceHash, kind: "bulletin" },
-    courses: candidate.courses,
-    programs: candidate.programs,
-    rules: [],
+  const candidate = normalizeBulletinSource(discovery, documents);
+  const fallback = JSON.parse(await readFile(resolve("src/data/catalog-fallback.json"), "utf8")) as { courses?: Array<{ id?: string; code?: string }> };
+  const reviewedUnresolvedCourseIds = JSON.parse(
+    await readFile(resolve("src/data/nyush-reviewed-unresolved-references.json"), "utf8"),
+  ) as string[];
+  const previousCodes = new Set((fallback.courses ?? []).map((course) => course.id ?? course.code).filter((code): code is string => Boolean(code)));
+  const validationReport = validateSourceCatalogCandidate(candidate, {
+    source: discovery.source,
+    expectedSubjectCount: discovery.subjects.length,
+    previousCourseCount: previousCodes.size,
+    reviewedUnresolvedCourseIds,
   });
-
-  const poolNodes = countPoolNodes(candidate.programs);
-  console.log(
-    `Wrote ${candidate.courses.length} courses and ${candidate.programs.length} programs ` +
-      `(${poolNodes} choose/credits pool nodes) in ${((Date.now() - started) / 1000).toFixed(0)}s.`,
-  );
+  return { candidate, validationReport };
 }
 
-// Sanity signal: the old parser produced 0 pool nodes (everything flat).
-function countPoolNodes(programs: readonly { categories: { requirement: unknown }[] }[]): number {
-  let count = 0;
-  const walk = (node: unknown) => {
-    if (!node || typeof node !== "object") return;
-    const kind = (node as { kind?: string }).kind;
-    if (kind === "choose" || kind === "credits") count += 1;
-    const children = (node as { children?: unknown[] }).children;
-    if (Array.isArray(children)) children.forEach(walk);
-    const child = (node as { child?: unknown }).child;
-    if (child) walk(child);
-  };
-  programs.forEach((program) => program.categories.forEach((category) => walk(category.requirement)));
-  return count;
+export async function runCandidateCli(args = process.argv.slice(2)): Promise<number> {
+  const options = parseCandidateArgs(args);
+  if (options.help) {
+    process.stdout.write("Usage: catalog:generate-nyush-candidate -- --output=<local-json-path>\n");
+    return 0;
+  }
+  if (!options.output) throw new Error("--output is required; the checked-in fallback is never overwritten by this command.");
+  const artifact = await generateNyushCandidate();
+  const target = resolve(options.output);
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(target, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+  process.stdout.write(`Wrote ${artifact.candidate.programs.length} programs and ${artifact.candidate.courses.length} courses to ${target}.\n`);
+  assertPublishable(artifact.validationReport);
+  return 0;
 }
 
-main().then(() => process.exit(0)).catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
+  void runCandidateCli().then((code) => process.exit(code)).catch((error) => { console.error(error); process.exit(1); });
+}

@@ -543,7 +543,7 @@ describe("normalizeBulletin", () => {
     });
   });
 
-  it("stops a directive pool at the next area subheader", () => {
+  it("stops a directive pool at the next area subheader and resumes required rows", () => {
     const boundedDirective: BulletinProgramDocument = {
       ...programDocument,
       requirementTables: [
@@ -566,13 +566,16 @@ describe("normalizeBulletin", () => {
       boundedDirective,
     ]).programs[0];
 
-    expect(program.categories).toEqual([]);
+    expect(program.categories).toHaveLength(1);
     expect(program.interpretations[0]).toMatchObject({
-      status: "unavailable",
-      requirement: null,
-      diagnostics: [
-        expect.objectContaining({ code: "unsupported-structural-row" }),
-      ],
+      status: "verified",
+      requirement: {
+        kind: "all",
+        children: [
+          { kind: "choose", count: 1 },
+          { kind: "course", courseId: "MATH-SHU 121" },
+        ],
+      },
     });
   });
 

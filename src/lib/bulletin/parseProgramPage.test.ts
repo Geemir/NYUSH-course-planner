@@ -144,6 +144,25 @@ describe("parseProgramPage", () => {
     });
   });
 
+  it("uses generated source IDs when Bulletin requirement tables omit DOM IDs", () => {
+    const withoutTableId = PROGRAM_PAGE.replace(
+      ' id="computer-science-requirements"',
+      "",
+    );
+    const document = parseProgramPage(withoutTableId, PROGRAM_META);
+    const tables = document.bulletinDisplay.sections.flatMap((section) =>
+      section.blocks.filter((block) => block.kind === "table"),
+    );
+
+    expect(document.requirementTables[0].id).toBe("requirements-table-1");
+    expect(tables).toEqual([
+      expect.objectContaining({
+        kind: "table",
+        id: "requirements-table-1",
+      }),
+    ]);
+  });
+
   it("splits one official plan grid into eight terms and preserves placeholders", () => {
     const samplePlan = parseProgramPage(SAMPLE_PLAN_PAGE, PROGRAM_META).samplePlan;
 

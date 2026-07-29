@@ -432,6 +432,7 @@ function requirementDisplay(
   $: LoadedPage,
   sourceUrl: string,
   tables: SourceTable[],
+  tableSourceIds: ReadonlyMap<PageNode, string>,
 ): BulletinRequirementDocument {
   const tablesById = new Map(tables.map((table) => [table.id, table]));
   const sections = sourceContainers($).flatMap((element) => {
@@ -440,7 +441,7 @@ function requirementDisplay(
       .find(REQUIREMENT_TABLE_SELECTOR)
       .toArray()
       .flatMap((table) => {
-        const id = normalizedText($(table).attr("id") ?? "");
+        const id = tableSourceIds.get(table) ?? normalizedText($(table).attr("id") ?? "");
         return tablesById.has(id) ? [tablesById.get(id)!] : [];
       });
     if (sectionTables.length === 0) return [];
@@ -459,7 +460,7 @@ function requirementDisplay(
         continue;
       }
       if (tag === "table") {
-        const id = normalizedText(selection.attr("id") ?? "");
+        const id = tableSourceIds.get(node) ?? normalizedText(selection.attr("id") ?? "");
         const table = tablesById.get(id);
         if (table) {
           blocks.push({
@@ -698,7 +699,12 @@ export function parseProgramPage(
     slug: sourceMeta.slug,
     title: sourceMeta.title,
     sourceUrl: sourceMeta.url,
-    bulletinDisplay: requirementDisplay($, sourceMeta.url, requirementTables),
+    bulletinDisplay: requirementDisplay(
+      $,
+      sourceMeta.url,
+      requirementTables,
+      tableSourceIds,
+    ),
     sections,
     requirementTables,
     policies,

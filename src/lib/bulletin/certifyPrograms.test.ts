@@ -134,4 +134,33 @@ describe("certifyShanghaiPrograms", () => {
       errors: ["selector-mismatch"],
     });
   });
+
+  it("accepts a reviewed unavailable group without inventing semantics", () => {
+    const candidate = program("data-science-bs");
+    candidate.interpretations = [
+      {
+        id: "electives",
+        name: "Electives",
+        status: "unavailable",
+        requirement: null,
+        sourceTableIds: ["probability"],
+        sourceRowRefs: [{ tableId: "probability", sourceIndex: 0 }],
+        diagnostics: [
+          {
+            code: "unsupported-requirement-row",
+            message: "Credit total has no executable course set.",
+            tableId: "probability",
+            sourceIndex: 0,
+          },
+        ],
+      },
+    ];
+    const expectation = golden("data-science-bs");
+    expectation.selectors = [];
+    expectation.unavailableGroups = ["Electives"];
+
+    const report = certifyShanghaiPrograms([candidate], [expectation]);
+
+    expect(report).toMatchObject({ status: "pass", passed: 1, failed: 0 });
+  });
 });

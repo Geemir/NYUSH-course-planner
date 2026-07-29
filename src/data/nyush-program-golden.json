@@ -1,0 +1,840 @@
+[
+  {
+    "programId": "biology-bs",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Required Courses"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Biology Electives",
+      "Core Courses",
+      "Electives 21-29",
+      "Foundational Courses"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "biology-minor",
+    "tableHeadings": [
+      "Genomics and Bioinformatics Minor",
+      "Molecular and Cell Biology Minor"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Genomics and Bioinformatics Minor",
+      "Molecular and Cell Biology Minor"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "business-finance-bs",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Courses for the Business and Finance Major",
+      "Other Elective Credits 24-32"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "business-marketing-bs",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Major Requirements",
+      "Other Elective Credits 24-32"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "business-minor",
+    "tableHeadings": [
+      "Economics Majors",
+      "Non-Economics Majors"
+    ],
+    "categoryNames": [
+      "Additional Courses",
+      "Electives",
+      "Required Courses"
+    ],
+    "selectors": [
+      {
+        "label": "Additional Courses",
+        "count": 2,
+        "childCount": 6
+      },
+      {
+        "label": "Electives",
+        "count": 1,
+        "childCount": 7
+      },
+      {
+        "label": "Electives",
+        "count": 1,
+        "childCount": 7
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "chemistry-bs",
+    "tableHeadings": [
+      "Program Requirements",
+      "Recommended General Electives"
+    ],
+    "categoryNames": [
+      "Recommended Computer Science General Electives",
+      "Recommended Mathematics General Electives"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Courses for the Chemistry Major",
+      "Electives"
+    ],
+    "samplePlanTermCount": 16
+  },
+  {
+    "programId": "chemistry-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "chinese-language-literature-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Chinese Literature",
+      "Required Courses"
+    ],
+    "selectors": [
+      {
+        "label": "Chinese Literature",
+        "count": 2,
+        "childCount": 3
+      },
+      {
+        "label": "Required Courses",
+        "count": 1,
+        "childCount": 2
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Language in Context"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "chinese-language-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "computer-science-bs",
+    "tableHeadings": [
+      "Computer Science Electives",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Computer Science Electives"
+    ],
+    "selectors": [
+      {
+        "label": "Computer Science Electives",
+        "count": 4,
+        "childCount": 26
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Electives",
+      "Major Requirements"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "computer-science-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "computer-systems-engineering-bs",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Electives",
+      "Major Requirements"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "computer-systems-engineering-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "core",
+    "tableHeadings": [
+      "Algorithmic Thinking Courses & Relevant Exams",
+      "Chinese Language",
+      "English for Academic Purposes",
+      "Experimental Discovery in the Natural World Courses and Relevant Exams",
+      "Interdisciplinary Perspectives on China Courses",
+      "Mathematics Courses & Relavant Exam Scores",
+      "Science, Technology, and Society Courses"
+    ],
+    "categoryNames": [
+      "Algorithmic Thinking Courses & Relevant Exams",
+      "English for Academic Purposes",
+      "Experimental Discovery in the Natural World Courses and Relevant Exams",
+      "Interdisciplinary Perspectives on China Courses",
+      "Mathematics Courses & Relavant Exam Scores",
+      "Science, Technology, and Society Courses"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Chinese Language"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "creative-writing-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "creativity-innovation-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "data-science-bs",
+    "tableHeadings": [
+      "Artificial Intelligence",
+      "Economics",
+      "Finance",
+      "Genomics",
+      "Marketing",
+      "Mathematics",
+      "Political Science",
+      "Program Requirements",
+      "Psychology"
+    ],
+    "categoryNames": [
+      "Major Requirements"
+    ],
+    "selectors": [
+      {
+        "label": "Major Requirements",
+        "count": 1,
+        "childCount": 2
+      },
+      {
+        "label": "Major Requirements",
+        "count": 1,
+        "childCount": 2
+      },
+      {
+        "label": "Major Requirements",
+        "count": 1,
+        "childCount": 2
+      },
+      {
+        "label": "Major Requirements",
+        "count": 1,
+        "childCount": 3
+      },
+      {
+        "label": "Major Requirements",
+        "count": 1,
+        "childCount": 3
+      },
+      {
+        "label": "Major Requirements",
+        "count": 1,
+        "childCount": 8
+      },
+      {
+        "label": "Major Requirements",
+        "count": 2,
+        "childCount": 4
+      },
+      {
+        "label": "Major Requirements",
+        "count": 2,
+        "childCount": 5
+      },
+      {
+        "label": "Major Requirements",
+        "count": 3,
+        "childCount": 9
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Electives"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "data-science-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Required Courses"
+    ],
+    "selectors": [
+      {
+        "label": "Required Courses",
+        "count": 1,
+        "childCount": 3
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "economics-ba",
+    "tableHeadings": [
+      "Advanced Economic Electives",
+      "Economic Electives",
+      "Economics and Data Science (Concentration in Economics)",
+      "Economics and Data Science (Concentration in Finance)",
+      "Economics Capstone Electives",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Advanced Economic Electives",
+      "Economic Electives"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Courses for the Economics Major",
+      "Economics and Data Science (Concentration in Economics)",
+      "Economics and Data Science (Concentration in Finance)",
+      "Economics Capstone Electives",
+      "Other Elective Credits 28-36"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "economics-minor",
+    "tableHeadings": [
+      "Advanced Economics Electives",
+      "Economics Electives",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Advanced Economics Electives",
+      "Economics Electives"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "electrical-systems-engineering-bs",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Electives",
+      "Major Requirements"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "electrical-systems-engineering-minor",
+    "tableHeadings": [
+      "Electrical and Systems Engineering Electives",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Electrical and Systems Engineering Electives"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "global-china-studies-ba",
+    "tableHeadings": [
+      "Advanced Track",
+      "Chinese History, Society, and Culture",
+      "Chinese Media, Arts, and Literature",
+      "The Politics, Economy, and Environment of China"
+    ],
+    "categoryNames": [
+      "Chinese History, Society, and Culture",
+      "Chinese Media, Arts, and Literature",
+      "The Politics, Economy, and Environment of China"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Courses for the Global China Studies Major",
+      "Electives"
+    ],
+    "samplePlanTermCount": 16
+  },
+  {
+    "programId": "global-china-studies-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "history-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "honors-mathematics-bs",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Major Requirements"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "humanities-ba",
+    "tableHeadings": [
+      "Other Humanities Advanced Courses",
+      "Other Humanities Introductory Courses",
+      "Program Requirements",
+      "Visual Arts Praxis Courses"
+    ],
+    "categoryNames": [
+      "Advanced Visual Arts Praxis Courses",
+      "Other Humanities Advanced Courses",
+      "Other Humanities Introductory Courses"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Major Requirements",
+      "Other Elective Credits 38-46",
+      "Visual Arts Praxis Foundational and Introductory Level Courses"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "humanities-minor",
+    "tableHeadings": [
+      "Humanities Major Courses",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Humanities Major Courses"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "interactive-media-arts-bs",
+    "tableHeadings": [
+      "Interactive Media Arts Advanced Electives",
+      "Interactive Media Arts Electives",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Interactive Media Arts Advanced Electives",
+      "Interactive Media Arts Electives"
+    ],
+    "selectors": [
+      {
+        "label": "Interactive Media Arts Advanced Electives",
+        "count": 8,
+        "childCount": 11
+      },
+      {
+        "label": "Interactive Media Arts Electives",
+        "count": 20,
+        "childCount": 98
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Courses for the Interactive Media Arts Major",
+      "Other Elective Credits 28-36"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "interactive-media-arts-minor",
+    "tableHeadings": [
+      "Interactive Media Arts Electives & Advanced Electives Courses",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Foundations",
+      "Interactive Media Arts Electives & Advanced Electives Courses"
+    ],
+    "selectors": [
+      {
+        "label": "Foundations",
+        "count": 2,
+        "childCount": 4
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Electives"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "interactive-media-business-bs",
+    "tableHeadings": [
+      "Business Elective Courses",
+      "IMB Elective Courses",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Business Elective Courses",
+      "IMB Elective Courses"
+    ],
+    "selectors": [
+      {
+        "label": "Business Elective Courses",
+        "count": 12,
+        "childCount": 80
+      },
+      {
+        "label": "IMB Elective Courses",
+        "count": 20,
+        "childCount": 122
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Major Requirements",
+      "Other Elective Credits 12-20"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "interactive-media-business-minor",
+    "tableHeadings": [
+      "Business Core & Elective Courses",
+      "Interactive Media Arts Electives",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "Business Core & Elective Courses",
+      "Interactive Media Arts Electives",
+      "Required Courses"
+    ],
+    "selectors": [
+      {
+        "label": "Required Courses",
+        "count": 1,
+        "childCount": 6
+      }
+    ],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Electives"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "literature-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "mathematics-bs",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Curriculum",
+      "Major Requirements",
+      "Other Elective Credits 28-36"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "mathematics-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "neural-science-bs",
+    "tableHeadings": [
+      "General Electives",
+      "Program Requirements"
+    ],
+    "categoryNames": [
+      "General Electives"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Major Requirements",
+      "Other Elective Credits 24-34"
+    ],
+    "samplePlanTermCount": 16
+  },
+  {
+    "programId": "neural-science-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "philosophy-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "physics-bs",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Major Requirements"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "physics-minor",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  },
+  {
+    "programId": "self-designed-honors-ba",
+    "tableHeadings": [
+      "Program Requirements"
+    ],
+    "categoryNames": [],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Core Courses",
+      "Major Requirements and General Electives"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "social-science-ba",
+    "tableHeadings": [
+      "Anthropology",
+      "Environmental Studies",
+      "Global Public Health",
+      "International Relations",
+      "Political Economy",
+      "Political Science",
+      "Psychology",
+      "Requirements",
+      "Sociology",
+      "Urban Studies"
+    ],
+    "categoryNames": [
+      "Anthropology",
+      "Environmental Studies",
+      "Global Public Health",
+      "International Relations",
+      "Political Economy",
+      "Political Science",
+      "Psychology",
+      "Sociology",
+      "Urban Studies"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Capstone",
+      "Core Courses",
+      "Electives",
+      "Major Requirements"
+    ],
+    "samplePlanTermCount": 8
+  },
+  {
+    "programId": "social-science-minor",
+    "tableHeadings": [
+      "Program Requirements",
+      "Social Science Foundational, Core, and Focus Courses",
+      "Social Science Methods Courses"
+    ],
+    "categoryNames": [
+      "Social Science Foundational, Core, and Focus Courses",
+      "Social Science Methods Courses"
+    ],
+    "selectors": [],
+    "manualConditions": [],
+    "unavailableGroups": [
+      "Program Requirements"
+    ],
+    "samplePlanTermCount": 0
+  }
+]

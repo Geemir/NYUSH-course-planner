@@ -145,7 +145,23 @@ function inspectProgram(program: CatalogProgram): ProgramCertificationResult {
     manualConditions: uniqueSorted(manualConditions),
     unavailableGroups,
     samplePlan,
-    errors: unavailableGroups.length > 0 ? ["unavailable-interpretation"] : [],
+    errors: [],
+  };
+}
+
+/** Produces review material; certification must read a separately checked-in copy. */
+export function goldenExpectationForProgram(
+  program: CatalogProgram,
+): ProgramGoldenExpectation {
+  const inspected = inspectProgram(program);
+  return {
+    programId: inspected.programId,
+    tableHeadings: inspected.tableHeadings,
+    categoryNames: inspected.categoryNames,
+    selectors: inspected.selectors,
+    manualConditions: inspected.manualConditions,
+    unavailableGroups: inspected.unavailableGroups,
+    samplePlanTermCount: inspected.samplePlan?.termCount ?? 0,
   };
 }
 

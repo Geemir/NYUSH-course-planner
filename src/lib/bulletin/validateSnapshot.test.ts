@@ -924,4 +924,30 @@ describe("validateSourceCatalogCandidate", () => {
       ]),
     );
   });
+
+  it("accepts only explicitly reviewed unresolved source references", () => {
+    const input = sourceCandidate();
+    input.unresolvedCourseIds = ["LEGACY-SHU 1"];
+    const reviewed = validateSourceCatalogCandidate(input, {
+      source: getCatalogSource("nyu-new-york-arts-science"),
+      expectedSubjectCount: 1,
+      reviewedUnresolvedCourseIds: ["LEGACY-SHU 1"],
+    });
+    expect(reviewed.errors.map((error) => error.code)).not.toContain(
+      "unresolved-reference-spike",
+    );
+
+    input.unresolvedCourseIds.push("NEW-SHU 2");
+    const changed = validateSourceCatalogCandidate(input, {
+      source: getCatalogSource("nyu-new-york-arts-science"),
+      expectedSubjectCount: 1,
+      reviewedUnresolvedCourseIds: ["LEGACY-SHU 1"],
+    });
+    expect(changed.errors).toContainEqual(
+      expect.objectContaining({
+        code: "unresolved-reference-spike",
+        entityId: "NEW-SHU 2",
+      }),
+    );
+  });
 });

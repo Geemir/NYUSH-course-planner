@@ -1054,6 +1054,7 @@ export interface SourceValidationOptions {
   expectedSubjectCount: number;
   previousCourseCount?: number;
   previousUnresolvedCount?: number;
+  reviewedUnresolvedCourseIds?: readonly string[];
   maximumCourseDropRatio?: number;
   maximumUnresolvedIncrease?: number;
 }
@@ -1155,13 +1156,20 @@ export function validateSourceCatalogCandidate(
   ) {
     addError("course-count-drop", source.id);
   }
-  const previousUnresolved = options.previousUnresolvedCount ?? 0;
-  const maximumUnresolvedIncrease = options.maximumUnresolvedIncrease ?? 3;
-  if (
-    candidate.unresolvedCourseIds.length - previousUnresolved >
-    maximumUnresolvedIncrease
-  ) {
-    addError("unresolved-reference-spike", source.id);
+  if (options.reviewedUnresolvedCourseIds) {
+    const reviewed = new Set(options.reviewedUnresolvedCourseIds);
+    candidate.unresolvedCourseIds
+      .filter((courseId) => !reviewed.has(courseId))
+      .forEach((courseId) => addError("unresolved-reference-spike", courseId));
+  } else {
+    const previousUnresolved = options.previousUnresolvedCount ?? 0;
+    const maximumUnresolvedIncrease = options.maximumUnresolvedIncrease ?? 3;
+    if (
+      candidate.unresolvedCourseIds.length - previousUnresolved >
+      maximumUnresolvedIncrease
+    ) {
+      addError("unresolved-reference-spike", source.id);
+    }
   }
   candidate.quarantinedCourses.forEach((course) =>
     warnings.push({

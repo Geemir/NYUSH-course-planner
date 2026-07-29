@@ -123,6 +123,51 @@ describe("compileProgramRequirements", () => {
     });
   });
 
+  it("treats a plain area subheader as a heading for the rows below it", () => {
+    const [result] = compileProgramRequirements(
+      document([
+        table("foundation", [
+          row("areaHeader", 0, "Major Requirements"),
+          row("areaSubheader", 1, "Foundational Courses"),
+          row(
+            "course",
+            2,
+            "MATH-SHU 235 Probability and Statistics",
+            "4",
+            ["MATH-SHU 235"],
+          ),
+        ]),
+      ]),
+      titles,
+    );
+
+    expect(result).toMatchObject({
+      status: "verified",
+      requirement: { kind: "course", courseId: "MATH-SHU 235" },
+    });
+    expect(JSON.stringify(result)).not.toContain("manualConfirmation");
+  });
+
+  it("does not turn a label immediately before a selector into an empty requirement", () => {
+    const [result] = compileProgramRequirements(
+      document([
+        table("mathematics", [
+          row("areaHeader", 0, "Major Requirements"),
+          row("areaSubheader", 1, "Mathematics"),
+          row("comment", 2, "Select one of the following:", "4"),
+          row("course", 3, "MATH-SHU 235 Probability and Statistics", undefined, ["MATH-SHU 235"]),
+          row("course", 4, "MATH-SHU 238 Honors Theory of Probability", undefined, ["MATH-SHU 238"]),
+        ]),
+      ]),
+      titles,
+    );
+
+    expect(result).toMatchObject({
+      status: "verified",
+      requirement: { kind: "choose", count: 1, children: [{ kind: "course" }, { kind: "course" }] },
+    });
+  });
+
   it("binds Complete one concentration to named tables", () => {
     const result = compileProgramRequirements(
       document([
@@ -176,6 +221,79 @@ describe("compileProgramRequirements", () => {
       },
     });
     expect(result.map((item) => item.name)).not.toContain("Finance");
+  });
+
+  it("keeps required rows and nested selectors before a concentration choice", () => {
+    const result = compileProgramRequirements(
+      document([
+        table("selector", [
+          row("areaHeader", 0, "Major Requirements"),
+          row("areaSubheader", 1, "Foundational Courses"),
+          row("course", 2, "BUSF-SHU 101 Foundations of Finance", "4", ["BUSF-SHU 101"]),
+          row("areaSubheader", 3, "Select one of the following:", "4"),
+          row("course", 4, "MATH-SHU 235 Probability and Statistics", undefined, ["MATH-SHU 235"]),
+          row("course", 5, "MATH-SHU 238 Honors Theory of Probability", undefined, ["MATH-SHU 238"]),
+          row("areaSubheader", 6, "Concentration Courses"),
+          row("comment", 7, "Complete one of the following concentrations:"),
+          row("comment", 8, "Finance"),
+        ], "Program Requirements"),
+        table("finance", [
+          row("course", 0, "BUSF-SHU 101 Foundations of Finance", "4", ["BUSF-SHU 101"]),
+        ], "Finance"),
+      ]),
+      titles,
+    );
+
+    const major = result.find((item) => item.name === "Major Requirements");
+    expect(major).toMatchObject({
+      status: "verified",
+      requirement: {
+        kind: "all",
+        children: [
+          { kind: "all", children: [
+            { kind: "course", courseId: "BUSF-SHU 101" },
+            { kind: "choose", count: 1, children: [{ kind: "course" }, { kind: "course" }] },
+          ] },
+          { kind: "choose", count: 1, children: [{ kind: "all" }] },
+        ],
+      },
+    });
+  });
+
+  it("applies a named selector to the following per-attribute table", () => {
+    const result = compileProgramRequirements(
+      document([
+        table("major", [
+          row("areaHeader", 0, "Major Requirements"),
+          row("areaSubheader", 1, "Computer Science Electives"),
+          row(
+            "comment",
+            2,
+            "Select four of the Computer Science Electives listed below",
+            "16",
+          ),
+        ]),
+        table(
+          "cs-electives",
+          [
+            row("course", 0, "MATH-SHU 235 Probability and Statistics", "4", ["MATH-SHU 235"]),
+            row("course", 1, "MATH-SHU 238 Honors Theory of Probability", "4", ["MATH-SHU 238"]),
+            row("course", 2, "BUSF-SHU 101 Foundations of Finance", "4", ["BUSF-SHU 101"]),
+            row("course", 3, "BUSM-SHU 101 Foundations of Marketing", "4", ["BUSM-SHU 101"]),
+          ],
+          "Computer Science Electives",
+        ),
+      ]),
+      titles,
+    );
+
+    expect(
+      result.find((item) => item.name === "Computer Science Electives"),
+    ).toMatchObject({
+      status: "verified",
+      sourceTableIds: ["major", "cs-electives"],
+      requirement: { kind: "choose", count: 4, children: expect.any(Array) },
+    });
   });
 
   it("keeps unknown notes unavailable instead of inventing manual obligations", () => {
