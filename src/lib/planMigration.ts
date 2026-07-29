@@ -137,6 +137,7 @@ export function migratePlanV1(
     unresolvedProgramIds: profile.unresolved,
     customCourses: [...input.customCourses],
     fulfillmentFacts: [...(input.fulfillmentFacts ?? [])],
+    requirementStatusOverrides: [],
     dismissedWarnings: [...input.dismissedWarnings],
     startYear: input.startYear,
   };
@@ -180,6 +181,7 @@ export function reconcilePlanV2(
   });
   const snapshot: PlanSnapshotV2 = {
     ...input,
+    requirementStatusOverrides: [...(input.requirementStatusOverrides ?? [])],
     catalogReleaseId: bootstrap.release.id,
     placements,
     programProfile: profile.normalized,

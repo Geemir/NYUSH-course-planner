@@ -10,6 +10,7 @@ import type {
   PlanSnapshot,
   PlanSnapshotV2,
   PersistedPlanSnapshot,
+  RequirementStatusOverride,
   SemesterId,
 } from "@/lib/types";
 import {
@@ -29,6 +30,7 @@ export interface PlannerPresent {
   unresolvedProgramIds: string[];
   customCourses: Course[];
   fulfillmentFacts: FulfillmentFact[];
+  requirementStatusOverrides: RequirementStatusOverride[];
   dismissedWarnings: string[];
   startYear: number;
 }
@@ -57,6 +59,7 @@ interface PlannerState extends PlannerPresent {
   removeCustomCourse(courseId: string): void;
   recordFulfillmentFact(fact: FulfillmentFact): void;
   removeFulfillmentFact(factId: string): void;
+  setRequirementStatus(programId: string, categoryId: string, status: RequirementStatusOverride["status"] | null): void;
   dismissWarning(warningId: string): void;
   restoreWarning(warningId: string): void;
   setStartYear(year: number): void;
@@ -119,6 +122,7 @@ const initialPresent: PlannerPresent = {
   unresolvedProgramIds: [],
   customCourses: [],
   fulfillmentFacts: [],
+  requirementStatusOverrides: [],
   dismissedWarnings: [],
   startYear: 2025,
 };
@@ -133,6 +137,7 @@ function presentFromState(state: PlannerPresent): PlannerPresent {
     unresolvedProgramIds: state.unresolvedProgramIds,
     customCourses: state.customCourses,
     fulfillmentFacts: state.fulfillmentFacts,
+    requirementStatusOverrides: state.requirementStatusOverrides,
     dismissedWarnings: state.dismissedWarnings,
     startYear: state.startYear,
   });
@@ -216,6 +221,7 @@ export const usePlannerStore = create<PlannerState>()(
             unresolvedProgramIds: [...snapshot.unresolvedProgramIds],
             customCourses: structuredClone(snapshot.customCourses),
             fulfillmentFacts: structuredClone(snapshot.fulfillmentFacts),
+            requirementStatusOverrides: structuredClone(snapshot.requirementStatusOverrides ?? []),
             dismissedWarnings: [...snapshot.dismissedWarnings],
             startYear: snapshot.startYear,
           };
@@ -231,6 +237,7 @@ export const usePlannerStore = create<PlannerState>()(
           unresolvedProgramIds: [...snapshot.unresolvedProgramIds],
           customCourses: structuredClone(snapshot.customCourses),
           fulfillmentFacts: structuredClone(snapshot.fulfillmentFacts),
+          requirementStatusOverrides: structuredClone(snapshot.requirementStatusOverrides ?? []),
           dismissedWarnings: [...snapshot.dismissedWarnings],
           startYear: snapshot.startYear,
         })),
@@ -291,6 +298,15 @@ export const usePlannerStore = create<PlannerState>()(
         removeCustomCourse: (courseId) => mutate("Remove custom course", (present) => ({ ...present, customCourses: present.customCourses.filter((course) => course.id !== courseId) })),
         recordFulfillmentFact: (fact) => mutate("Add requirement evidence", (present) => ({ ...present, fulfillmentFacts: [...present.fulfillmentFacts.filter((item) => item.id !== fact.id), fact] })),
         removeFulfillmentFact: (factId) => mutate("Remove requirement evidence", (present) => ({ ...present, fulfillmentFacts: present.fulfillmentFacts.filter((fact) => fact.id !== factId) })),
+        setRequirementStatus: (programId, categoryId, status) => mutate("Change requirement status", (present) => ({
+          ...present,
+          requirementStatusOverrides: status === null
+            ? present.requirementStatusOverrides.filter((item) => item.programId !== programId || item.categoryId !== categoryId)
+            : [
+                ...present.requirementStatusOverrides.filter((item) => item.programId !== programId || item.categoryId !== categoryId),
+                { programId, categoryId, status },
+              ],
+        })),
         dismissWarning: (warningId) => mutate("Dismiss warning", (present) => ({ ...present, dismissedWarnings: present.dismissedWarnings.includes(warningId) ? present.dismissedWarnings : [...present.dismissedWarnings, warningId] })),
         restoreWarning: (warningId) => mutate("Restore warning", (present) => ({ ...present, dismissedWarnings: present.dismissedWarnings.filter((id) => id !== warningId) })),
         setStartYear: (startYear) => mutate("Change start year", (present) => ({ ...present, startYear })),
@@ -303,6 +319,7 @@ export const usePlannerStore = create<PlannerState>()(
           unresolvedProgramIds: snapshot.unresolvedProgramIds,
           customCourses: snapshot.customCourses,
           fulfillmentFacts: snapshot.fulfillmentFacts,
+          requirementStatusOverrides: snapshot.requirementStatusOverrides ?? [],
           dismissedWarnings: snapshot.dismissedWarnings,
           startYear: snapshot.startYear,
         }) : ({
@@ -314,6 +331,7 @@ export const usePlannerStore = create<PlannerState>()(
           unresolvedProgramIds: [],
           customCourses: snapshot.customCourses,
           fulfillmentFacts: snapshot.fulfillmentFacts ?? [],
+          requirementStatusOverrides: [],
           dismissedWarnings: snapshot.dismissedWarnings,
           startYear: snapshot.startYear,
         })),
@@ -378,6 +396,7 @@ export function snapshotV2FromState(
     unresolvedProgramIds: [...state.unresolvedProgramIds],
     customCourses: structuredClone(state.customCourses),
     fulfillmentFacts: structuredClone(state.fulfillmentFacts),
+    requirementStatusOverrides: structuredClone(state.requirementStatusOverrides),
     dismissedWarnings: [...state.dismissedWarnings],
     startYear: state.startYear,
   };

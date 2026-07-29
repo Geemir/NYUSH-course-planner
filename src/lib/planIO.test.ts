@@ -102,9 +102,27 @@ describe("parsePlan", () => {
       studyAway: {}, completedSemesters: [],
       programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
       unresolvedProgramIds: ["unknown"], customCourses: [], fulfillmentFacts: [],
+      requirementStatusOverrides: [
+        { programId: "cs", categoryId: "electives", status: "planned" as const },
+      ],
       dismissedWarnings: [], startYear: 2026,
     };
     expect(parsePlanDocument(exportPlan(v2))).toEqual(v2);
+  });
+
+  it("defaults missing requirement status overrides in older v2 exports", () => {
+    const legacyV2 = {
+      version: 2 as const,
+      catalogReleaseId: "release",
+      placements: [], studyAway: {}, completedSemesters: [],
+      programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
+      unresolvedProgramIds: [], customCourses: [], fulfillmentFacts: [],
+      dismissedWarnings: [], startYear: 2026,
+    };
+
+    const parsed = parsePlanDocument(JSON.stringify(legacyV2));
+    expect(parsed.version).toBe(2);
+    if (parsed.version === 2) expect(parsed.requirementStatusOverrides).toEqual([]);
   });
 
   it("rejects unknown document versions", () => {
@@ -121,6 +139,7 @@ describe("parsePlan", () => {
       placements: [], studyAway: {}, completedSemesters: [],
       programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
       unresolvedProgramIds: [], customCourses: [], fulfillmentFacts: [], dismissedWarnings: [], startYear: 2027,
+      requirementStatusOverrides: [],
     };
 
     downloadPlanJson(v2, 2027);

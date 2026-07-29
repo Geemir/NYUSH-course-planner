@@ -11,7 +11,7 @@ const initial: PlannerPresent = {
   activePrograms: ["core", "cs"],
   programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
   unresolvedProgramIds: [],
-  customCourses: [], fulfillmentFacts: [], dismissedWarnings: [], startYear: 2025,
+  customCourses: [], fulfillmentFacts: [], requirementStatusOverrides: [], dismissedWarnings: [], startYear: 2025,
 };
 
 function resetState() {
@@ -50,6 +50,22 @@ describe("planner semantic history", () => {
     store().removeCourse("missing");
     store().dismissWarning("warning");
     expect(store().history.past).toHaveLength(6);
+  });
+
+  it("sets, replaces, clears, undoes, and redoes a category status override", () => {
+    const store = () => usePlannerStore.getState();
+    store().setRequirementStatus("cs", "electives", "planned");
+    expect(store().requirementStatusOverrides).toEqual([
+      { programId: "cs", categoryId: "electives", status: "planned" },
+    ]);
+    store().setRequirementStatus("cs", "electives", "completed");
+    expect(store().requirementStatusOverrides[0].status).toBe("completed");
+    store().undo();
+    expect(store().requirementStatusOverrides[0].status).toBe("planned");
+    store().redo();
+    expect(store().requirementStatusOverrides[0].status).toBe("completed");
+    store().setRequirementStatus("cs", "electives", null);
+    expect(store().requirementStatusOverrides).toEqual([]);
   });
 
   it("undoes and redoes without adding history noise", () => {

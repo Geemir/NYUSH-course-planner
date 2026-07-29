@@ -477,6 +477,17 @@ export const FulfillmentFactsSchema = z
   .optional()
   .default([]);
 
+export const RequirementStatusOverrideSchema = z.object({
+  programId: z.string().min(1),
+  categoryId: z.string().min(1),
+  status: z.enum(["planned", "completed"]),
+}).strict();
+export type RequirementStatusOverride = z.infer<typeof RequirementStatusOverrideSchema>;
+export const RequirementStatusOverridesSchema = z
+  .array(RequirementStatusOverrideSchema)
+  .optional()
+  .default([]);
+
 export interface PlanSnapshotV1 {
   version: 1;
   placements: Placement[];
@@ -512,6 +523,7 @@ export interface PlanSnapshotV2 {
   unresolvedProgramIds: string[];
   customCourses: Course[];
   fulfillmentFacts: FulfillmentFact[];
+  requirementStatusOverrides?: RequirementStatusOverride[];
   dismissedWarnings: string[];
   startYear: number;
 }
@@ -554,6 +566,11 @@ export interface CategoryProgress {
   completedUnits: number;
   /** Units covered by the whole plan (completed + future semesters). */
   plannedUnits: number;
+  /** Raw engine values retained when a student adds a manual status. */
+  calculatedCompletedUnits: number;
+  calculatedPlannedUnits: number;
+  /** Explicit student status; never presented as an official audit result. */
+  manualStatus: "planned" | "completed" | null;
   /** Course ids currently credited to this category. */
   matchedCourseIds: string[];
   /** Deterministic course ids still missing from the plan. */

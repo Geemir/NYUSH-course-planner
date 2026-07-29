@@ -11,6 +11,7 @@ import { buildRuleContext, type RuleContext } from "@/lib/rules";
 import type {
   Course,
   FulfillmentFact,
+  RequirementStatusOverride,
   Placement,
   PlanWarning,
   ProgramProgress,
@@ -25,6 +26,7 @@ export interface PlanDerivationInput {
   completedSemesters: SemesterId[];
   activePrograms: string[];
   fulfillmentFacts: FulfillmentFact[];
+  requirementStatusOverrides?: RequirementStatusOverride[];
   dismissedWarningIds: string[];
   coursesById: Map<string, Course>;
   customIds: Set<string>;
@@ -82,6 +84,7 @@ export function derivePlan(input: PlanDerivationInput): PlanDerivedValue {
     programs: activeProgramObjs,
     effective: allocation.effective,
     fulfillmentFacts: input.fulfillmentFacts,
+    requirementStatusOverrides: input.requirementStatusOverrides ?? [],
     rules: ruleContext,
   });
   const allWarnings = computeWarnings({

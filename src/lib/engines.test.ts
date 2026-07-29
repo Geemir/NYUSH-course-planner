@@ -370,6 +370,51 @@ describe("validation", () => {
 });
 
 describe("progress", () => {
+  it("applies a planned category override without losing calculated units", () => {
+    const { effective } = allocate([]);
+    const result = computeProgress({
+      placements: [],
+      completedSemesters: [],
+      coursesById: COURSES_BY_ID,
+      programs: FIXTURE_PROGRAMS,
+      effective,
+      requirementStatusOverrides: [
+        { programId: "a", categoryId: "a-found", status: "planned" },
+      ],
+    });
+    const category = result.programs
+      .find((program) => program.programId === "a")!
+      .categories.find((item) => item.categoryId === "a-found")!;
+
+    expect(category).toMatchObject({
+      calculatedPlannedUnits: 0,
+      calculatedCompletedUnits: 0,
+      plannedUnits: 2,
+      completedUnits: 0,
+      manualStatus: "planned",
+    });
+  });
+
+  it("treats a completed category override as both completed and planned", () => {
+    const { effective } = allocate([]);
+    const result = computeProgress({
+      placements: [],
+      completedSemesters: [],
+      coursesById: COURSES_BY_ID,
+      programs: FIXTURE_PROGRAMS,
+      effective,
+      requirementStatusOverrides: [
+        { programId: "a", categoryId: "a-found", status: "completed" },
+      ],
+    });
+    const program = result.programs.find((item) => item.programId === "a")!;
+    const category = program.categories.find((item) => item.categoryId === "a-found")!;
+
+    expect(category).toMatchObject({ plannedUnits: 2, completedUnits: 2, manualStatus: "completed" });
+    expect(program.plannedFraction).toBeGreaterThan(0);
+    expect(program.completedFraction).toBeGreaterThan(0);
+  });
+
   it("evaluates active Bulletin categories recursively with explicit manual facts", () => {
     const bulletinProgram = {
       id: "bulletin-major",

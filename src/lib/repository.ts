@@ -80,7 +80,7 @@ export async function getActivePlan(
   if (!snapshot) return null;
   return snapshot.version === 1
     ? { ...snapshot, fulfillmentFacts: snapshot.fulfillmentFacts ?? [] }
-    : snapshot;
+    : { ...snapshot, requirementStatusOverrides: snapshot.requirementStatusOverrides ?? [] };
 }
 
 /**

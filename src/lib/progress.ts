@@ -12,6 +12,7 @@ import type {
   Course,
   Fulfillment,
   FulfillmentFact,
+  RequirementStatusOverride,
   Placement,
   ProgramProgress,
   RequirementNode,
@@ -55,6 +56,7 @@ export function computeProgress(opts: {
   /** From resolveAllocations(): courseId -> fulfillments receiving credit. */
   effective: Map<string, Fulfillment[]>;
   fulfillmentFacts?: FulfillmentFact[];
+  requirementStatusOverrides?: RequirementStatusOverride[];
   /** Active special rules (equivalence affects requirement matching). */
   rules?: RuleContext;
 }): ProgressResult {
@@ -65,6 +67,7 @@ export function computeProgress(opts: {
     programs,
     effective,
     fulfillmentFacts = [],
+    requirementStatusOverrides = [],
     rules = EMPTY_RULE_CONTEXT,
   } = opts;
   const completed = new Set(completedSemesters);
@@ -94,6 +97,18 @@ export function computeProgress(opts: {
           : {}),
       });
 
+      const manualStatus = requirementStatusOverrides.find(
+        (override) => override.programId === program.id && override.categoryId === category.id,
+      )?.status ?? null;
+      const calculatedCompletedUnits = evaluation.completedUnits;
+      const calculatedPlannedUnits = evaluation.plannedUnits;
+      const completedUnits = manualStatus === "completed"
+        ? evaluation.requiredUnits
+        : calculatedCompletedUnits;
+      const plannedUnits = manualStatus
+        ? evaluation.requiredUnits
+        : calculatedPlannedUnits;
+
       return {
         programId: program.id,
         categoryId: category.id,
@@ -101,8 +116,11 @@ export function computeProgress(opts: {
         isCapstone: "isCapstone" in category ? category.isCapstone : false,
         requiredUnits: evaluation.requiredUnits,
         unitKind: evaluation.unitKind,
-        completedUnits: evaluation.completedUnits,
-        plannedUnits: evaluation.plannedUnits,
+        completedUnits,
+        plannedUnits,
+        calculatedCompletedUnits,
+        calculatedPlannedUnits,
+        manualStatus,
         matchedCourseIds: evaluation.matchedCourseIds,
         missingCourseIds: evaluation.missingCourseIds,
         manualState: evaluation.manualState,

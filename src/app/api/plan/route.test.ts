@@ -65,7 +65,12 @@ describe("plan route revisions", () => {
         body: JSON.stringify({ snapshot, baseRevision }),
       }));
       expect(response.status).toBe(200);
-      expect(stubs.save).toHaveBeenLastCalledWith({}, "user", snapshot, baseRevision);
+      expect(stubs.save).toHaveBeenLastCalledWith(
+        {},
+        "user",
+        { ...snapshot, requirementStatusOverrides: [] },
+        baseRevision,
+      );
     }
   });
 

@@ -31,6 +31,7 @@ export function PlanDerivedProvider({ children }: { children: React.ReactNode })
   const programProfile = usePlannerStore((state) => state.programProfile);
   const activePrograms = useMemo(() => activeProgramIds(programProfile), [programProfile]);
   const fulfillmentFacts = usePlannerStore((state) => state.fulfillmentFacts);
+  const requirementStatusOverrides = usePlannerStore((state) => state.requirementStatusOverrides);
   const dismissedWarningIds = usePlannerStore(
     (state) => state.dismissedWarnings,
   );
@@ -64,6 +65,7 @@ export function PlanDerivedProvider({ children }: { children: React.ReactNode })
       completedSemesters,
       activePrograms,
       fulfillmentFacts,
+      requirementStatusOverrides,
       dismissedWarningIds,
       coursesById,
       customIds,
@@ -79,6 +81,7 @@ export function PlanDerivedProvider({ children }: { children: React.ReactNode })
       customIds,
       dismissedWarningIds,
       fulfillmentFacts,
+      requirementStatusOverrides,
       placements,
       programs,
       rules,

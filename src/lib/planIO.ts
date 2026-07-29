@@ -3,6 +3,7 @@ import { ProgramProfileSchema } from "@/lib/programProfile";
 import {
   CourseSchema,
   FulfillmentFactsSchema,
+  RequirementStatusOverridesSchema,
   GradeSchema,
   SEMESTER_IDS,
   type Course,
@@ -55,6 +56,7 @@ export const PlanSnapshotV2Schema = z.object({
   placements: z.array(PlacementV2Schema),
   programProfile: ProgramProfileSchema,
   unresolvedProgramIds: z.array(z.string().min(1)),
+  requirementStatusOverrides: RequirementStatusOverridesSchema,
   ...SharedSnapshotFields,
 }).strict();
 
