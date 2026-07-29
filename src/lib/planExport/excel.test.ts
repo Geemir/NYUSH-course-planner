@@ -13,6 +13,7 @@ describe("renderPlanExcel", () => {
     expect(workbook.worksheets.map(({ name }) => name)).toEqual([
       "Overview", "Semester Plan", "Requirement Progress",
     ]);
+    expect(workbook.getWorksheet("Overview")!.getCell("A1").value).toBe("NYUSH Degree Plan - Class of 2029");
     const semester = workbook.getWorksheet("Semester Plan")!;
     expect(semester.views[0]).toMatchObject({ state: "frozen", ySplit: 1 });
     expect(semester.autoFilter).toBeDefined();

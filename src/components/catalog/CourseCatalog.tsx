@@ -109,7 +109,8 @@ function CatalogCard({
     : { kind: "custom", courseId: course.id });
 
   return (
-    <article
+    <div className="relative">
+      <article
       ref={setNodeRef}
       {...listeners}
       {...attributes}
@@ -117,7 +118,7 @@ function CatalogCard({
       onClick={select}
       data-testid={`catalog-${item.key}`}
       className={cn(
-        "group flex min-h-28 cursor-grab items-start gap-3 rounded-2xl border bg-card p-4 outline-none transition-[border-color,background-color,box-shadow] duration-[var(--motion-fast)] hover:border-primary/35 hover:bg-muted/35 focus-visible:ring-3 focus-visible:ring-ring/35",
+        "group flex min-h-28 cursor-grab items-start gap-3 rounded-2xl border bg-card p-4 pr-16 outline-none transition-[border-color,background-color,box-shadow] duration-[var(--motion-fast)] hover:border-primary/35 hover:bg-muted/35 focus-visible:ring-3 focus-visible:ring-ring/35",
         placement && "opacity-70",
         isDragging && "z-10 opacity-50",
       )}
@@ -150,25 +151,28 @@ function CatalogCard({
           </p>
         )}
       </div>
-      <DropdownMenu onOpenChange={(open) => !open && onMenuClosed()}>
-        <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon" className="size-11" aria-label={`Assign ${course.id} to a semester`} onClick={(event: React.MouseEvent) => event.stopPropagation()} onPointerDown={(event: React.PointerEvent) => event.stopPropagation()} />}
-        >
-          <Plus />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>{placement ? "Move to" : "Add to semester"}</DropdownMenuLabel>
-            {SEMESTER_IDS.map((semesterId) => (
-              <DropdownMenuItem key={semesterId} onClick={() => placeCourse(record ? { courseId: record.code, catalogCourseId: record.stableId, titleSnapshot: record.course.title.slice(0, 200) } : { courseId: course.id, titleSnapshot: course.title.slice(0, 200) }, semesterId)}>
-                {semesterFullLabel(semesterId, startYear)}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-          {placement && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => removeCourse("placementId" in placement ? String(placement.placementId) : course.id)}>Remove from plan</DropdownMenuItem></>}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </article>
+      </article>
+      <div className="absolute top-2 right-2">
+        <DropdownMenu onOpenChange={(open) => !open && onMenuClosed()}>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="icon" className="size-11" aria-label={`Assign ${course.id} to a semester`} />}
+          >
+            <Plus />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>{placement ? "Move to" : "Add to semester"}</DropdownMenuLabel>
+              {SEMESTER_IDS.map((semesterId) => (
+                <DropdownMenuItem key={semesterId} onClick={() => placeCourse(record ? { courseId: record.code, catalogCourseId: record.stableId, titleSnapshot: record.course.title.slice(0, 200) } : { courseId: course.id, titleSnapshot: course.title.slice(0, 200) }, semesterId)}>
+                  {semesterFullLabel(semesterId, startYear)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+            {placement && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => removeCourse("placementId" in placement ? String(placement.placementId) : course.id)}>Remove from plan</DropdownMenuItem></>}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   );
 }
 

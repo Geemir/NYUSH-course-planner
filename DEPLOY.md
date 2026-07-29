@@ -67,9 +67,9 @@ new release automatically.
    | `DEEPSEEK_API_KEY` | only if admins will use the AI import/rules tools |
    | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | after step 4 |
 
-4. Deploy. The site will come up, but **sign-in needs step 4** — in production
-   the dev console magic-link is disabled by design (`src/auth.ts` only adds it
-   when `NODE_ENV !== "production"`).
+4. Deploy. The site will come up, but **sign-in needs step 4**. Google is the
+   only active provider; the disabled email action remains labeled as in
+   development in every environment.
 
 ## 4. Wire real sign-in (Google OAuth)
 
@@ -93,10 +93,9 @@ users you list (up to 100) can sign in — add your testers' `@nyu.edu`
 addresses, which is fine (arguably good) for a pilot. Publish the app when you
 want open access.
 
-*Alternative/no-Google path:* Auth.js also supports real email magic links
-(e.g. the Resend provider) — any `@nyu.edu` inbox works — but you need a domain
-you control with DNS access to verify the sender. Good later addition, not
-required for the pilot.
+Email magic links are intentionally out of scope for this release. Do not add a
+fallback provider without restoring the server-side NYU identity and abuse
+controls in a separately reviewed change.
 
 ## 5. Smoke-test the deployment
 
@@ -111,6 +110,11 @@ required for the pilot.
    else it 403s.
 5. Open the Program Profile, pick a major + minor, confirm progress rings and
    the feasibility check respond.
+6. From Plan actions, download JSON, Excel, and PDF. Open all three; confirm the
+   workbook has three sheets and the PDF has schedule/progress pages.
+7. As an administrator, save and publish an announcement. Verify it appears
+   below the planner header on desktop and mobile, can be dismissed, and that a
+   later announcement with a new ID appears again.
 
 ## 6. Operating it during the pilot
 
@@ -125,13 +129,34 @@ required for the pilot.
   `AUTH_URL`).
 - **Feedback:** point testers at the in-app **Report catalog issue** button —
   reports land in the admin Correction Hub with full context.
+- **Announcements:** use `/admin` to draft, publish, or withdraw the one global
+  notice. Announcement history is retained; users dismiss each notice locally.
+
+## Announcement migration and deployment order
+
+The announcement table migration must be applied to Neon before deploying the
+application build that calls its APIs. Review `drizzle/0007_previous_absorbing_man.sql`,
+then run these commands from a trusted operator machine; never paste the real
+connection string into source control or logs:
+
+```powershell
+$env:DATABASE_URL = '<Neon pooled connection string>'
+npx.cmd drizzle-kit migrate
+npm.cmd run build
+```
+
+Only after both commands succeed should the operator push `main` and allow the
+Vercel deployment. This repository task does not run the production migration,
+push GitHub, or deploy Vercel. After deployment, smoke-test Google sign-in,
+announcement publish/dismiss, Excel/PDF downloads, 390px mobile layout, and the
+system reduced-motion preference.
 
 ## Common failure modes
 
 | Symptom | Cause / fix |
 |---|---|
 | Catalog stuck "loading", API 503 `catalog_unavailable` | No active catalog release in the DB → run step 2 against the prod `DATABASE_URL`. |
-| Sign-in shows no providers in prod | `AUTH_GOOGLE_ID`/`SECRET` unset — the dev magic link never ships to production. |
+| Sign-in shows Google unavailable | `AUTH_GOOGLE_ID`/`SECRET` is unset or invalid; email is not a fallback provider. |
 | Auth.js `UntrustedHost` error | `AUTH_URL` doesn't exactly match the deployed origin. |
 | Google error `redirect_uri_mismatch` | The redirect URI in Google Console must be exactly `https://<domain>/api/auth/callback/google`. |
 | `@nyu.edu` user can't sign in | Consent screen in Testing mode and the user isn't on the test-user list. |

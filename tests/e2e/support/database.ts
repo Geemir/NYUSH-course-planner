@@ -56,6 +56,7 @@ export async function seedE2EDatabase() {
   await db.delete(schema.correctionMessage);
   await db.delete(schema.correctionRequest);
   await db.delete(schema.plans);
+  await db.delete(schema.announcements);
   await db.delete(schema.sessions);
   await db.delete(schema.accounts);
   await db.delete(schema.users);
@@ -87,6 +88,15 @@ export async function seedE2EDatabase() {
 
   await db.insert(schema.catalogRelease).values({ id: "e2e-release", status: "active", sourceSnapshotIds, publishedAt: new Date() });
   await db.insert(schema.catalogReleaseSource).values(Object.entries(sourceSnapshotIds).map(([sourceId, snapshotId]) => ({ releaseId: "e2e-release", sourceId, snapshotId })));
+  await db.insert(schema.announcements).values({
+    id: "e2e-announcement",
+    title: "E2E advising reminder",
+    body: "Review your degree plan before advising week.",
+    tone: "info",
+    status: "published",
+    publishedAt: new Date("2026-07-29T00:00:00.000Z"),
+    updatedAt: new Date("2026-07-29T00:00:00.000Z"),
+  });
   await client.close();
 }
 

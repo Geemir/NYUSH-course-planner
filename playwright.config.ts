@@ -23,7 +23,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
     env: {
-      PGLITE_DIR: ".pglite-e2e",
+      PGLITE_DIR: process.env.PGLITE_DIR ?? ".pglite-e2e",
       AUTH_SECRET: "e2e-only-secret-not-for-production",
       AUTH_TRUST_HOST: "true",
       AUTH_URL: baseURL,

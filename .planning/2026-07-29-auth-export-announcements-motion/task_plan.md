@@ -6,7 +6,7 @@ Design, approve, implement, and verify four coordinated product improvements: Go
 
 ## Current Phase
 
-Phase 1
+Complete
 
 ## Phases
 
@@ -19,18 +19,18 @@ Phase 1
 ### Phase 1: Design and plan confirmation
 - [x] Present recommended architecture and alternatives
 - [x] Write the design specification and detailed TDD implementation plan
-- [ ] Obtain the user's single plan-confirmation approval
-- **Status:** in_progress
+- [x] Obtain the user's single plan-confirmation approval
+- **Status:** complete
 
 ### Phase 2: Inline implementation
-- [ ] Implement the approved tasks without further approval checkpoints
-- [ ] Preserve unrelated local changes and avoid unrequested production mutations
-- **Status:** pending
+- [x] Implement the approved tasks without further approval checkpoints
+- [x] Preserve unrelated local changes and avoid unrequested production mutations
+- **Status:** complete
 
 ### Phase 3: Verification and handoff
-- [ ] Run focused tests, full tests, lint, typecheck, build, and browser/artifact QA
-- [ ] Report deployment/database steps without pushing or deploying unless explicitly included in the approved plan
-- **Status:** pending
+- [x] Run focused tests, full tests, lint, typecheck, build, and browser/artifact QA
+- [x] Report deployment/database steps without pushing or deploying unless explicitly included in the approved plan
+- **Status:** complete
 
 ## Decisions
 
@@ -46,3 +46,6 @@ Phase 1
 |---|---:|---|
 | Jina Reader request failed in the restricted sandbox | 1 | Retried the same read-only request with approved network escalation |
 | Repository inspection referenced a non-existent `src/app/api/admin/rules/route.test.ts` and `src/engine` path | 1 | Used the existing admin correction route tests and the actual `src/lib` engine modules instead; no product change was made |
+| Full suite expected seven migrations after the announcement migration made eight | 1 | Updated the rehearsal contract and added an explicit announcement-table check |
+| Playwright Chromium was absent, then sandboxed launch returned EPERM | 2 | Installed the matching browser and ran local browser QA with approved process access |
+| A hard-timed-out Playwright run left its disposable PGlite directory unusable | 1 | Made the config respect `PGLITE_DIR` and reran against a fresh isolated directory |

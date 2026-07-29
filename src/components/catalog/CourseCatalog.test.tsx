@@ -83,6 +83,14 @@ describe("CourseCatalog", () => {
     expect(onSelect).toHaveBeenCalledWith({ kind: "bulletin", stableId: "stern:TEST-UA 1" });
   });
 
+  it("keeps the assign control outside the interactive draggable card", () => {
+    render(<CourseCatalog onSelectCourse={() => undefined} onMenuClosed={() => undefined} />);
+    const card = screen.getByTestId("catalog-stern:TEST-UA 1");
+    const assign = screen.getByRole("button", { name: "Assign TEST-UA 1 to a semester" });
+    expect(card.querySelector("button")).toBeNull();
+    expect(card.contains(assign)).toBe(false);
+  });
+
   it("renders loading, empty, retry, offline, and partial-health states", async () => {
     const user = userEvent.setup();
     mocks.search.status = "error"; mocks.search.items = []; mocks.search.isStale = true;

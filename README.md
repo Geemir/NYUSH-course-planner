@@ -11,6 +11,8 @@ This is not an official NYU degree audit, petition, advisor approval, registrati
 - Query-driven catalog search, stable pagination, school/subject/campus filters, release-aware details, and hydration of placed courses.
 - Immutable source snapshots and composed releases for NYU Shanghai plus 13 New York school inventories, with last-known-good retention and fail-closed validation.
 - Correction Hub with student reports, My Reports, maintainer review, messages, notifications, immutable audit events, and typed overlays. Approval and application are separate actions.
+- Google-only NYU authentication, lossless JSON backups, and browser-local Excel/PDF reports. Email sign-in remains visibly marked as in development.
+- Global, plain-text planner announcements with Admin draft/publish/withdraw history and per-browser dismissal.
 - NYU Academic Glass: NYU violet identity, legal platform font stack, Lucide icons, touch-safe controls, restrained functional glass, responsive preferences, English onboarding, Help, interest quotes, and the provided New York skyline.
 
 The checked-in recovery catalog contains 810 NYUSH courses and 43 programs. The full New York catalog is database-backed and must be synchronized before use.
@@ -95,9 +97,11 @@ Bulletin records are catalog inventory. They do not confirm a current semester o
 
 ## Accounts, privacy, and administration
 
-Copy `.env.example` to `.env.local`, replace `AUTH_SECRET`, and configure OAuth variables for production. Development may use the console-only magic link; production providers never include it. Sign-in is restricted to `@nyu.edu` identities.
+Copy `.env.example` to `.env.local`, replace `AUTH_SECRET`, and configure `AUTH_GOOGLE_ID` plus `AUTH_GOOGLE_SECRET`. Google is the only active provider; email sign-in is intentionally disabled and labeled as in development. Sign-in is restricted to `@nyu.edu` identities.
 
 `ADMIN_EMAILS` is a comma-separated allowlist; a stored `admin` role is also honored server-side. Every plan, report, message, and notification route scopes reads to its owner. Correction Hub private notes remain administrator-only, and maintainer decisions are planner-side guidance rather than official NYU action.
+
+Plan actions can export a lossless JSON backup for later import, an `.xlsx` workbook with Overview/Semester Plan/Requirement Progress sheets, or a paginated PDF advising report. Excel and PDF generation happens locally in the browser and those formats are read/share artifacts, not import formats. Administrators publish announcements from `/admin`; only one notice is live at a time, and withdrawing it preserves history.
 
 Do not include real secrets or production hosts in `.env.example`, logs, release reports, screenshots, or test fixtures. PGlite is single-process: stop the development server before another command opens the same directory.
 

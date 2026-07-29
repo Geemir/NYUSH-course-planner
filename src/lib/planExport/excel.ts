@@ -56,7 +56,7 @@ export async function renderPlanExcel(model: PlanExportModel): Promise<Uint8Arra
 
   const overview = workbook.addWorksheet("Overview", { properties: { defaultRowHeight: 20 } });
   overview.columns = [{ width: 25 }, { width: 78 }];
-  overview.addRow(["NYUSH Degree Plan", `Class of ${model.classYear}`]);
+  overview.addRow([`NYUSH Degree Plan - Class of ${model.classYear}`, ""]);
   overview.mergeCells("A1:B1");
   overview.addRows([
     ["Generated", model.generatedAt],

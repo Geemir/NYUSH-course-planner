@@ -25,3 +25,12 @@
 - The derivation layer already exposes semester placements/credits, catalog-resolved course details, program/category progress, and warnings. This is sufficient for a shared export view model with semester schedule, Program Profile, degree-progress summary, and advisement warnings without reimplementing planner logic.
 - Current registry versions verified during planning are Anime.js 4.5.0, ExcelJS 4.4.0, jsPDF 4.2.1, and jsPDF-AutoTable 5.0.8.
 - Next.js 16's installed guidance confirms that browser APIs and event-driven exports belong in narrowly scoped Client Components, while database-backed announcement reads/mutations belong in Route Handlers. Client-only export libraries must be dynamically imported so they do not join the initial PlannerHeader client graph.
+
+## Implementation and verification findings
+
+- Google-only provider construction and the disabled email-development state are enforced independently at the server and sign-in UI boundaries.
+- The shared export model supports JSON backup plus three-sheet XLSX and two-page A4 landscape PDF output without server transmission.
+- Artifact rendering found and fixed an Excel merged-title loss of the class year and made PDF table widths explicit.
+- The announcement migration is migration 8; rehearsal now verifies both legacy-row preservation and the new table.
+- Browser accessibility found a pre-existing nested interactive control in catalog cards. Moving the Assign trigger beside, rather than inside, the draggable card resolved the serious Axe violation without changing card selection or drag behavior.
+- Playwright's database directory can be overridden for isolated retries, avoiding destructive cleanup when a prior process is interrupted.

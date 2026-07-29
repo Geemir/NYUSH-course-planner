@@ -37,10 +37,11 @@ export async function renderPlanPdf(model: PlanExportModel): Promise<Uint8Array>
     startY: 112,
     head: [["Term", "Site", "Done", "Code", "Course", "Cr", "Grade", "Allocation"]],
     body: scheduleRows,
+    tableWidth: 657,
     theme: "striped",
     headStyles: { fillColor: VIOLET, textColor: [255, 255, 255], fontStyle: "bold" },
     styles: { font: "helvetica", fontSize: 8, cellPadding: 4, overflow: "linebreak", textColor: DARK },
-    columnStyles: { 0: { cellWidth: 66 }, 1: { cellWidth: 82 }, 2: { cellWidth: 32 }, 3: { cellWidth: 78 }, 5: { cellWidth: 25 }, 6: { cellWidth: 34 }, 7: { cellWidth: 130 } },
+    columnStyles: { 0: { cellWidth: 66 }, 1: { cellWidth: 82 }, 2: { cellWidth: 32 }, 3: { cellWidth: 78 }, 4: { cellWidth: 210 }, 5: { cellWidth: 25 }, 6: { cellWidth: 34 }, 7: { cellWidth: 130 } },
     margin: { left: 36, right: 36 },
   });
 
@@ -57,6 +58,7 @@ export async function renderPlanPdf(model: PlanExportModel): Promise<Uint8Array>
       String(item.required), String(item.planned), String(item.completed), item.status,
       item.gapSummary || "None",
     ]),
+    tableWidth: 692,
     theme: "striped",
     headStyles: { fillColor: VIOLET, textColor: [255, 255, 255], fontStyle: "bold" },
     styles: { font: "helvetica", fontSize: 8, cellPadding: 4, overflow: "linebreak", textColor: DARK },
