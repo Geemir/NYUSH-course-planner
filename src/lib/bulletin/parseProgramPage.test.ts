@@ -14,6 +14,7 @@ const fixture = (name: string) =>
   );
 
 const PROGRAM_PAGE = fixture("program-page.html");
+const SAMPLE_PLAN_PAGE = fixture("computer-science-sample-plan.html");
 const CORE_PAGE = fixture("core-page.html");
 
 const PROGRAM_META: BulletinProgramPageSource = {
@@ -103,12 +104,15 @@ describe("parseProgramPage", () => {
 
     expect(document.samplePlan?.terms).toHaveLength(8);
     expect(document.samplePlan?.terms[0]).toMatchObject({
-      id: "plan-year-1-fall",
+      sourceIndex: 0,
       heading: "Year 1 Fall",
+      ordinal: 1,
       rows: [
         expect.objectContaining({
+          kind: "course",
           text: "CSCI-SHU 101 Introduction to Computer Science 4",
           creditsText: "4",
+          linkedCourseCodes: ["CSCI-SHU 101"],
         }),
       ],
     });
@@ -117,6 +121,57 @@ describe("parseProgramPage", () => {
     );
     expect(document.sections.find((section) => section.id === "sample-plan"))
       .toMatchObject({ heading: "Sample Plan of Study" });
+  });
+
+  it("preserves source tables with their nearest heading trails", () => {
+    const document = parseProgramPage(SAMPLE_PLAN_PAGE, PROGRAM_META);
+    const finance = document.bulletinDisplay.sections
+      .flatMap((section) => section.blocks)
+      .find((block) => block.kind === "table" && block.id === "finance-table");
+
+    expect(finance).toMatchObject({
+      kind: "table",
+      caption: "Course List",
+      headingTrail: expect.arrayContaining([
+        { level: 3, text: "Finance" },
+      ]),
+      rows: [
+        expect.objectContaining({
+          role: "course",
+          linkedCourseCodes: ["BUSF-SHU 101"],
+        }),
+      ],
+    });
+  });
+
+  it("splits one official plan grid into eight terms and preserves placeholders", () => {
+    const samplePlan = parseProgramPage(SAMPLE_PLAN_PAGE, PROGRAM_META).samplePlan;
+
+    expect(samplePlan).toMatchObject({
+      sectionId: "sampleplanofstudytextcontainer",
+      heading: "Sample Plan of Study",
+      totalCreditsText: "40",
+      importStatus: "eligible",
+      diagnostics: [],
+    });
+    expect(samplePlan?.terms).toHaveLength(8);
+    expect(samplePlan?.terms[0]).toMatchObject({
+      sourceIndex: 0,
+      heading: "1st Semester/Term",
+      ordinal: 1,
+      creditsText: "8",
+      rows: [
+        expect.objectContaining({
+          kind: "course",
+          linkedCourseCodes: ["MATH-SHU 131"],
+        }),
+        expect.objectContaining({
+          kind: "placeholder",
+          label: "Chinese or EAP",
+          creditsText: "4",
+        }),
+      ],
+    });
   });
 
   it("retains policies as ordered source sections without interpreting them", () => {
