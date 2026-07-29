@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +78,7 @@ export function OnboardingDialog({
     null,
   );
   const directionRef = useRef<GuideMotionDirection>("enter");
+  const reducedMotion = useReducedMotion();
 
   const step = GUIDE_STEPS[stepIndex];
   const isFirst = stepIndex === 0;
@@ -84,16 +86,13 @@ export function OnboardingDialog({
   const StepIcon = step.icon;
   useEffect(() => {
     if (!open || !contentElement) return;
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
     const animation = animateGuideStep(
       contentElement,
       directionRef.current,
-      reduceMotion,
+      reducedMotion,
     );
     return () => animation?.cancel();
-  }, [contentElement, open, stepIndex]);
+  }, [contentElement, open, reducedMotion, stepIndex]);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {

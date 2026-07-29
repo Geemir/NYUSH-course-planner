@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { CatalogProvider } from "@/components/CatalogProvider";
+import { AnnouncementBanner } from "@/components/announcements/AnnouncementBanner";
 import { PlanSync } from "@/components/PlanSync";
 import {
   CourseCatalog,
@@ -151,6 +152,7 @@ export function PlannerApp() {
               onGuide={onboarding.restart}
               onImportFile={handleImportFile}
             />
+            <AnnouncementBanner />
             <div className="mx-auto w-full max-w-[var(--content-max-width)] px-4 pt-5 sm:px-6 sm:pt-7">
               <InspirationStrip />
             </div>

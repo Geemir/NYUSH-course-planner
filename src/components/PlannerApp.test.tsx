@@ -52,6 +52,9 @@ vi.mock("@/components/layout/PlannerHeader", () => ({
 vi.mock("@/components/inspiration/InspirationStrip", () => ({
   InspirationStrip: () => <section data-testid="inspiration">Inspiration</section>,
 }));
+vi.mock("@/components/announcements/AnnouncementBanner", () => ({
+  AnnouncementBanner: () => <section data-testid="announcement">Announcement</section>,
+}));
 
 vi.mock("@/components/layout/PlannerWorkspace", () => ({
   PlannerWorkspace: ({
@@ -123,11 +126,15 @@ describe("PlannerApp composition", () => {
     expect(await screen.findByText("Choose your program")).toBeDefined();
   });
 
-  it("places inspiration before the workspace and renders eight semesters", () => {
+  it("places announcement and inspiration before the workspace and renders eight semesters", () => {
     renderWithProviders(<PlannerApp />);
 
     const inspiration = screen.getByTestId("inspiration");
+    const announcement = screen.getByTestId("announcement");
     const workspace = screen.getByTestId("workspace");
+    expect(
+      announcement.compareDocumentPosition(inspiration) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       inspiration.compareDocumentPosition(workspace) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
