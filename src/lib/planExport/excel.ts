@@ -83,10 +83,11 @@ export async function renderPlanExcel(model: PlanExportModel): Promise<Uint8Arra
   }
 
   const semesters = workbook.addWorksheet("Semester Plan", { properties: { defaultRowHeight: 20 } });
-  semesters.addRow(["Academic Year", "Term", "Site", "Completed", "Course Code", "Course Title", "Credits", "Expected Grade", "Requirement Allocation"]);
+  semesters.addRow(["Row Type", "Academic Year", "Term", "Site", "Completed", "Course Code", "Course Title", "Credits", "Expected Grade", "Requirement Allocation"]);
   model.semesters.forEach((semester) => {
     semester.courses.forEach((course) => {
       semesters.addRow([
+        "Course",
         semester.academicYear,
         semester.term,
         safeCell(semester.site),
@@ -98,8 +99,22 @@ export async function renderPlanExcel(model: PlanExportModel): Promise<Uint8Arra
         safeCell(course.allocations.join("; ")),
       ]);
     });
+    semester.slots.forEach((slot) => {
+      semesters.addRow([
+        "Planning Slot",
+        semester.academicYear,
+        semester.term,
+        safeCell(semester.site),
+        "No",
+        "",
+        safeCell(slot.label),
+        slot.credits ?? "",
+        "",
+        safeCell(`Sample plan · ${slot.sourceProgramId}`),
+      ]);
+    });
   });
-  configureTable(semesters, [15, 15, 20, 12, 18, 34, 10, 15, 42], semesters.rowCount);
+  configureTable(semesters, [16, 15, 15, 20, 12, 18, 34, 10, 15, 42], semesters.rowCount);
 
   const requirements = workbook.addWorksheet("Requirement Progress", { properties: { defaultRowHeight: 20 } });
   requirements.addRow(["Program Role", "Program", "Category", "Unit", "Required", "Planned", "Completed", "Status", "Status Source", "Manual Status", "Program ID", "Category ID", "Remaining Gaps"]);

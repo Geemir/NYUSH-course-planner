@@ -17,9 +17,12 @@ describe("renderPlanExcel", () => {
     const semester = workbook.getWorksheet("Semester Plan")!;
     expect(semester.views[0]).toMatchObject({ state: "frozen", ySplit: 1 });
     expect(semester.autoFilter).toBeDefined();
-    expect(semester.getCell("G2").value).toBe(4);
-    expect(typeof semester.getCell("G2").value).toBe("number");
-    expect(semester.getCell("F2").value).toBe("'=Unsafe title");
+    expect(semester.getCell("A2").value).toBe("Course");
+    expect(semester.getCell("H2").value).toBe(4);
+    expect(typeof semester.getCell("H2").value).toBe("number");
+    expect(semester.getCell("G2").value).toBe("'=Unsafe title");
+    expect(semester.getCell("A3").value).toBe("Planning Slot");
+    expect(semester.getCell("G3").value).toBe("'=General Elective");
     expect(workbook.getWorksheet("Requirement Progress")!.getCell("I2").value).toBe("manual");
     expect(workbook.getWorksheet("Requirement Progress")!.getCell("J2").value).toBe("completed");
     expect(workbook.getWorksheet("Requirement Progress")!.getCell("M2").value).toBe("'+CSCI-SHU 210");

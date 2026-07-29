@@ -12,5 +12,7 @@ describe("renderPlanPdf", () => {
     const text = new TextDecoder("latin1").decode(bytes);
     expect(text).toContain("NYUSH Degree Plan");
     expect(text).toContain("manual / completed");
+    expect(text).toContain("=General Elective \\(tentative\\)");
+    expect(text).toContain("Planning slots are tentative placeholders");
   });
 });

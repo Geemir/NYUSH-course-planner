@@ -19,29 +19,42 @@ export async function renderPlanPdf(model: PlanExportModel): Promise<Uint8Array>
   doc.text(`Credits: ${model.credits.completed} completed / ${model.credits.planned} planned / ${model.credits.required} required`, 36, 78);
   doc.text(`Programs: ${model.profile.map((item) => `${item.role}: ${item.name}`).join("; ")}`, 36, 94, { maxWidth: 760 });
 
-  const scheduleRows = model.semesters.flatMap((semester) =>
-    semester.courses.length
-      ? semester.courses.map((course) => [
-          semester.term,
-          semester.site,
-          semester.completed ? "Yes" : "No",
-          course.code,
-          course.title,
-          String(course.credits),
-          course.expectedGrade ?? "—",
-          course.allocations.join("; ") || "—",
-        ])
-      : [[semester.term, semester.site, semester.completed ? "Yes" : "No", "—", "No courses planned", "0", "—", "—"]],
-  );
+  const scheduleRows = model.semesters.flatMap((semester) => {
+    const courseRows = semester.courses.map((course) => [
+      "Course",
+      semester.term,
+      semester.site,
+      semester.completed ? "Yes" : "No",
+      course.code,
+      course.title,
+      String(course.credits),
+      course.expectedGrade ?? "-",
+      course.allocations.join("; ") || "-",
+    ]);
+    const slotRows = semester.slots.map((slot) => [
+      "Planning Slot",
+      semester.term,
+      semester.site,
+      "No",
+      "-",
+      `${slot.label} (tentative)`,
+      slot.credits === null ? "TBD" : String(slot.credits),
+      "-",
+      `Sample plan · ${slot.sourceProgramId}`,
+    ]);
+    return courseRows.length || slotRows.length
+      ? [...courseRows, ...slotRows]
+      : [["Empty", semester.term, semester.site, "No", "-", "No courses or planning slots", "0", "-", "-"]];
+  });
   autoTable(doc, {
     startY: 112,
-    head: [["Term", "Site", "Done", "Code", "Course", "Cr", "Grade", "Allocation"]],
+    head: [["Type", "Term", "Site", "Done", "Code", "Course / Placeholder", "Cr", "Grade", "Allocation"]],
     body: scheduleRows,
     tableWidth: 657,
     theme: "striped",
     headStyles: { fillColor: VIOLET, textColor: [255, 255, 255], fontStyle: "bold" },
     styles: { font: "helvetica", fontSize: 8, cellPadding: 4, overflow: "linebreak", textColor: DARK },
-    columnStyles: { 0: { cellWidth: 66 }, 1: { cellWidth: 82 }, 2: { cellWidth: 32 }, 3: { cellWidth: 78 }, 4: { cellWidth: 210 }, 5: { cellWidth: 25 }, 6: { cellWidth: 34 }, 7: { cellWidth: 130 } },
+    columnStyles: { 0: { cellWidth: 55 }, 1: { cellWidth: 62 }, 2: { cellWidth: 72 }, 3: { cellWidth: 30 }, 4: { cellWidth: 66 }, 5: { cellWidth: 170 }, 6: { cellWidth: 24 }, 7: { cellWidth: 32 }, 8: { cellWidth: 146 } },
     margin: { left: 36, right: 36 },
   });
 
