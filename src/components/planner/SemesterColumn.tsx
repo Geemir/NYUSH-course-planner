@@ -1,14 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { GraduationCap, Leaf, Sprout } from "lucide-react";
+import { AlertCircle, AlertTriangle, GraduationCap, Leaf, Sprout } from "lucide-react";
+import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import { CourseChip } from "@/components/planner/CourseChip";
 import { StudyAwaySelect } from "@/components/planner/StudyAwaySelect";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useCourseData } from "@/hooks/useCourseData";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
+import { warningReportContext } from "@/lib/corrections/warningContext";
 import { cn } from "@/lib/utils";
-import { type PlanPlacementV2, SemesterId, semesterTerm, semesterTermName } from "@/lib/types";
+import { type PlanPlacementV2, type PlanWarning, SemesterId, semesterTerm, semesterTermName } from "@/lib/types";
 import {
   MAX_SEMESTER_CREDITS,
   MIN_SEMESTER_CREDITS,
@@ -23,8 +29,10 @@ export function SemesterColumn({
   onSelectCourse: (placement: PlanPlacementV2) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: semesterId });
-  const { placementsBySemester, creditsBySemester, coursesById } =
+  const { placementsBySemester, creditsBySemester, coursesById, warningsBySemester } =
     usePlanDerived();
+  const { snapshot } = useCourseData();
+  const [reporting, setReporting] = useState<PlanWarning | null>(null);
   const completed = usePlannerStore((s) =>
     s.completedSemesters.includes(semesterId),
   );
@@ -33,6 +41,7 @@ export function SemesterColumn({
   const isFall = semesterTerm(semesterId) === "fall";
 
   const placements = placementsBySemester.get(semesterId) ?? [];
+  const warnings = warningsBySemester.get(semesterId) ?? [];
   const credits = creditsBySemester.get(semesterId) ?? 0;
   const overloaded = credits > MAX_SEMESTER_CREDITS;
   const underloaded = credits > 0 && credits < MIN_SEMESTER_CREDITS;
@@ -70,22 +79,42 @@ export function SemesterColumn({
             <GraduationCap className="size-4 text-emerald-600 dark:text-emerald-400" />
           )}
         </span>
-        <Badge
-          variant={overloaded ? "destructive" : "secondary"}
-          className={cn(
-            "px-1.5 text-xs tabular-nums",
-            underloaded && "text-amber-600 dark:text-amber-400",
+        <div className="flex items-center gap-1">
+          {warnings.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Warnings for ${semesterTermName(semesterId, startYear)}`} className="size-9" />}
+              >
+                {warnings.some((warning) => warning.severity === "error")
+                  ? <AlertCircle className="text-destructive" />
+                  : <AlertTriangle className="text-amber-500" />}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-w-80">
+                {warnings.map((warning) => (
+                  <DropdownMenuItem key={warning.id} onClick={() => setReporting(warning)}>
+                    <span className="line-clamp-2">Report · {warning.message}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
-          title={
-            overloaded
-              ? `Above the ${MAX_SEMESTER_CREDITS}-credit limit`
-              : underloaded
-                ? `Below the ${MIN_SEMESTER_CREDITS}-credit full-time minimum`
-                : undefined
-          }
-        >
-          {credits} cr
-        </Badge>
+          <Badge
+            variant={overloaded ? "destructive" : "secondary"}
+            className={cn(
+              "px-1.5 text-xs tabular-nums",
+              underloaded && "text-amber-600 dark:text-amber-400",
+            )}
+            title={
+              overloaded
+                ? `Above the ${MAX_SEMESTER_CREDITS}-credit limit`
+                : underloaded
+                  ? `Below the ${MIN_SEMESTER_CREDITS}-credit full-time minimum`
+                  : undefined
+            }
+          >
+            {credits} cr
+          </Badge>
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-2">
@@ -115,6 +144,13 @@ export function SemesterColumn({
           </div>
         )}
       </div>
+      {reporting && (
+        <ReportIssueDialog
+          open
+          onOpenChange={(open) => { if (!open) setReporting(null); }}
+          context={warningReportContext(reporting, snapshot.id === "offline-bootstrap" ? null : snapshot.id, startYear)}
+        />
+      )}
     </div>
   );
 }

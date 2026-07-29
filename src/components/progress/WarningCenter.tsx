@@ -1,6 +1,8 @@
 "use client";
 
-import { AlertCircle, AlertTriangle, EyeOff, Sparkles, Undo2 } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, AlertTriangle, EyeOff, Flag, Sparkles, Undo2 } from "lucide-react";
+import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -8,6 +10,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
+import { useCourseData } from "@/hooks/useCourseData";
+import { warningReportContext } from "@/lib/corrections/warningContext";
 import { PlanWarning } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 
@@ -21,8 +25,11 @@ function severityIcon(warning: PlanWarning) {
 
 export function WarningCenter() {
   const { warnings, dismissedWarnings } = usePlanDerived();
+  const { snapshot } = useCourseData();
+  const [reporting, setReporting] = useState<PlanWarning | null>(null);
   const dismissWarning = usePlannerStore((s) => s.dismissWarning);
   const restoreWarning = usePlannerStore((s) => s.restoreWarning);
+  const startYear = usePlannerStore((s) => s.startYear);
   const sorted = [...warnings].sort((a, b) =>
     a.severity === b.severity ? 0 : a.severity === "error" ? -1 : 1,
   );
@@ -44,6 +51,15 @@ export function WarningCenter() {
               <span className="flex-1 leading-snug text-muted-foreground">
                 {warning.message}
               </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Report warning"
+                className="size-9 shrink-0 opacity-60 transition-opacity duration-[var(--motion-fast)] group-hover:opacity-100"
+                onClick={() => setReporting(warning)}
+              >
+                <Flag />
+              </Button>
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -93,6 +109,13 @@ export function WarningCenter() {
             ))}
           </ul>
         </details>
+      )}
+      {reporting && (
+        <ReportIssueDialog
+          open
+          onOpenChange={(open) => { if (!open) setReporting(null); }}
+          context={warningReportContext(reporting, snapshot.id === "offline-bootstrap" ? null : snapshot.id, startYear)}
+        />
       )}
     </div>
   );

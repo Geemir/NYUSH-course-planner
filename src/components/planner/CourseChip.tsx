@@ -1,16 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { AlertCircle, AlertTriangle, X } from "lucide-react";
+import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useCourseData } from "@/hooks/useCourseData";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
 import { PROGRAMS_BY_ID, isActivelyCrossListed } from "@/lib/clientReferenceData";
 import { placementCredits } from "@/lib/credits";
+import { warningReportContext } from "@/lib/corrections/warningContext";
 import { activeProgramIds } from "@/lib/programProfile";
-import type { PlanPlacementV2 } from "@/lib/types";
+import type { PlanPlacementV2, PlanWarning } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { usePlannerStore } from "@/store/plannerStore";
 
@@ -22,9 +27,12 @@ export function CourseChip({
   onSelect: () => void;
 }) {
   const { warningsByCourse, effectiveMajors, coursesById } = usePlanDerived();
+  const { snapshot } = useCourseData();
+  const [reporting, setReporting] = useState<PlanWarning | null>(null);
   const removeCourse = usePlannerStore((state) => state.removeCourse);
   const setSelectedCredits = usePlannerStore((state) => state.setSelectedCredits);
   const completedSemesters = usePlannerStore((state) => state.completedSemesters);
+  const startYear = usePlannerStore((state) => state.startYear);
   const programProfile = usePlannerStore((state) => state.programProfile);
   const activePrograms = activeProgramIds(programProfile);
   const courseId = placement.courseId;
@@ -81,17 +89,25 @@ export function CourseChip({
           <span className="font-mono text-xs font-semibold text-primary">{course.id}</span>
           <span className="truncate text-sm leading-tight font-medium">{course.title}</span>
         </div>
-        {warnings.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger render={<span className="flex shrink-0 items-center" />}>
-              {hasError ? <AlertCircle className="size-4 text-destructive" /> : <AlertTriangle className="size-4 text-amber-500" />}
-            </TooltipTrigger>
-            <TooltipContent><div className="flex max-w-64 flex-col gap-1">{warnings.map((warning) => <span key={warning.id}>{warning.message}</span>)}</div></TooltipContent>
-          </Tooltip>
-        )}
         {allocationLabel && <Badge variant="outline" className="shrink-0 px-1 text-[10px]">{allocationLabel}</Badge>}
         {placement.expectedGrade && <Badge variant="secondary" className="shrink-0 px-1 text-[10px] font-semibold" title={`Expected grade: ${placement.expectedGrade}`}>{placement.expectedGrade}</Badge>}
       </div>
+      {warnings.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Warnings for ${course.id}`} className="size-9 shrink-0" />}
+          >
+            {hasError ? <AlertCircle className="text-destructive" /> : <AlertTriangle className="text-amber-500" />}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-w-80">
+            {warnings.map((warning) => (
+              <DropdownMenuItem key={warning.id} onClick={() => setReporting(warning)}>
+                <span className="line-clamp-2">Report · {warning.message}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       {maximumCredits > minimumCredits ? (
         <Select value={String(selectedCredits)} onValueChange={(value) => setSelectedCredits(placement.placementId, Number(value))}>
           <SelectTrigger size="sm" aria-label={`Credits for ${course.id}`} className="h-9 w-20 shrink-0 tabular-nums"><SelectValue>{(value: string) => `${value} cr`}</SelectValue></SelectTrigger>
@@ -107,6 +123,13 @@ export function CourseChip({
       >
         <X className="size-4" aria-hidden="true" />
       </button>
+      {reporting && (
+        <ReportIssueDialog
+          open
+          onOpenChange={(open) => { if (!open) setReporting(null); }}
+          context={warningReportContext(reporting, snapshot.id === "offline-bootstrap" ? null : snapshot.id, startYear)}
+        />
+      )}
     </div>
   );
 }

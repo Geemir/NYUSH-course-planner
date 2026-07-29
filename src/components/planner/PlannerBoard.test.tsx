@@ -12,6 +12,7 @@ const { derived } = vi.hoisted(() => ({
     creditsBySemester: new Map(),
     coursesById: new Map(),
     warningsByCourse: new Map(),
+    warningsBySemester: new Map(),
     placementByCourse: new Map(),
     effectiveMajors: () => [],
   },
@@ -33,6 +34,7 @@ describe("PlannerBoard", () => {
     derived.creditsBySemester = new Map();
     derived.coursesById = new Map();
     derived.warningsByCourse = new Map();
+    derived.warningsBySemester = new Map();
     derived.placementByCourse = new Map();
   });
 
@@ -131,5 +133,41 @@ describe("PlannerBoard", () => {
     expect(screen.getByText("Study Away Seminar")).toBeDefined();
     await user.click(screen.getByRole("button", { name: "Remove NY-UA 1" }));
     expect(usePlannerStore.getState().placements).toEqual([]);
+  });
+
+  it("reports a warning directly from a planned course", async () => {
+    const user = userEvent.setup();
+    const course = mkCourse({ id: "WARN 1", title: "Warning Seminar" });
+    const placement = { placementId: "warn-1", courseId: course.id, semesterId: "Y2S" as const, allocation: "auto" as const };
+    const warning = {
+      id: "not-offered:WARN 1:Y2S", kind: "not-offered" as const, severity: "warning" as const,
+      courseId: course.id, semesterId: "Y2S" as const, message: "WARN 1 is not usually offered in spring.",
+    };
+    usePlannerStore.setState({ placements: [placement] });
+    derived.placementsBySemester = new Map([["Y2S", [placement]]]);
+    derived.coursesById = new Map([[course.id, course]]);
+    derived.warningsByCourse = new Map([[course.id, [warning]]]);
+
+    render(<PlannerBoard onSelectCourse={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: "Warnings for WARN 1" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Report.*WARN 1 is not usually offered/ }));
+
+    expect(screen.getByRole("heading", { name: "Report an issue" })).toBeDefined();
+    expect(screen.getByText("Planning warning · WARN 1")).toBeDefined();
+  });
+
+  it("reports a semester-level warning directly from the plan", async () => {
+    const user = userEvent.setup();
+    derived.warningsBySemester = new Map([["Y2S", [{
+      id: "underload:Y2S", kind: "underload" as const, severity: "warning" as const,
+      semesterId: "Y2S" as const, message: "Spring 2027 is below the full-time minimum.",
+    }]]]);
+
+    render(<PlannerBoard onSelectCourse={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: "Warnings for Spring 2027" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Report.*below the full-time minimum/ }));
+
+    expect(screen.getByRole("heading", { name: "Report an issue" })).toBeDefined();
+    expect(screen.getByText("Planning warning · Spring 2027")).toBeDefined();
   });
 });
