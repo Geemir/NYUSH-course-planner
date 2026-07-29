@@ -88,7 +88,7 @@ export interface CoursePlacementInput {
 export type SamplePlanPlacementInput = Omit<
   PlanPlacementV2,
   "placementId" | "allocation"
-> & { allocation?: Allocation };
+> & { placementId?: string; allocation?: Allocation };
 
 export interface SamplePlanChangeSet {
   placements: SamplePlanPlacementInput[];
@@ -123,6 +123,21 @@ function mergeSamplePlacements(
 ): PlanPlacementV2[] {
   const placements = current.map((placement) => structuredClone(placement));
   for (const placement of incoming) {
+    if (placement.placementId) {
+      const exactIndex = placements.findIndex(
+        (currentPlacement) =>
+          currentPlacement.placementId === placement.placementId,
+      );
+      if (exactIndex >= 0) {
+        placements[exactIndex] = {
+          ...placements[exactIndex],
+          ...structuredClone(placement),
+          placementId: placements[exactIndex].placementId,
+          allocation: placement.allocation ?? placements[exactIndex].allocation,
+        };
+        continue;
+      }
+    }
     const identity = placement.catalogCourseId ?? placement.courseId;
     if (placementIndex(placements, identity) >= 0) continue;
     placements.push({
