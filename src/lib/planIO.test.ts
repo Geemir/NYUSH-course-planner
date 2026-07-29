@@ -107,7 +107,10 @@ describe("parsePlan", () => {
       ],
       dismissedWarnings: [], startYear: 2026,
     };
-    expect(parsePlanDocument(exportPlan(v2))).toEqual(v2);
+    expect(parsePlanDocument(exportPlan(v2))).toEqual({
+      ...v2,
+      planningSlots: [],
+    });
   });
 
   it("defaults missing requirement status overrides in older v2 exports", () => {
@@ -122,7 +125,58 @@ describe("parsePlan", () => {
 
     const parsed = parsePlanDocument(JSON.stringify(legacyV2));
     expect(parsed.version).toBe(2);
-    if (parsed.version === 2) expect(parsed.requirementStatusOverrides).toEqual([]);
+    if (parsed.version === 2) {
+      expect(parsed.requirementStatusOverrides).toEqual([]);
+      expect(parsed.planningSlots).toEqual([]);
+    }
+  });
+
+  it("parses source-keyed sample-plan slots in plan v2", () => {
+    const parsed = parsePlanDocument(JSON.stringify({
+      version: 2,
+      catalogReleaseId: "release",
+      placements: [],
+      planningSlots: [
+        {
+          id: "slot-1",
+          sourceKey: "computer-science:sample:1:3:general-elective",
+          semesterId: "Y1F",
+          label: "General Elective",
+          credits: 4,
+          source: {
+            kind: "bulletin-sample-plan",
+            programId: "computer-science",
+            catalogReleaseId: "release",
+            sectionId: "sampleplanofstudytextcontainer",
+            termSourceIndex: 0,
+            rowSourceIndex: 3,
+          },
+        },
+      ],
+      studyAway: {},
+      completedSemesters: [],
+      programProfile: {
+        coreProgramId: "core",
+        primaryMajorId: "computer-science",
+        secondMajorId: null,
+        minorIds: [],
+      },
+      unresolvedProgramIds: [],
+      customCourses: [],
+      fulfillmentFacts: [],
+      requirementStatusOverrides: [],
+      dismissedWarnings: [],
+      startYear: 2026,
+    }));
+
+    expect(parsed.version).toBe(2);
+    if (parsed.version === 2) {
+      expect(parsed.planningSlots[0]).toMatchObject({
+        label: "General Elective",
+        semesterId: "Y1F",
+        credits: 4,
+      });
+    }
   });
 
   it("rejects unknown document versions", () => {
