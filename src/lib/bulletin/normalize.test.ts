@@ -86,6 +86,11 @@ const programDocument: BulletinProgramDocument = {
   slug: "mathematics-bs",
   title: "Mathematics (BS)",
   sourceUrl: PROGRAM_URL,
+  bulletinDisplay: {
+    schemaVersion: 2,
+    sourceUrl: PROGRAM_URL,
+    sections: [],
+  },
   sections: [],
   policies: [],
   footnotes: [],
@@ -213,7 +218,7 @@ describe("normalizeBulletin", () => {
     ]);
   });
 
-  it("manualizes a code-only local requirement absent from the inventory", () => {
+  it("keeps a code-only local requirement unavailable when inventory cannot verify it", () => {
     const unresolvedProgram: BulletinProgramDocument = {
       ...programDocument,
       requirementTables: [
@@ -233,10 +238,11 @@ describe("normalizeBulletin", () => {
       unresolvedProgram,
     ]);
 
-    expect(candidate.programs[0].categories[0].requirement).toEqual({
-      kind: "manualConfirmation",
-      label: "Legacy Requirement",
-      sourceText: "MATH-SHU 998",
+    expect(candidate.programs[0].categories).toEqual([]);
+    expect(candidate.programs[0].interpretations[0]).toMatchObject({
+      name: "Legacy Requirement",
+      status: "unavailable",
+      requirement: null,
     });
     expect(candidate.unresolvedCourseIds).toContain("MATH-SHU 998");
   });
@@ -368,14 +374,14 @@ describe("normalizeBulletin", () => {
     });
   });
 
-  it("manualizes course rows containing additional policy clauses", () => {
+  it("only manualizes course rows containing a recognized attestable condition", () => {
     const policyRows = [
-      "MATH-SHU 121 Calculus and permission of instructor",
-      "MATH-SHU 121 Calculus with advisor approval",
-      "MATH-SHU 121 Calculus placement examination",
-    ];
+      ["MATH-SHU 121 Calculus and permission of instructor", "unavailable"],
+      ["MATH-SHU 121 Calculus with advisor approval", "verified"],
+      ["MATH-SHU 121 Calculus placement examination", "verified"],
+    ] as const;
 
-    for (const sourceText of policyRows) {
+    for (const [sourceText, status] of policyRows) {
       const policyProgram: BulletinProgramDocument = {
         ...programDocument,
         requirementTables: [
@@ -390,16 +396,21 @@ describe("normalizeBulletin", () => {
         ],
       };
 
-      const requirement = normalizeBulletin(discovery, [
+      const program = normalizeBulletin(discovery, [
         subjectDocument,
         policyProgram,
-      ]).programs[0].categories[0].requirement;
+      ]).programs[0];
 
-      expect(requirement).toEqual({
-        kind: "manualConfirmation",
-        label: "Preparation",
-        sourceText,
-      });
+      expect(program.interpretations[0].status).toBe(status);
+      if (status === "verified") {
+        expect(program.categories[0].requirement).toEqual({
+          kind: "manualConfirmation",
+          label: "Preparation",
+          sourceText,
+        });
+      } else {
+        expect(program.categories).toEqual([]);
+      }
     }
   });
 
@@ -454,19 +465,19 @@ describe("normalizeBulletin", () => {
       ],
     };
 
-    const requirement = normalizeBulletin(discovery, [
+    const program = normalizeBulletin(discovery, [
       subjectDocument,
       policyProgram,
-    ]).programs[0].categories[0].requirement;
+    ]).programs[0];
 
-    expect(requirement).toEqual({
-      kind: "manualConfirmation",
-      label: "Preparation",
-      sourceText: "MATH-SHU 121 Permission of Instructor",
+    expect(program.categories).toEqual([]);
+    expect(program.interpretations[0]).toMatchObject({
+      status: "unavailable",
+      requirement: null,
     });
   });
 
-  it("manualizes unverified external display text", () => {
+  it("keeps unverified external display text unavailable", () => {
     const externalDisplays = [
       "CSCI-UA 101 Permission of Instructor",
       "CSCI-UA 101 Introduction to Computer Science",
@@ -487,20 +498,20 @@ describe("normalizeBulletin", () => {
         ],
       };
 
-      const requirement = normalizeBulletin(discovery, [
+      const program = normalizeBulletin(discovery, [
         subjectDocument,
         externalProgram,
-      ]).programs[0].categories[0].requirement;
+      ]).programs[0];
 
-      expect(requirement).toEqual({
-        kind: "manualConfirmation",
-        label: "External Study",
-        sourceText,
+      expect(program.categories).toEqual([]);
+      expect(program.interpretations[0]).toMatchObject({
+        status: "unavailable",
+        requirement: null,
       });
     }
   });
 
-  it("does not turn an unsupported selector into an all-courses rule", () => {
+  it("compiles an explicit select-two directive without manual fallbacks", () => {
     const unsupportedSelector: BulletinProgramDocument = {
       ...programDocument,
       requirementTables: [
@@ -523,23 +534,11 @@ describe("normalizeBulletin", () => {
     ]).programs[0].categories[0];
 
     expect(category.requirement).toEqual({
-      kind: "all",
+      kind: "choose",
+      count: 2,
       children: [
-        {
-          kind: "manualConfirmation",
-          label: "Advanced Work",
-          sourceText: "Select two",
-        },
-        {
-          kind: "manualConfirmation",
-          label: "Advanced Work",
-          sourceText: "MATH-SHU 235 Probability",
-        },
-        {
-          kind: "manualConfirmation",
-          label: "Advanced Work",
-          sourceText: "MATH-SHU 238 Statistics",
-        },
+        { kind: "course", courseId: "MATH-SHU 235" },
+        { kind: "course", courseId: "MATH-SHU 238" },
       ],
     });
   });
@@ -562,30 +561,17 @@ describe("normalizeBulletin", () => {
       ],
     };
 
-    const requirement = normalizeBulletin(discovery, [
+    const program = normalizeBulletin(discovery, [
       subjectDocument,
       boundedDirective,
-    ]).programs[0].categories[0].requirement;
+    ]).programs[0];
 
-    expect(requirement).toEqual({
-      kind: "all",
-      children: [
-        {
-          kind: "choose",
-          count: 1,
-          children: [{ kind: "course", courseId: "MATH-SHU 235" }],
-        },
-        {
-          kind: "all",
-          children: [
-            {
-              kind: "manualConfirmation",
-              label: "Advanced Work",
-              sourceText: "Additional Requirement",
-            },
-            { kind: "course", courseId: "MATH-SHU 121" },
-          ],
-        },
+    expect(program.categories).toEqual([]);
+    expect(program.interpretations[0]).toMatchObject({
+      status: "unavailable",
+      requirement: null,
+      diagnostics: [
+        expect.objectContaining({ code: "unsupported-structural-row" }),
       ],
     });
   });
@@ -633,14 +619,22 @@ describe("normalizeBulletin", () => {
       ],
     });
     expect(categories[1].requirement).toEqual({
-      kind: "choose",
-      count: 5,
-      children: [{ kind: "course", courseId: "CSCI-SHU 205" }],
-    });
-    expect(categories[2].requirement).toEqual({
       kind: "credits",
       minimum: 8,
       children: [{ kind: "course", courseId: "CSCI-UA 101" }],
+    });
+    const program = normalizeBulletin(discovery, [
+      subjectDocument,
+      phrasings,
+    ]).programs[0];
+    expect(
+      program.interpretations.find((item) => item.name === "Breadth"),
+    ).toMatchObject({
+      status: "unavailable",
+      requirement: null,
+      diagnostics: [
+        expect.objectContaining({ code: "invalid-selector-cardinality" }),
+      ],
     });
   });
 
@@ -863,7 +857,7 @@ describe("normalizeBulletin", () => {
     expect(candidate.externalCourseIds).toEqual(["CSCI-UA 101", "MATH-UA 101"]);
   });
 
-  it("preserves references from manual requirement rows", () => {
+  it("preserves references from unavailable requirement rows", () => {
     const manualReference: BulletinProgramDocument = {
       ...programDocument,
       requirementTables: [
@@ -889,9 +883,8 @@ describe("normalizeBulletin", () => {
       manualReference,
     ]);
 
-    expect(candidate.programs[0].categories[0].requirement.kind).toBe(
-      "manualConfirmation",
-    );
+    expect(candidate.programs[0].categories).toEqual([]);
+    expect(candidate.programs[0].interpretations[0].status).toBe("unavailable");
     expect(candidate.programs[0].sourceReferenceIds).toEqual(["MATH-UA 999"]);
     expect(candidate.sourceReferenceIds).toContain("MATH-UA 999");
     expect(candidate.externalCourseIds).toEqual(["MATH-UA 999"]);

@@ -5,10 +5,12 @@ import type {
 } from "@/lib/bulletin/parseCoursePage";
 import type {
   BulletinProgramDocument,
+  SourceTable,
   SourceTableRow,
 } from "@/lib/bulletin/parseProgramPage";
 import type { BulletinDiscovery } from "@/lib/bulletin/sourceTypes";
 import { classifyCourseLevel } from "@/lib/bulletin/classifyCourse";
+import { compileProgramRequirements } from "@/lib/bulletin/compileRequirements";
 import { catalogCourseStableId, canonicalCourseCode } from "@/lib/catalog/identity";
 import type {
   CatalogCourseRecord,
@@ -19,6 +21,7 @@ import type {
   CatalogCandidate,
   CatalogCategory,
   CatalogProgram,
+  CatalogRequirementInterpretation,
   CatalogRequirementRow,
   CatalogSourceRow,
   Course,
@@ -64,16 +67,6 @@ function canonicalDocuments(
 
 function candidateHash(documents: readonly BulletinDocument[]): string {
   return hash(documents);
-}
-
-function slug(value: string): string {
-  const result = value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return result || "requirements";
 }
 
 function parseCredits(course: SourceCourse): {
@@ -305,191 +298,86 @@ function explicitExclusion(row: SourceTableRow): RequirementNode | undefined {
   };
 }
 
-function removeTrailingLiteral(value: string, literal: string): string | undefined {
-  if (!value.endsWith(literal)) return undefined;
-  return value.slice(0, -literal.length).trimEnd();
+interface NodeLocation {
+  node: RequirementNode;
+  path: number[];
 }
 
-function isPureCourseReference(
-  row: SourceTableRow,
-  courseTitles: ReadonlyMap<string, string>,
-): boolean {
-  if (row.role !== "course" || row.linkedCourseCodes.length !== 1) return false;
-  const courseId = row.linkedCourseCodes[0];
-  if (row.text !== courseId && !row.text.startsWith(`${courseId} `)) return false;
-
-  let displayText = row.text.slice(courseId.length).trim();
-  if (row.creditsText) {
-    const withoutCredits = removeTrailingLiteral(displayText, row.creditsText);
-    if (withoutCredits !== undefined) displayText = withoutCredits;
-  }
-  for (const marker of [...row.footnoteMarkers].reverse()) {
-    const withoutMarker = removeTrailingLiteral(displayText, marker);
-    if (withoutMarker !== undefined) displayText = withoutMarker;
-  }
-  if (displayText === "") {
-    return courseTitles.has(courseId) || isExternalNyuCourseId(courseId);
-  }
-  const knownTitle = courseTitles.get(courseId);
-  return knownTitle !== undefined && displayText === knownTitle;
-}
-
-function explicitRowNode(
-  row: SourceTableRow,
-  programId: string,
-  categoryId: string,
-  categoryName: string,
-  courseTitles: ReadonlyMap<string, string>,
-): RequirementNode {
-  if (isPureCourseReference(row, courseTitles)) {
-    return { kind: "course", courseId: row.linkedCourseCodes[0] };
-  }
-
-  const exclusion = explicitExclusion(row);
-  if (exclusion) return exclusion;
-
-  const attribute = row.text.match(
-    /^courses with the "([^"]+)" attribute\.?$/i,
-  );
-  if (attribute) return { kind: "attribute", attribute: attribute[1] };
-
-  const waiver = row.text.match(/^(.+?) may waive this requirement\.?$/i);
-  if (waiver) {
+function requirementLocations(
+  node: RequirementNode,
+  path: number[] = [],
+): { containers: NodeLocation[]; leaves: NodeLocation[] } {
+  if (
+    node.kind === "all" ||
+    node.kind === "any" ||
+    node.kind === "choose" ||
+    node.kind === "credits"
+  ) {
+    const descendants = node.children.map((child, index) =>
+      requirementLocations(child, [...path, index]),
+    );
     return {
-      kind: "waiver",
-      waiverId: `${programId}-${categoryId}-${row.sourceIndex}`,
-      label: waiver[1],
+      containers: [
+        { node, path },
+        ...descendants.flatMap((entry) => entry.containers),
+      ],
+      leaves: descendants.flatMap((entry) => entry.leaves),
     };
   }
-
-  return {
-    kind: "manualConfirmation",
-    label: categoryName,
-    sourceText: row.text,
-  };
+  return { containers: [], leaves: [{ node, path }] };
 }
 
-function manualRowNode(
-  row: SourceTableRow,
-  categoryName: string,
-): RequirementNode {
-  return {
-    kind: "manualConfirmation",
-    label: categoryName,
-    sourceText: row.text,
-  };
+function selectorLike(text: string): boolean {
+  return /^(?:select|choose)\b|^complete\s+(?:\d+(?:\.\d+)?\s+credits?|one\s+of)\b/i.test(
+    text,
+  );
 }
 
-interface RowGroup {
-  header?: SourceTableRow;
-  rows: SourceTableRow[];
-}
+function appendInterpretationRows(
+  sourceUrl: string,
+  interpretation: CatalogRequirementInterpretation,
+  tableById: ReadonlyMap<string, SourceTable>,
+  requirementRows: CatalogRequirementRow[],
+  sourceRows: CatalogSourceRow[],
+): void {
+  if (!interpretation.requirement) return;
+  const locations = requirementLocations(interpretation.requirement);
+  let containerIndex = 0;
+  let leafIndex = 0;
 
-function tableGroups(rows: SourceTableRow[]): RowGroup[] {
-  const groups: RowGroup[] = [];
-  let current: RowGroup | undefined;
-  for (const row of rows) {
+  for (const reference of interpretation.sourceRowRefs) {
+    const table = tableById.get(reference.tableId);
+    const row = table?.rows.find(
+      (candidate) => candidate.sourceIndex === reference.sourceIndex,
+    );
+    if (!row || row.role === "total") continue;
     if (row.role === "areaHeader") {
-      current = { header: row, rows: [row] };
-      groups.push(current);
+      sourceRows.push({
+        representation: "categoryBoundary",
+        sourceUrl,
+        tableId: reference.tableId,
+        sourceIndex: row.sourceIndex,
+        sourceText: row.text,
+        categoryId: interpretation.id,
+      });
       continue;
     }
-    if (!current) {
-      current = { rows: [] };
-      groups.push(current);
-    }
-    current.rows.push(row);
+
+    const location = selectorLike(row.text)
+      ? locations.containers[containerIndex++]
+      : locations.leaves[leafIndex++];
+    if (!location) continue;
+    const entry = {
+      sourceUrl,
+      tableId: reference.tableId,
+      sourceIndex: row.sourceIndex,
+      sourceText: row.text,
+      categoryId: interpretation.id,
+      nodePath: location.path,
+    };
+    sourceRows.push({ representation: "requirementNode", ...entry });
+    requirementRows.push({ ...entry, node: location.node });
   }
-  return groups;
-}
-
-function uniqueCategoryId(name: string, used: Map<string, number>): string {
-  const base = slug(name);
-  const sequence = (used.get(base) ?? 0) + 1;
-  used.set(base, sequence);
-  return sequence === 1 ? base : `${base}-${sequence}`;
-}
-
-function combineNodes(nodes: RequirementNode[]): RequirementNode {
-  return nodes.length === 1 ? nodes[0] : { kind: "all", children: nodes };
-}
-
-function semanticRowGroups(rows: SourceTableRow[]): SourceTableRow[][] {
-  const groups: SourceTableRow[][] = [];
-  for (const row of rows) {
-    // A subheader or a "Select N of the following" instruction row starts a new
-    // group so the rows that follow become that pool's choose/credits children.
-    if (row.role === "areaSubheader" || isDirectiveRow(row) || groups.length === 0) {
-      groups.push([]);
-    }
-    groups.at(-1)!.push(row);
-  }
-  return groups;
-}
-
-interface NormalizedSemanticGroup {
-  requirement: RequirementNode;
-  rowNodes: Map<number, RequirementNode>;
-  rowPaths: Map<number, number[]>;
-}
-
-function normalizeSemanticGroup(
-  rows: SourceTableRow[],
-  programId: string,
-  categoryId: string,
-  categoryName: string,
-  courseTitles: ReadonlyMap<string, string>,
-): NormalizedSemanticGroup {
-  const directive = explicitDirective(rows[0]);
-  const unsupportedSelector =
-    !directive &&
-    rows[0].role === "areaSubheader" &&
-    /^(?:select|choose|complete)\b/i.test(rows[0].text);
-  const rowNodes = new Map<number, RequirementNode>();
-  const rowPaths = new Map<number, number[]>();
-
-  if (directive && rows.length > 1) {
-    const children = rows
-      .slice(1)
-      .map((row) =>
-        explicitRowNode(
-          row,
-          programId,
-          categoryId,
-          categoryName,
-          courseTitles,
-        ),
-      );
-    const requirement: RequirementNode =
-      directive.kind === "choose"
-        ? { kind: "choose", count: directive.count, children }
-        : { kind: "credits", minimum: directive.minimum, children };
-    rowNodes.set(rows[0].sourceIndex, requirement);
-    rowPaths.set(rows[0].sourceIndex, []);
-    rows.slice(1).forEach((row, index) => {
-      rowNodes.set(row.sourceIndex, children[index]);
-      rowPaths.set(row.sourceIndex, [index]);
-    });
-    return { requirement, rowNodes, rowPaths };
-  }
-
-  const nodes = rows.map((row) =>
-    unsupportedSelector
-      ? manualRowNode(row, categoryName)
-      : explicitRowNode(
-          row,
-          programId,
-          categoryId,
-          categoryName,
-          courseTitles,
-        ),
-  );
-  const requirement = combineNodes(nodes);
-  rows.forEach((row, index) => {
-    rowNodes.set(row.sourceIndex, nodes[index]);
-    rowPaths.set(row.sourceIndex, nodes.length === 1 ? [] : [index]);
-  });
-  return { requirement, rowNodes, rowPaths };
 }
 
 function normalizeProgram(
@@ -508,115 +396,80 @@ function normalizeProgram(
   }
 
   const programId = document.kind === "core" ? "core" : document.slug;
-  const categories: CatalogCategory[] = [];
+  const interpretations = compileProgramRequirements(document, courseTitles);
+  const categories: CatalogCategory[] = interpretations.flatMap(
+    (interpretation): CatalogCategory[] =>
+      interpretation.status === "verified" && interpretation.requirement
+        ? [
+            {
+              id: interpretation.id,
+              name: interpretation.name,
+              requirement: interpretation.requirement,
+              sourceUrl: document.sourceUrl,
+              sourceTableId: interpretation.sourceTableIds[0],
+              sourceRowIndexes: interpretation.sourceRowRefs.map(
+                (reference) => reference.sourceIndex,
+              ),
+            },
+          ]
+        : [],
+  );
   const requirementRows: CatalogRequirementRow[] = [];
   const sourceRows: CatalogSourceRow[] = [];
   const sourceReferenceIds = new Set<string>();
-  const usedCategoryIds = new Map<string, number>();
 
+  const tableById = new Map(
+    document.requirementTables.map((table) => [table.id, table]),
+  );
   for (const table of document.requirementTables) {
-    for (const group of tableGroups(table.rows)) {
-      const categoryName = group.header?.text ?? table.caption ?? table.id;
-      const categoryId = uniqueCategoryId(categoryName, usedCategoryIds);
-      const semanticRows = group.rows.filter(
-        (row) => row.role !== "areaHeader" && row.role !== "total",
-      );
-
-      const rowNodes = new Map<number, RequirementNode>();
-      const rowPaths = new Map<number, number[]>();
-      let requirement: RequirementNode | undefined;
-
-      if (semanticRows.length > 0) {
-        const normalizedGroups = semanticRowGroups(semanticRows).map((rows) =>
-          normalizeSemanticGroup(
-            rows,
-            programId,
-            categoryId,
-            categoryName,
-            courseTitles,
-          ),
-        );
-        requirement = combineNodes(
-          normalizedGroups.map((normalized) => normalized.requirement),
-        );
-        normalizedGroups.forEach((normalized, groupIndex) => {
-          normalized.rowNodes.forEach((node, sourceIndex) => {
-            rowNodes.set(sourceIndex, node);
-            const localPath = normalized.rowPaths.get(sourceIndex)!;
-            rowPaths.set(
-              sourceIndex,
-              normalizedGroups.length === 1
-                ? localPath
-                : [groupIndex, ...localPath],
-            );
-          });
-        });
-      }
-
-      if (requirement) {
-        categories.push({
-          id: categoryId,
-          name: categoryName,
-          requirement,
-          sourceUrl: document.sourceUrl,
-          sourceTableId: table.id,
-          sourceRowIndexes: group.rows.map((row) => row.sourceIndex),
-        });
-      }
-
-      for (const row of group.rows) {
-        row.linkedCourseCodes.forEach((courseId) =>
+    for (const row of table.rows) {
+      row.linkedCourseCodes.forEach((courseId) => sourceReferenceIds.add(courseId));
+      const exclusion = explicitExclusion(row);
+      if (exclusion?.kind === "exclusion") {
+        exclusion.excludedCourseIds.forEach((courseId) =>
           sourceReferenceIds.add(courseId),
         );
-        const exclusion = explicitExclusion(row);
-        if (exclusion?.kind === "exclusion") {
-          exclusion.excludedCourseIds.forEach((courseId) =>
-            sourceReferenceIds.add(courseId),
-          );
-        }
-        if (row.role === "areaHeader") {
-          sourceRows.push({
-            representation: "categoryBoundary",
-            sourceUrl: document.sourceUrl,
-            tableId: table.id,
-            sourceIndex: row.sourceIndex,
-            sourceText: row.text,
-            categoryId,
-          });
-          continue;
-        }
-        if (row.role === "total") {
-          sourceRows.push({
-            representation: "publishedTotal",
-            sourceUrl: document.sourceUrl,
-            tableId: table.id,
-            sourceIndex: row.sourceIndex,
-            sourceText: row.text,
-            ...(row.creditsText ? { creditsText: row.creditsText } : {}),
-          });
-          continue;
-        }
-
-        const node = rowNodes.get(row.sourceIndex);
-        const nodePath = rowPaths.get(row.sourceIndex);
-        if (!node || !nodePath) {
-          throw new BulletinNormalizationError(
-            `Requirement row ${table.id}:${row.sourceIndex} was not represented.`,
-          );
-        }
-        const entry = {
+      }
+      if (row.role === "total") {
+        sourceRows.push({
+          representation: "publishedTotal",
           sourceUrl: document.sourceUrl,
           tableId: table.id,
           sourceIndex: row.sourceIndex,
           sourceText: row.text,
-          categoryId,
-          nodePath,
-        };
-        sourceRows.push({ representation: "requirementNode", ...entry });
-        requirementRows.push({ ...entry, node });
+          ...(row.creditsText ? { creditsText: row.creditsText } : {}),
+        });
       }
     }
   }
+
+  for (const interpretation of interpretations) {
+    if (interpretation.status !== "verified" || !interpretation.requirement) {
+      continue;
+    }
+    appendInterpretationRows(
+      document.sourceUrl,
+      interpretation,
+      tableById,
+      requirementRows,
+      sourceRows,
+    );
+  }
+  const tableOrder = new Map(
+    document.requirementTables.map((table, index) => [table.id, index]),
+  );
+  sourceRows.sort(
+    (left, right) =>
+      (tableOrder.get(left.tableId) ?? Number.MAX_SAFE_INTEGER) -
+        (tableOrder.get(right.tableId) ?? Number.MAX_SAFE_INTEGER) ||
+      left.sourceIndex - right.sourceIndex,
+  );
+  requirementRows.sort(
+    (left, right) =>
+      (tableOrder.get(left.tableId) ?? Number.MAX_SAFE_INTEGER) -
+        (tableOrder.get(right.tableId) ?? Number.MAX_SAFE_INTEGER) ||
+      left.sourceIndex - right.sourceIndex,
+  );
 
   const type = document.kind === "core" ? "core" : discovered!.kind;
 
@@ -626,6 +479,9 @@ function normalizeProgram(
     shortName: document.title,
     type,
     categories,
+    bulletinDisplay: document.bulletinDisplay,
+    interpretations,
+    ...(document.samplePlan ? { samplePlan: document.samplePlan } : {}),
     requirementRows,
     sourceRows,
     sourceReferenceIds: [...sourceReferenceIds].sort((left, right) =>

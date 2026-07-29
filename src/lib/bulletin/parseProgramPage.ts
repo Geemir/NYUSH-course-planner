@@ -43,7 +43,7 @@ export interface SourceTable {
   id: string;
   sectionId: string;
   caption?: string;
-  headingTrail: Array<{ level: 2 | 3 | 4 | 5 | 6; text: string }>;
+  headingTrail?: Array<{ level: 2 | 3 | 4 | 5 | 6; text: string }>;
   rows: SourceTableRow[];
 }
 
@@ -274,7 +274,7 @@ function parseRequirementTable(
   table: PageNode,
   id: string,
   sectionId: string,
-  headingTrail: SourceTable["headingTrail"],
+  headingTrail: NonNullable<SourceTable["headingTrail"]>,
 ): SourceTable {
   const elements = bodyRows($, table);
   const rows = elements.map((row, sourceIndex) => {
@@ -466,7 +466,7 @@ function requirementDisplay(
             kind: "table",
             id: table.id,
             caption: table.caption ?? null,
-            headingTrail: table.headingTrail,
+            headingTrail: table.headingTrail ?? [],
             rows: table.rows.map(displayRow),
           });
         }
