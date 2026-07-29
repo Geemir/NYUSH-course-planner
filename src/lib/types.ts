@@ -688,5 +688,14 @@ export interface ProgramProgress {
   /** 0..1, weighted across categories by requiredUnits. */
   plannedFraction: number;
   completedFraction: number;
+  /** Whether all, some, or none of the official source groups are executable. */
+  interpretationStatus: "verified" | "partial" | "unavailable";
+  verifiedCategoryCount: number;
+  totalInterpretationCount: number;
+  /** 0..1 share of source interpretations that can be calculated. */
+  automationCoverage: number;
+  /** Null unless every source interpretation is verified. */
+  authoritativePlannedFraction: number | null;
+  authoritativeCompletedFraction: number | null;
   categories: CategoryProgress[];
 }

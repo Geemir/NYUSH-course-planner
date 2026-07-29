@@ -5,7 +5,7 @@ import {
   type PlanDerivationInput,
 } from "@/lib/derivePlan";
 import type { PlannerProgram } from "@/lib/requirements";
-import type { Course, Placement } from "@/lib/types";
+import { CatalogProgramSchema, type Course, type Placement } from "@/lib/types";
 
 const PROGRAM: PlannerProgram = {
   id: "humanities",
@@ -109,5 +109,59 @@ describe("plan derivation", () => {
     expect(derived.placementByCatalogId.get("stern:HUMA-SHU 101")).toMatchObject({ placementId: "stern" });
     expect(derived.creditsBySemester.get("Y1F")).toBe(3);
     expect(derived.creditsBySemester.get("Y1S")).toBe(2);
+  });
+
+  it("preserves partial interpretation coverage in the derived program map", () => {
+    const sourceUrl =
+      "https://bulletins.nyu.edu/undergraduate/shanghai/programs/humanities-ba/";
+    const richProgram = CatalogProgramSchema.parse({
+      id: "humanities",
+      name: "Humanities (BA)",
+      shortName: "Humanities",
+      type: "major",
+      categories: [
+        {
+          id: "foundation",
+          name: "Foundation",
+          requirement: { kind: "course", courseId: "HUMA-SHU 101" },
+          sourceUrl,
+          sourceTableId: "foundation",
+          sourceRowIndexes: [0],
+        },
+      ],
+      interpretations: [
+        {
+          id: "foundation",
+          name: "Foundation",
+          status: "verified",
+          requirement: { kind: "course", courseId: "HUMA-SHU 101" },
+          sourceTableIds: ["foundation"],
+          sourceRowRefs: [{ tableId: "foundation", sourceIndex: 0 }],
+          diagnostics: [],
+        },
+        {
+          id: "electives",
+          name: "Electives",
+          status: "unavailable",
+          requirement: null,
+          sourceTableIds: ["electives"],
+          sourceRowRefs: [{ tableId: "electives", sourceIndex: 0 }],
+          diagnostics: [{ code: "unsupported", message: "Display only." }],
+        },
+      ],
+      requirementRows: [],
+      sourceRows: [],
+      sourceReferenceIds: ["HUMA-SHU 101"],
+      provenance: { sourceUrl, snapshotId: "snapshot", sourceHash: "hash" },
+      auditAuthority: "nyush-bulletin",
+    });
+
+    const derived = derivePlan({ ...FIXTURE_INPUT, programs: [richProgram] });
+
+    expect(derived.progressByProgram.get("humanities")).toMatchObject({
+      interpretationStatus: "partial",
+      authoritativePlannedFraction: null,
+      automationCoverage: 0.5,
+    });
   });
 });

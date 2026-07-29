@@ -143,10 +143,40 @@ export function computeProgress(opts: {
             0,
           ) / totalWeight;
 
+    const plannedFraction = weighted((category) => category.plannedUnits);
+    const completedFraction = weighted((category) => category.completedUnits);
+    const interpretations =
+      "interpretations" in program
+        ? program.interpretations
+        : program.categories.map(() => ({ status: "verified" as const }));
+    const totalInterpretationCount = interpretations.length;
+    const verifiedCategoryCount = interpretations.filter(
+      (interpretation) => interpretation.status === "verified",
+    ).length;
+    const interpretationStatus =
+      totalInterpretationCount > 0 &&
+      verifiedCategoryCount === totalInterpretationCount
+        ? "verified"
+        : verifiedCategoryCount > 0
+          ? "partial"
+          : "unavailable";
+    const automationCoverage =
+      totalInterpretationCount === 0
+        ? 0
+        : verifiedCategoryCount / totalInterpretationCount;
+
     return {
       programId: program.id,
-      plannedFraction: weighted((category) => category.plannedUnits),
-      completedFraction: weighted((category) => category.completedUnits),
+      plannedFraction,
+      completedFraction,
+      interpretationStatus,
+      verifiedCategoryCount,
+      totalInterpretationCount,
+      automationCoverage,
+      authoritativePlannedFraction:
+        interpretationStatus === "verified" ? plannedFraction : null,
+      authoritativeCompletedFraction:
+        interpretationStatus === "verified" ? completedFraction : null,
       categories,
     };
   });
