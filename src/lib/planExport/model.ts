@@ -3,7 +3,6 @@ import type { PlanDerivedValue } from "@/lib/derivePlan";
 import { SITES_BY_ID } from "@/lib/clientReferenceData";
 import {
   SEMESTER_IDS,
-  semesterCalendarYear,
   semesterTermName,
   semesterYear,
   type Grade,

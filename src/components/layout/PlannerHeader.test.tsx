@@ -4,18 +4,41 @@ import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlannerHeader } from "@/components/layout/PlannerHeader";
 import { usePlannerStore } from "@/store/plannerStore";
-import { fireEvent, render, screen, within } from "@/test/render";
+import { fireEvent, render, screen, waitFor, within } from "@/test/render";
+
+const exportMocks = vi.hoisted(() => ({
+  renderPlanExcel: vi.fn(async () => new Uint8Array([1, 2, 3])),
+  renderPlanPdf: vi.fn(async () => new Uint8Array([4, 5, 6])),
+  downloadBytes: vi.fn(),
+}));
+
+vi.mock("@/lib/planExport/excel", () => ({ renderPlanExcel: exportMocks.renderPlanExcel }));
+vi.mock("@/lib/planExport/pdf", () => ({ renderPlanPdf: exportMocks.renderPlanPdf }));
+vi.mock("@/lib/planExport/download", () => ({ downloadBytes: exportMocks.downloadBytes }));
+vi.mock("@/lib/planExport/model", () => ({
+  buildPlanExportModel: vi.fn(() => ({ startYear: 2025 })),
+  planExportFilename: vi.fn((_model, extension: string) => `nyush-degree-plan-2025.${extension}`),
+}));
 
 vi.mock("@/components/CatalogProvider", async () => {
   const { FIXTURE_PROGRAMS } = await import("@/lib/fixtures.test-helper");
   return {
-    useCatalog: () => ({ programs: FIXTURE_PROGRAMS }),
+    useCatalog: () => ({
+      programs: FIXTURE_PROGRAMS,
+      bootstrap: { release: { id: "release-1" } },
+    }),
   };
 });
 
 vi.mock("@/hooks/usePlanDerived", () => ({
   usePlanDerived: () => ({
     progress: { credits: { planned: 32, goal: 128 } },
+    placementsBySemester: new Map(),
+    creditsBySemester: new Map(),
+    coursesById: new Map(),
+    activeProgramObjs: [],
+    allocation: { effective: new Map() },
+    warnings: [],
   }),
 }));
 
@@ -30,11 +53,45 @@ vi.mock("next-themes", () => ({
 
 describe("PlannerHeader", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     usePlannerStore.setState({
       activePrograms: ["core", "a"],
       programProfile: { coreProgramId: "core", primaryMajorId: "a", secondMajorId: null, minorIds: [] },
       startYear: 2025,
     });
+  });
+
+  it("builds and downloads an Excel workbook from the flat actions menu", async () => {
+    const user = userEvent.setup();
+    render(<PlannerHeader onGuide={() => undefined} onImportFile={() => undefined} />);
+
+    await user.click(screen.getByRole("button", { name: "Plan actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Export Excel workbook" }));
+
+    await waitFor(() => expect(exportMocks.renderPlanExcel).toHaveBeenCalledOnce());
+    expect(exportMocks.downloadBytes).toHaveBeenCalledWith(
+      new Uint8Array([1, 2, 3]),
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "nyush-degree-plan-2025.xlsx",
+    );
+  });
+
+  it("ignores a rapid duplicate readable-export action", async () => {
+    const user = userEvent.setup();
+    let resolveWorkbook: (bytes: Uint8Array<ArrayBuffer>) => void = () => undefined;
+    exportMocks.renderPlanExcel.mockReturnValueOnce(
+      new Promise<Uint8Array<ArrayBuffer>>((resolve) => { resolveWorkbook = resolve; }),
+    );
+    render(<PlannerHeader onGuide={() => undefined} onImportFile={() => undefined} />);
+
+    await user.click(screen.getByRole("button", { name: "Plan actions" }));
+    const item = await screen.findByRole("menuitem", { name: "Export Excel workbook" });
+    fireEvent.click(item);
+    fireEvent.click(item);
+
+    await waitFor(() => expect(exportMocks.renderPlanExcel).toHaveBeenCalledOnce());
+    resolveWorkbook(new Uint8Array([1, 2, 3]));
+    await waitFor(() => expect(exportMocks.downloadBytes).toHaveBeenCalledOnce());
   });
 
   it("keeps Guide visible while plan file actions stay in one menu", async () => {
@@ -55,7 +112,13 @@ describe("PlannerHeader", () => {
       within(menu).getByRole("menuitem", { name: "Import plan" }),
     ).toBeDefined();
     expect(
-      within(menu).getByRole("menuitem", { name: "Export plan" }),
+      within(menu).getByRole("menuitem", { name: "Export JSON backup" }),
+    ).toBeDefined();
+    expect(
+      within(menu).getByRole("menuitem", { name: "Export Excel workbook" }),
+    ).toBeDefined();
+    expect(
+      within(menu).getByRole("menuitem", { name: "Export PDF report" }),
     ).toBeDefined();
     expect(
       within(menu).getByRole("menuitem", { name: "Reset plan" }),

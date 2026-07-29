@@ -5,7 +5,9 @@ import {
   AlertCircle,
   BookOpen,
   CircleHelp,
-  Download,
+  FileJson,
+  FileSpreadsheet,
+  FileText,
   GraduationCap,
   LogIn,
   LogOut,
@@ -44,7 +46,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
-import { downloadPlan } from "@/lib/planIO";
+import { buildPlanExportModel, planExportFilename } from "@/lib/planExport/model";
+import { downloadPlanJson } from "@/lib/planIO";
 import type { CatalogProgram } from "@/lib/types";
 import { snapshotV2FromState, usePlannerStore } from "@/store/plannerStore";
 
@@ -62,7 +65,8 @@ export function PlannerHeader({
   onImportFile,
 }: PlannerHeaderProps) {
   const { programs, bootstrap } = useCatalog();
-  const { progress } = usePlanDerived();
+  const derived = usePlanDerived();
+  const { progress } = derived;
   const programProfile = usePlannerStore((state) => state.programProfile);
   const setProgramProfile = usePlannerStore((state) => state.setProgramProfile);
   const startYear = usePlannerStore((state) => state.startYear);
@@ -74,6 +78,7 @@ export function PlannerHeader({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
   const catalogPrograms = programs.filter(
     (program): program is CatalogProgram => "auditAuthority" in program,
   );
@@ -83,6 +88,41 @@ export function PlannerHeader({
     if (window.confirm("Clear the entire plan? This cannot be undone.")) {
       reset();
       toast.success("Plan cleared");
+    }
+  };
+
+  const currentSnapshot = () =>
+    snapshotV2FromState(usePlannerStore.getState(), bootstrap.release.id)!;
+
+  const exportReadable = async (format: "xlsx" | "pdf") => {
+    if (exporting) return;
+    setExporting(format);
+    const label = format === "xlsx" ? "Excel" : "PDF";
+    const loadingToast = toast.loading(`Preparing ${label} export…`);
+    try {
+      const snapshot = currentSnapshot();
+      const model = buildPlanExportModel(snapshot, derived);
+      const [{ downloadBytes }, renderer] = await Promise.all([
+        import("@/lib/planExport/download"),
+        format === "xlsx"
+          ? import("@/lib/planExport/excel")
+          : import("@/lib/planExport/pdf"),
+      ]);
+      const bytes = format === "xlsx"
+        ? await (renderer as typeof import("@/lib/planExport/excel")).renderPlanExcel(model)
+        : await (renderer as typeof import("@/lib/planExport/pdf")).renderPlanPdf(model);
+      downloadBytes(
+        bytes,
+        format === "xlsx"
+          ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          : "application/pdf",
+        planExportFilename(model, format),
+      );
+      toast.success(`${label} export ready`, { id: loadingToast });
+    } catch {
+      toast.error(`Could not prepare the ${label} export.`, { id: loadingToast });
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -178,7 +218,7 @@ export function PlannerHeader({
               <Menu aria-hidden="true" />
               <span className="hidden xl:inline">Plan actions</span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-1rem)]">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Plan actions</DropdownMenuLabel>
                 <DropdownMenuItem className="min-h-11 lg:hidden" onClick={() => setProfileOpen(true)}>
@@ -194,12 +234,26 @@ export function PlannerHeader({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="min-h-11"
-                  onClick={() =>
-                    downloadPlan(snapshotV2FromState(usePlannerStore.getState(), bootstrap.release.id)!)
-                  }
+                  onClick={() => downloadPlanJson(currentSnapshot(), startYear)}
                 >
-                  <Download aria-hidden="true" />
-                  Export plan
+                  <FileJson aria-hidden="true" />
+                  Export JSON backup
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="min-h-11"
+                  disabled={exporting !== null}
+                  onClick={() => void exportReadable("xlsx")}
+                >
+                  <FileSpreadsheet aria-hidden="true" />
+                  Export Excel workbook
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="min-h-11"
+                  disabled={exporting !== null}
+                  onClick={() => void exportReadable("pdf")}
+                >
+                  <FileText aria-hidden="true" />
+                  Export PDF report
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />

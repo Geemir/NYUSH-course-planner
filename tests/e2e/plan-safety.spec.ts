@@ -18,6 +18,8 @@ test("plan actions keep import, export, and reset behind one named menu", async 
   if (await skip.isVisible()) await skip.click();
   await page.getByRole("button", { name: "Plan actions" }).click();
   await expect(page.getByRole("menuitem", { name: "Import plan" })).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: "Export plan" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Export JSON backup" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Export Excel workbook" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Export PDF report" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Reset plan" })).toBeVisible();
 });
