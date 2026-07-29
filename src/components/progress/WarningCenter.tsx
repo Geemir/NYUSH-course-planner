@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertCircle, AlertTriangle, EyeOff, Flag, Sparkles, Undo2 } from "lucide-react";
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -24,6 +25,7 @@ function severityIcon(warning: PlanWarning) {
 }
 
 export function WarningCenter() {
+  const { t } = useLocale();
   const { warnings, dismissedWarnings } = usePlanDerived();
   const { snapshot } = useCourseData();
   const [reporting, setReporting] = useState<PlanWarning | null>(null);
@@ -40,8 +42,8 @@ export function WarningCenter() {
         <p className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
           <Sparkles className="size-4 text-emerald-500" />
           {dismissedWarnings.length > 0
-            ? "No open conflicts."
-            : "No conflicts — your plan looks good."}
+            ? t("progress.noOpenConflicts")
+            : t("progress.noConflicts")}
         </p>
       ) : (
         <ul className="flex flex-col gap-1.5 py-1" data-testid="warning-center">
@@ -54,7 +56,7 @@ export function WarningCenter() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Report warning"
+                aria-label={t("progress.report")}
                 className="size-9 shrink-0 opacity-60 transition-opacity duration-[var(--motion-fast)] group-hover:opacity-100"
                 onClick={() => setReporting(warning)}
               >
@@ -66,7 +68,7 @@ export function WarningCenter() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label="Dismiss warning"
+                      aria-label={t("progress.dismiss")}
                       className="size-9 shrink-0 opacity-60 transition-opacity duration-[var(--motion-fast)] group-hover:opacity-100"
                       onClick={() => dismissWarning(warning.id)}
                     />
@@ -84,7 +86,7 @@ export function WarningCenter() {
       {dismissedWarnings.length > 0 && (
         <details className="text-sm" data-testid="dismissed-warnings">
           <summary className="cursor-pointer py-1 text-xs font-medium text-muted-foreground select-none">
-            Dismissed ({dismissedWarnings.length})
+            {t("progress.dismissed", { count: dismissedWarnings.length })}
           </summary>
           <ul className="flex flex-col gap-1.5 py-1">
             {dismissedWarnings.map((warning) => (
@@ -99,7 +101,7 @@ export function WarningCenter() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="Restore warning"
+                  aria-label={t("progress.restore")}
                   className="size-9 shrink-0"
                   onClick={() => restoreWarning(warning.id)}
                 >

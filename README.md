@@ -1,6 +1,6 @@
 # NYUSH Course Planner v0.2
 
-An English-language four-year degree planner for students enrolled at NYU Shanghai. It combines NYU Shanghai Bulletin requirements with a query-driven catalog of New York undergraduate courses for study-away exploration.
+A bilingual four-year degree planner for students enrolled at NYU Shanghai. Simplified Chinese is the primary localized experience (English remains the first-load default and is always available), while course names, Bulletin text, thoughts, and administration tools remain in English. It combines NYU Shanghai Bulletin requirements with a query-driven catalog of New York undergraduate courses for study-away exploration.
 
 This is not an official NYU degree audit, petition, advisor approval, registration authorization, or availability service. New York degree programs are not selectable, and a New York course affects NYUSH progress only through an active NYUSH requirement or reviewed planner overlay.
 
@@ -11,9 +11,11 @@ This is not an official NYU degree audit, petition, advisor approval, registrati
 - Query-driven catalog search, stable pagination, school/subject/campus filters, release-aware details, and hydration of placed courses.
 - Immutable source snapshots and composed releases for NYU Shanghai plus 13 New York school inventories, with last-known-good retention and fail-closed validation.
 - Correction Hub with student reports, My Reports, maintainer review, messages, notifications, immutable audit events, and typed overlays. Approval and application are separate actions.
+- Compact Degree Progress guidance with code-and-title requirement lists, reportable warnings, first-visit help, and persisted manual `planned` / `completed` confirmations that remain visibly distinct from calculated progress.
+- Immediate, audited, reversible catalog-maintenance overlays for course details, prerequisites, credits, offering terms, course tombstones, and requirement-tree edits. Bulletin snapshots remain immutable.
 - Google-only NYU authentication, lossless JSON backups, and browser-local Excel/PDF reports. Email sign-in remains visibly marked as in development.
 - Global, plain-text planner announcements with Admin draft/publish/withdraw history and per-browser dismissal.
-- NYU Academic Glass: NYU violet identity, legal platform font stack, Lucide icons, touch-safe controls, restrained functional glass, responsive preferences, English onboarding, Help, interest quotes, and the provided New York skyline.
+- NYU Academic Glass: NYU violet identity, supplied Violets logo, legal platform font stack, Lucide icons, touch-safe controls, restrained functional glass, responsive preferences, bilingual onboarding, Help, interest quotes, and the provided New York skyline.
 
 The checked-in recovery catalog contains 810 NYUSH courses and 43 programs. The full New York catalog is database-backed and must be synchronized before use.
 
@@ -99,9 +101,9 @@ Bulletin records are catalog inventory. They do not confirm a current semester o
 
 Copy `.env.example` to `.env.local`, replace `AUTH_SECRET`, and configure `AUTH_GOOGLE_ID` plus `AUTH_GOOGLE_SECRET`. Google is the only active provider; email sign-in is intentionally disabled and labeled as in development. Sign-in is restricted to `@nyu.edu` identities.
 
-`ADMIN_EMAILS` is a comma-separated allowlist; a stored `admin` role is also honored server-side. Every plan, report, message, and notification route scopes reads to its owner. Correction Hub private notes remain administrator-only, and maintainer decisions are planner-side guidance rather than official NYU action.
+`ADMIN_EMAILS` is a comma-separated administrator allowlist. `MAINTAINER_EMAILS` grants the narrower catalog-maintenance and Correction Hub role; admins can do both. Stored `admin` and `maintainer` roles are also honored server-side. Every plan, report, message, and notification route scopes reads to its owner. Correction Hub private notes remain administrator-only, and maintainer decisions are planner-side guidance rather than official NYU action.
 
-Plan actions can export a lossless JSON backup for later import, an `.xlsx` workbook with Overview/Semester Plan/Requirement Progress sheets, or a paginated PDF advising report. Excel and PDF generation happens locally in the browser and those formats are read/share artifacts, not import formats. Administrators publish announcements from `/admin`; only one notice is live at a time, and withdrawing it preserves history.
+Plan actions can export a lossless JSON backup for later import, an `.xlsx` workbook with Overview/Semester Plan/Requirement Progress sheets, or a paginated PDF advising report. Excel and PDF include whether each requirement status was calculated or manually confirmed; generation happens locally in the browser and those formats are read/share artifacts, not import formats. Administrators publish announcements from `/admin`; only one notice is live at a time, and withdrawing it preserves history.
 
 Do not include real secrets or production hosts in `.env.example`, logs, release reports, screenshots, or test fixtures. PGlite is single-process: stop the development server before another command opens the same directory.
 

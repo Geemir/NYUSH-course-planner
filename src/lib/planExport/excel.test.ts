@@ -20,7 +20,9 @@ describe("renderPlanExcel", () => {
     expect(semester.getCell("G2").value).toBe(4);
     expect(typeof semester.getCell("G2").value).toBe("number");
     expect(semester.getCell("F2").value).toBe("'=Unsafe title");
-    expect(workbook.getWorksheet("Requirement Progress")!.getCell("K2").value).toBe("'+CSCI-SHU 210");
+    expect(workbook.getWorksheet("Requirement Progress")!.getCell("I2").value).toBe("manual");
+    expect(workbook.getWorksheet("Requirement Progress")!.getCell("J2").value).toBe("completed");
+    expect(workbook.getWorksheet("Requirement Progress")!.getCell("M2").value).toBe("'+CSCI-SHU 210");
     expect(workbook.getWorksheet("Overview")!.getColumn("B").values).toContain("'-Review semester load");
   });
 });

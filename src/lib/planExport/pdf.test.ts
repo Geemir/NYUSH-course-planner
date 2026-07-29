@@ -9,6 +9,8 @@ describe("renderPlanPdf", () => {
 
     expect(signature).toBe("%PDF-");
     expect(bytes.byteLength).toBeGreaterThan(4_000);
-    expect(new TextDecoder("latin1").decode(bytes)).toContain("NYUSH Degree Plan");
+    const text = new TextDecoder("latin1").decode(bytes);
+    expect(text).toContain("NYUSH Degree Plan");
+    expect(text).toContain("manual / completed");
   });
 });

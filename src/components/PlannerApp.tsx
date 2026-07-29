@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { CatalogProvider } from "@/components/CatalogProvider";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { AnnouncementBanner } from "@/components/announcements/AnnouncementBanner";
 import { PlanSync } from "@/components/PlanSync";
 import {
@@ -58,6 +59,7 @@ function DragPreview({ courseId }: { courseId: string }) {
 const emptySubscribe = () => () => {};
 
 export function PlannerApp() {
+  const { t } = useLocale();
   // false during SSR/hydration, true on the client — gates rendering of
   // localStorage-backed state without a hydration mismatch.
   const mounted = useSyncExternalStore(
@@ -71,6 +73,7 @@ export function PlannerApp() {
   const [dragCourseId, setDragCourseId] = useState<string | null>(null);
   const onboarding = useOnboarding();
   const progressGuide = useProgressGuide();
+  const visitProgressGuide = progressGuide.visit;
   const guideButtonRef = useRef<HTMLButtonElement>(null);
   const justDragged = useRef(false);
   // When a catalog dropdown closes, the browser's trailing click event can
@@ -83,13 +86,13 @@ export function PlannerApp() {
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
   const handleProgressVisit = useCallback(() => {
-    if (onboarding.ready && !onboarding.open) progressGuide.visit();
-  }, [onboarding.open, onboarding.ready, progressGuide.visit]);
+    if (onboarding.ready && !onboarding.open) visitProgressGuide();
+  }, [onboarding.open, onboarding.ready, visitProgressGuide]);
 
   if (!mounted) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Loading planner…
+        {t("common.loadingPlanner")}
       </div>
     );
   }
@@ -139,11 +142,9 @@ export function PlannerApp() {
     try {
       const snapshot = parsePlanDocument(await file.text());
       importPlan(snapshot);
-      toast.success(
-        `Imported plan with ${snapshot.placements.length} courses`,
-      );
+      toast.success(t("common.imported", { count: snapshot.placements.length }));
     } catch {
-      toast.error("Could not import that file — is it a valid plan export?");
+      toast.error(t("common.importError"));
     }
   };
 
@@ -182,8 +183,8 @@ export function PlannerApp() {
                 progress={
                   <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold">Degree progress</h3>
-                      <Button type="button" variant="ghost" size="sm" onClick={progressGuide.restart}>How it works</Button>
+                      <h3 className="text-sm font-semibold">{t("progress.title")}</h3>
+                      <Button type="button" variant="ghost" size="sm" onClick={progressGuide.restart}>{t("progress.howItWorks")}</Button>
                     </div>
                     <ProgressRings />
                     <Separator />
@@ -191,7 +192,7 @@ export function PlannerApp() {
                     <Separator />
                     <SpecialRulesPanel />
                     <div>
-                      <h3 className="text-sm font-semibold">Warnings</h3>
+                      <h3 className="text-sm font-semibold">{t("progress.warnings")}</h3>
                       <WarningCenter />
                     </div>
                   </div>

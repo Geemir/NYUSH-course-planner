@@ -9,6 +9,7 @@ import {
 } from "react";
 import { BookOpen, ChartNoAxesColumnIncreasing } from "lucide-react";
 import { WorkspaceTools } from "@/components/layout/WorkspaceTools";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -106,6 +107,7 @@ export function PlannerWorkspace({
   progress: ReactNode;
   onProgressVisit?: () => void;
 }) {
+  const { t } = useLocale();
   const showCatalogRail = useMediaQuery(LG_QUERY);
   const showProgressRail = useMediaQuery(TWO_XL_QUERY);
 
@@ -117,7 +119,7 @@ export function PlannerWorkspace({
     <>
       <main className="grid min-w-0 flex-1 gap-6 p-4 sm:p-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(620px,1fr)] 2xl:grid-cols-[340px_minmax(620px,1fr)_360px]">
         {showCatalogRail && (
-          <WorkspaceRail label="Course Catalog">{catalog}</WorkspaceRail>
+          <WorkspaceRail label={t("workspace.courseCatalog")}>{catalog}</WorkspaceRail>
         )}
 
         <section
@@ -128,13 +130,13 @@ export function PlannerWorkspace({
             id="workspace-four-year-plan"
             className="mb-4 px-1 text-base font-semibold text-foreground"
           >
-            Four-Year Plan
+            {t("workspace.fourYearPlan")}
           </h2>
           {timeline}
         </section>
 
         {showProgressRail && (
-          <WorkspaceRail label="Degree Progress">{progress}</WorkspaceRail>
+          <WorkspaceRail label={t("progress.title")}>{progress}</WorkspaceRail>
         )}
       </main>
 
@@ -142,13 +144,13 @@ export function PlannerWorkspace({
         <WorkspaceTools>
           {!showCatalogRail && (
             <WorkspaceSheet
-              label="Course Catalog"
-              description="Search the Bulletin catalog and add courses to your plan."
+              label={t("workspace.courseCatalog")}
+              description={t("workspace.catalogDescription")}
               side="left"
               trigger={
                 <Button variant="outline" className="h-11 px-4">
                   <BookOpen aria-hidden="true" />
-                  Courses
+                  {t("workspace.courses")}
                 </Button>
               }
             >
@@ -157,13 +159,13 @@ export function PlannerWorkspace({
           )}
           {!showProgressRail && (
             <WorkspaceSheet
-              label="Degree Progress"
-              description="Review requirements, remaining work, and planning warnings."
+              label={t("progress.title")}
+              description={t("workspace.progressDescription")}
               side="right"
               trigger={
                 <Button variant="outline" className="h-11 px-4" onClick={onProgressVisit}>
                   <ChartNoAxesColumnIncreasing aria-hidden="true" />
-                  Progress
+                  {t("workspace.progress")}
                 </Button>
               }
             >

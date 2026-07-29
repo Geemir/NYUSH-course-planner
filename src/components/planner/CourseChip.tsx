@@ -5,6 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { AlertCircle, AlertTriangle, X } from "lucide-react";
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -26,6 +27,7 @@ export function CourseChip({
   placement: PlanPlacementV2;
   onSelect: () => void;
 }) {
+  const { t } = useLocale();
   const { warningsByCourse, effectiveMajors, coursesById } = usePlanDerived();
   const { snapshot } = useCourseData();
   const [reporting, setReporting] = useState<PlanWarning | null>(null);
@@ -95,14 +97,14 @@ export function CourseChip({
       {warnings.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Warnings for ${course.id}`} className="size-9 shrink-0" />}
+            render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("plan.warningsFor", { subject: course.id })} className="size-9 shrink-0" />}
           >
             {hasError ? <AlertCircle className="text-destructive" /> : <AlertTriangle className="text-amber-500" />}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-w-80">
             {warnings.map((warning) => (
               <DropdownMenuItem key={warning.id} onClick={() => setReporting(warning)}>
-                <span className="line-clamp-2">Report · {warning.message}</span>
+                <span className="line-clamp-2">{t("plan.reportWarning", { message: warning.message })}</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

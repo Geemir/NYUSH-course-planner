@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { AlertCircle, AlertTriangle, GraduationCap, Leaf, Sprout } from "lucide-react";
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { CourseChip } from "@/components/planner/CourseChip";
 import { StudyAwaySelect } from "@/components/planner/StudyAwaySelect";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ export function SemesterColumn({
   semesterId: SemesterId;
   onSelectCourse: (placement: PlanPlacementV2) => void;
 }) {
+  const { t } = useLocale();
   const { isOver, setNodeRef } = useDroppable({ id: semesterId });
   const { placementsBySemester, creditsBySemester, coursesById, warningsBySemester } =
     usePlanDerived();
@@ -83,7 +85,7 @@ export function SemesterColumn({
           {warnings.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger
-                render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Warnings for ${semesterTermName(semesterId, startYear)}`} className="size-9" />}
+                render={<Button type="button" variant="ghost" size="icon-sm" aria-label={t("plan.warningsFor", { subject: semesterTermName(semesterId, startYear) })} className="size-9" />}
               >
                 {warnings.some((warning) => warning.severity === "error")
                   ? <AlertCircle className="text-destructive" />
@@ -92,7 +94,7 @@ export function SemesterColumn({
               <DropdownMenuContent align="end" className="max-w-80">
                 {warnings.map((warning) => (
                   <DropdownMenuItem key={warning.id} onClick={() => setReporting(warning)}>
-                    <span className="line-clamp-2">Report · {warning.message}</span>
+                    <span className="line-clamp-2">{t("plan.reportWarning", { message: warning.message })}</span>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -126,7 +128,7 @@ export function SemesterColumn({
             aria-label={`Mark ${semesterId} as completed`}
             className="size-4"
           />
-          Done
+          {t("plan.done")}
         </label>
       </div>
 
@@ -140,7 +142,7 @@ export function SemesterColumn({
         ))}
         {placements.length === 0 && (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed px-5 py-7 text-center text-sm leading-relaxed text-muted-foreground">
-            Add courses from the catalog or use Add to semester.
+            {t("plan.emptySemester")}
           </div>
         )}
       </div>

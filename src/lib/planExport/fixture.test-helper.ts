@@ -29,7 +29,7 @@ export function exportModelFixture(): PlanExportModel {
     requirements: [{
       programId: "cs", programRole: "primary-major", programName: "Computer Science",
       categoryId: "foundations", categoryName: "Foundations", unitKind: "courses",
-      required: 2, planned: 1, completed: 1, status: "missing",
+        required: 2, planned: 1, completed: 1, status: "missing", statusSource: "manual", manualStatus: "completed",
       gapSummary: "+CSCI-SHU 210",
     }],
     warnings: [{

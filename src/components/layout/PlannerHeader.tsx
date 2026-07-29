@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState, type RefObject } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import {
   AlertCircle,
   BookOpen,
@@ -19,6 +21,8 @@ import {
   Upload,
 } from "lucide-react";
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
+import { LanguageControl } from "@/components/i18n/LanguageControl";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { MyReportsSheet } from "@/components/corrections/MyReportsSheet";
 import { NotificationMenu } from "@/components/corrections/NotificationMenu";
 import { signOut, useSession } from "next-auth/react";
@@ -26,7 +30,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useCatalog } from "@/components/CatalogProvider";
 import { ProgramProfileSheet } from "@/components/programs/ProgramProfileSheet";
-import { ProgramProfileSummary, programProfileLabel } from "@/components/programs/ProgramProfileSummary";
+import { ProgramProfileSummary } from "@/components/programs/ProgramProfileSummary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +69,7 @@ export function PlannerHeader({
   onImportFile,
 }: PlannerHeaderProps) {
   const { programs, bootstrap } = useCatalog();
+  const { t } = useLocale();
   const derived = usePlanDerived();
   const { progress } = derived;
   const programProfile = usePlannerStore((state) => state.programProfile);
@@ -82,12 +87,10 @@ export function PlannerHeader({
   const catalogPrograms = programs.filter(
     (program): program is CatalogProgram => "auditAuthority" in program,
   );
-  const currentPlanLabel = programProfileLabel(programProfile, catalogPrograms);
-
   const resetPlan = () => {
-    if (window.confirm("Clear the entire plan? This cannot be undone.")) {
+    if (window.confirm(t("header.clearConfirm"))) {
       reset();
-      toast.success("Plan cleared");
+      toast.success(t("header.cleared"));
     }
   };
 
@@ -98,7 +101,7 @@ export function PlannerHeader({
     if (exporting) return;
     setExporting(format);
     const label = format === "xlsx" ? "Excel" : "PDF";
-    const loadingToast = toast.loading(`Preparing ${label} export…`);
+    const loadingToast = toast.loading(t("header.preparingExport", { format: label }));
     try {
       const snapshot = currentSnapshot();
       const model = buildPlanExportModel(snapshot, derived);
@@ -118,39 +121,33 @@ export function PlannerHeader({
           : "application/pdf",
         planExportFilename(model, format),
       );
-      toast.success(`${label} export ready`, { id: loadingToast });
+      toast.success(t("header.exportReady", { format: label }), { id: loadingToast });
     } catch {
-      toast.error(`Could not prepare the ${label} export.`, { id: loadingToast });
+      toast.error(t("header.exportError", { format: label }), { id: loadingToast });
     } finally {
       setExporting(null);
     }
   };
 
   return (
-    <header className="functional-glass sticky top-0 z-[var(--z-sticky)] flex min-h-20 items-center gap-2 border-x-0 border-t-0 px-2 py-2.5 shadow-[0_8px_30px_rgb(31_24_36/8%)] sm:gap-4 sm:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm sm:size-11">
-          <GraduationCap className="size-5" aria-hidden="true" />
+    <header data-header-order className="functional-glass sticky top-0 z-[var(--z-sticky)] flex min-h-20 items-center gap-2 border-x-0 border-t-0 px-2 py-2.5 shadow-[0_8px_30px_rgb(31_24_36/8%)] sm:gap-4 sm:px-6">
+      <Link href="/" data-header-part="logo" aria-label="NYUSH Degree Planner home" className="flex h-11 w-20 shrink-0 items-center sm:w-28">
+        <div className="flex h-full w-full items-center">
+          <Image src="/nyu-violets-logo.png" alt="NYU Violets" width={112} height={56} priority className="h-auto w-full object-contain" />
         </div>
-        <div className="hidden min-w-0 flex-col sm:flex">
-          <h1 className="truncate text-[17px] leading-5 font-semibold tracking-[-0.015em]">
-            NYUSH Course Planner
-          </h1>
-          <span className="truncate text-xs leading-4 text-muted-foreground">
-            {currentPlanLabel} · four-year plan
-          </span>
-        </div>
-      </div>
+      </Link>
+      <LanguageControl />
 
       <nav
-        aria-label="Planner controls"
+        data-header-part="controls"
+        aria-label={t("header.controls")}
         className="flex min-w-0 flex-1 items-center gap-2"
       >
         <Badge
           variant="secondary"
           className="hidden h-8 shrink-0 px-3 text-sm tabular-nums md:inline-flex"
         >
-          {progress.credits.planned}/{progress.credits.goal} credits
+          {t("header.credits", { planned: progress.credits.planned, goal: progress.credits.goal })}
         </Badge>
 
         <div className="hidden min-w-0 flex-1 items-center gap-2 lg:flex">
@@ -160,19 +157,19 @@ export function PlannerHeader({
             onValueChange={(value) => setStartYear(Number(value))}
           >
             <SelectTrigger
-              aria-label="Entry year"
+              aria-label={t("header.entryYear")}
               className="h-11 w-52 min-w-24 shrink text-sm [&>span]:truncate"
             >
               <SelectValue>
                 {(value: string) =>
-                  `Entered Fall ${value} · Class of ${Number(value) + 4}`
+                  t("header.entered", { year: value, classYear: Number(value) + 4 })
                 }
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {START_YEARS.map((year) => (
                 <SelectItem key={year} value={String(year)}>
-                  Entered Fall {year} · Class of {year + 4}
+                  {t("header.entered", { year, classYear: year + 4 })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -185,22 +182,22 @@ export function PlannerHeader({
             type="button"
             variant="outline"
             className="h-11 px-3"
-            aria-label="Guide"
+            aria-label={t("header.guide")}
             onClick={onGuide}
           >
             <BookOpen aria-hidden="true" />
-            <span className="hidden sm:inline">Guide</span><span className="sr-only sm:hidden">Guide</span>
+            <span className="hidden sm:inline">{t("header.guide")}</span><span className="sr-only sm:hidden">{t("header.guide")}</span>
           </Button>
 
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" className="h-11 px-3" aria-label="Help" />}>
-              <CircleHelp aria-hidden="true" /><span className="hidden xl:inline">Help</span>
+            <DropdownMenuTrigger render={<Button variant="ghost" className="hidden h-11 px-3 sm:inline-flex" aria-label={t("header.help")} />}>
+              <CircleHelp aria-hidden="true" /><span className="hidden xl:inline">{t("header.help")}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuGroup>
-                <DropdownMenuLabel>Planner support</DropdownMenuLabel>
-                <DropdownMenuItem className="min-h-11" onClick={() => setReportOpen(true)}><AlertCircle aria-hidden="true" />Report another issue</DropdownMenuItem>
-                <DropdownMenuItem className="min-h-11" onClick={() => setReportsOpen(true)}><BookOpen aria-hidden="true" />My reports</DropdownMenuItem>
+                <DropdownMenuLabel>{t("header.support")}</DropdownMenuLabel>
+                <DropdownMenuItem className="min-h-11" onClick={() => setReportOpen(true)}><AlertCircle aria-hidden="true" />{t("header.report")}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" onClick={() => setReportsOpen(true)}><BookOpen aria-hidden="true" />{t("header.reports")}</DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -211,33 +208,48 @@ export function PlannerHeader({
                 <Button
                   variant="ghost"
                   className="h-11 min-w-11 px-3"
-                  aria-label="Plan actions"
+                  aria-label={t("header.actions")}
                 />
               }
             >
               <Menu aria-hidden="true" />
-              <span className="hidden xl:inline">Plan actions</span>
+              <span className="hidden xl:inline">{t("header.actions")}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-1rem)]">
               <DropdownMenuGroup>
-                <DropdownMenuLabel>Plan actions</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("header.actions")}</DropdownMenuLabel>
                 <DropdownMenuItem className="min-h-11 lg:hidden" onClick={() => setProfileOpen(true)}>
                   <GraduationCap aria-hidden="true" />
-                  Edit Program Profile
+                  {t("header.editProfile")}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11 sm:hidden" onClick={() => setReportOpen(true)}>
+                  <AlertCircle aria-hidden="true" />
+                  {t("header.report")}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11 sm:hidden" onClick={() => setReportsOpen(true)}>
+                  <BookOpen aria-hidden="true" />
+                  {t("header.reports")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="min-h-11 sm:hidden"
+                  onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                >
+                  {resolvedTheme === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+                  {t("header.theme")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="min-h-11"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload aria-hidden="true" />
-                  Import plan
+                  {t("header.import")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="min-h-11"
                   onClick={() => downloadPlanJson(currentSnapshot(), startYear)}
                 >
                   <FileJson aria-hidden="true" />
-                  Export JSON backup
+                  {t("header.exportJson")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="min-h-11"
@@ -245,7 +257,7 @@ export function PlannerHeader({
                   onClick={() => void exportReadable("xlsx")}
                 >
                   <FileSpreadsheet aria-hidden="true" />
-                  Export Excel workbook
+                  {t("header.exportExcel")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="min-h-11"
@@ -253,7 +265,7 @@ export function PlannerHeader({
                   onClick={() => void exportReadable("pdf")}
                 >
                   <FileText aria-hidden="true" />
-                  Export PDF report
+                  {t("header.exportPdf")}
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
@@ -263,7 +275,7 @@ export function PlannerHeader({
                 onClick={resetPlan}
               >
                 <RotateCcw aria-hidden="true" />
-                Reset plan
+                {t("header.reset")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -283,8 +295,8 @@ export function PlannerHeader({
           <Button
             type="button"
             variant="ghost"
-            className="size-11"
-            aria-label="Toggle dark mode"
+            className="hidden size-11 sm:inline-flex"
+            aria-label={t("header.theme")}
             onClick={() =>
               setTheme(resolvedTheme === "dark" ? "light" : "dark")
             }
@@ -313,12 +325,13 @@ export function PlannerHeader({
 
 function AuthControl({ onOpenReport }: { onOpenReport(id: string): void }) {
   const { data: session, status } = useSession();
+  const { t } = useLocale();
   if (status === "authenticated" && session?.user) {
-    const label = session.user.email ?? "Account";
+    const label = session.user.email ?? t("header.account");
     return (
       <>
         <NotificationMenu onOpenReport={onOpenReport} />
-        {session.user.role === "admin" && (
+        {(session.user.role === "admin" || session.user.role === "maintainer") && (
           <Button
             variant="outline"
             className="h-11 px-3"
@@ -326,7 +339,7 @@ function AuthControl({ onOpenReport }: { onOpenReport(id: string): void }) {
             render={<a href="/admin" />}
           >
             <Shield aria-hidden="true" />
-            <span className="hidden xl:inline">Admin</span>
+            <span className="hidden xl:inline">{session.user.role === "admin" ? "Admin" : "Maintain"}</span>
           </Button>
         )}
         <Button
@@ -346,12 +359,12 @@ function AuthControl({ onOpenReport }: { onOpenReport(id: string): void }) {
     <Button
       variant="default"
       className="h-11 px-3"
-      aria-label="Sign in"
+      aria-label={t("header.signIn")}
       nativeButton={false}
       render={<a href="/signin" />}
     >
       <LogIn aria-hidden="true" />
-      <span className="hidden xl:inline">Sign in</span>
+      <span className="hidden xl:inline">{t("header.signIn")}</span>
     </Button>
   );
 }

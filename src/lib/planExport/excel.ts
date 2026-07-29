@@ -102,7 +102,7 @@ export async function renderPlanExcel(model: PlanExportModel): Promise<Uint8Arra
   configureTable(semesters, [15, 15, 20, 12, 18, 34, 10, 15, 42], semesters.rowCount);
 
   const requirements = workbook.addWorksheet("Requirement Progress", { properties: { defaultRowHeight: 20 } });
-  requirements.addRow(["Program Role", "Program", "Category", "Unit", "Required", "Planned", "Completed", "Status", "Program ID", "Category ID", "Remaining Gaps"]);
+  requirements.addRow(["Program Role", "Program", "Category", "Unit", "Required", "Planned", "Completed", "Status", "Status Source", "Manual Status", "Program ID", "Category ID", "Remaining Gaps"]);
   model.requirements.forEach((item) => {
     requirements.addRow([
       item.programRole,
@@ -113,12 +113,14 @@ export async function renderPlanExcel(model: PlanExportModel): Promise<Uint8Arra
       item.planned,
       item.completed,
       item.status,
+      item.statusSource,
+      item.manualStatus ?? "",
       safeCell(item.programId),
       safeCell(item.categoryId),
       safeCell(item.gapSummary),
     ]);
   });
-  configureTable(requirements, [18, 28, 28, 12, 12, 12, 12, 14, 18, 18, 48], requirements.rowCount);
+  configureTable(requirements, [18, 28, 28, 12, 12, 12, 12, 14, 15, 15, 18, 18, 48], requirements.rowCount);
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Uint8Array(buffer);

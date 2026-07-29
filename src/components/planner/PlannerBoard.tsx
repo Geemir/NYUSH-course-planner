@@ -2,17 +2,18 @@
 
 import { GraduationCap } from "lucide-react";
 import { SemesterColumn } from "@/components/planner/SemesterColumn";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { type PlanPlacementV2, SemesterId } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
-
-const YEAR_LABELS = ["Freshman", "Sophomore", "Junior", "Senior"];
 
 export function PlannerBoard({
   onSelectCourse,
 }: {
   onSelectCourse: (placement: PlanPlacementV2) => void;
 }) {
+  const { t } = useLocale();
+  const yearLabels = [t("plan.freshman"), t("plan.sophomore"), t("plan.junior"), t("plan.senior")];
   const startYear = usePlannerStore((s) => s.startYear);
 
   return (
@@ -35,10 +36,10 @@ export function PlannerBoard({
                   id={`year-${year}-heading`}
                   className="text-base leading-5 font-semibold"
                 >
-                  Year {year}
+                  {t("plan.year", { year })}
                 </h2>
                 <span className="text-xs text-muted-foreground">
-                  {YEAR_LABELS[year - 1]}
+                  {yearLabels[year - 1]}
                 </span>
                 <span className="text-xs tabular-nums text-muted-foreground">
                   {fallYear}–{(fallYear + 1) % 100}
@@ -51,7 +52,7 @@ export function PlannerBoard({
                   className="gap-1 px-2 text-xs"
                 >
                   <GraduationCap className="size-3.5" aria-hidden="true" />
-                  Capstone
+                  {t("plan.capstone")}
                 </Badge>
               )}
             </header>

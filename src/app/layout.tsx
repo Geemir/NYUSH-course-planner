@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { LocaleProvider } from "@/components/i18n/LocaleProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,8 +23,10 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <ThemeProvider>
-          {children}
-          <Toaster richColors position="bottom-right" />
+          <LocaleProvider>
+            {children}
+            <Toaster richColors position="bottom-right" />
+          </LocaleProvider>
         </ThemeProvider>
       </body>
     </html>

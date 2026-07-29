@@ -12,6 +12,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import {
   Accordion,
   AccordionContent,
@@ -107,6 +108,7 @@ function evidenceRequirements(
 }
 
 function EvidenceRow({ item }: { item: EvidenceRequirement }) {
+  const { t } = useLocale();
   const facts = usePlannerStore((state) => state.fulfillmentFacts);
   const recordFact = usePlannerStore((state) => state.recordFulfillmentFact);
   const removeFact = usePlannerStore((state) => state.removeFulfillmentFact);
@@ -116,7 +118,7 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
       candidate.requirementId === item.requirementId,
   );
   const isManual = item.kind === "manualConfirmation";
-  const label = isManual ? "Needs confirmation" : "Waiver available";
+  const label = isManual ? t("progress.needsConfirmation") : "Waiver available";
 
   const addFact = () => {
     const next: FulfillmentFact = {
@@ -152,7 +154,7 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
                   : "text-amber-600 dark:text-amber-400"
               }`}
             >
-              {fact ? "Fulfilled manually" : label}
+              {fact ? t("progress.fulfilledManually") : label}
             </p>
           </div>
         </div>
@@ -164,7 +166,7 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
           onClick={() => (fact ? removeFact(fact.id) : addFact())}
         >
           {isManual
-            ? fact ? "Remove manual mark" : "Mark as fulfilled"
+            ? fact ? t("progress.removeManual") : t("progress.markFulfilled")
             : fact ? "Remove waiver" : "Record waiver"}
         </Button>
       </div>
@@ -230,6 +232,7 @@ function CategoryRow({
   category: CategoryProgress;
   program: ClientPlannerProgram;
 }) {
+  const { t } = useLocale();
   const [reporting, setReporting] = useState(false);
   const { placementByCourse, coursesById } = usePlanDerived();
   const completedSemesters = usePlannerStore((state) => state.completedSemesters);
@@ -266,10 +269,10 @@ function CategoryRow({
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <Badge variant={done ? "default" : "secondary"} className="text-xs">
             {manualStatus === "completed"
-              ? "Fulfilled manually"
+              ? t("progress.fulfilledManually")
               : manualStatus === "planned"
-                ? "Planned manually"
-                : done ? "Planned" : "In progress"}
+                ? t("progress.plannedManually")
+                : done ? t("progress.planned") : t("progress.inProgress")}
           </Badge>
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -278,25 +281,25 @@ function CategoryRow({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label={manualStatus ? "Change requirement status" : "Set requirement status"}
+                  aria-label={manualStatus ? t("progress.changeStatus") : t("progress.setStatusLabel")}
                 />
               }
             >
               <ListChecks aria-hidden="true" />
-              {manualStatus ? "Change" : "Set status"}
+              {manualStatus ? t("progress.change") : t("progress.setStatus")}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, "planned")}>
                 {manualStatus === "planned" && <Check aria-hidden="true" />}
-                Mark as planned
+                {t("progress.markPlanned")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, "completed")}>
                 {manualStatus === "completed" && <Check aria-hidden="true" />}
-                Mark as fulfilled
+                {t("progress.markFulfilled")}
               </DropdownMenuItem>
               {manualStatus && (
                 <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, null)}>
-                  Use calculated status
+                  {t("progress.useCalculated")}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -322,7 +325,7 @@ function CategoryRow({
               )}
               <span className="font-mono text-xs">{courseId}</span>
               <span className="truncate text-xs" title={coursesById.get(courseId)?.title ?? undefined}>
-                {coursesById.get(courseId)?.title ?? "Course title unavailable"}
+                {coursesById.get(courseId)?.title ?? t("progress.courseUnavailable")}
               </span>
               {placement && (
                 <span className="ml-auto shrink-0 text-[11px]">
@@ -386,8 +389,8 @@ function CategoryRow({
 
       {sourceUrl && (
         <div className="flex flex-wrap items-center gap-2">
-          <a href={sourceUrl} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary">View requirement in NYU Bulletin<ExternalLink className="size-3" /></a>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setReporting(true)}><AlertCircle />Report requirement issue</Button>
+          <a href={sourceUrl} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary">{t("progress.viewBulletin")}<ExternalLink className="size-3" /></a>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setReporting(true)}><AlertCircle />{t("progress.reportRequirement")}</Button>
         </div>
       )}
       {sourceUrl && <ReportIssueDialog open={reporting} onOpenChange={setReporting} context={{
@@ -402,14 +405,15 @@ function CategoryRow({
 }
 
 export function RequirementChecklist() {
+  const { t } = useLocale();
   const { activeProgramObjs, progressByProgram } = usePlanDerived();
   const profile = usePlannerStore((state) => state.programProfile);
 
   const roleLabel = (programId: string) => {
-    if (programId === profile.coreProgramId) return "Core";
-    if (programId === profile.primaryMajorId) return "Primary major";
-    if (programId === profile.secondMajorId) return "Second major";
-    return "Minor";
+    if (programId === profile.coreProgramId) return t("progress.core");
+    if (programId === profile.primaryMajorId) return t("progress.primaryMajor");
+    if (programId === profile.secondMajorId) return t("progress.secondMajor");
+    return t("progress.minor");
   };
 
   return (
@@ -418,7 +422,7 @@ export function RequirementChecklist() {
         role="note"
         className="mb-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-foreground"
       >
-        Requirements are based on the NYU Bulletin. Verify important decisions with each linked source.
+        {t("progress.bulletinNote")}
       </div>
       <Accordion>
         {activeProgramObjs.map((program) => {

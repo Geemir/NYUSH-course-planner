@@ -1,6 +1,6 @@
-# Progress, Catalog Maintenance, and Simplified Chinese Implementation Plan
+﻿# Progress, Catalog Maintenance, and Simplified Chinese Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Ship a clearer, manually adjustable Degree Progress experience, reportable warnings, audited direct catalog maintenance, and a bilingual English/Simplified-Chinese planner header and primary UI.
 
@@ -38,10 +38,10 @@
 - Produces `setRequirementStatus(programId, categoryId, status | null)`.
 - `computeProgress` consumes `requirementStatusOverrides` and exposes calculated/effective units plus `manualStatus` on each category.
 
-- [ ] Write failing tests proving legacy plans default to no overrides, planned/completed overrides change effective progress, clear restores calculated progress, and snapshots round-trip.
-- [ ] Run targeted tests and confirm failures are caused by missing override behavior.
-- [ ] Add the schema/types, store mutation, migration defaults, and derivation logic.
-- [ ] Run targeted tests until green, then run all progress/store/plan I/O tests.
+- [x] Write failing tests proving legacy plans default to no overrides, planned/completed overrides change effective progress, clear restores calculated progress, and snapshots round-trip.
+- [x] Run targeted tests and confirm failures are caused by missing override behavior.
+- [x] Add the schema/types, store mutation, migration defaults, and derivation logic.
+- [x] Run targeted tests until green, then run all progress/store/plan I/O tests.
 
 ### Task 2: Progress UI and first-visit guide
 
@@ -60,10 +60,10 @@
 - `PlannerWorkspace` produces `onProgressVisit()` from actual rail visibility or sheet interaction.
 - `ProgressGuide` consumes `open`, `onOpenChange`, and localized copy.
 
-- [ ] Write failing tests for no feasibility control, code-plus-title rows, “Mark as fulfilled”, compact source copy, manual category controls, actual Progress visit events, and versioned guide persistence.
-- [ ] Confirm each test fails for the absent behavior.
-- [ ] Implement the compact checklist, manual status menu, visit callback, and responsive guide.
-- [ ] Run the component tests and accessibility assertions until green.
+- [x] Write failing tests for no feasibility control, code-plus-title rows, 鈥淢ark as fulfilled鈥? compact source copy, manual category controls, actual Progress visit events, and versioned guide persistence.
+- [x] Confirm each test fails for the absent behavior.
+- [x] Implement the compact checklist, manual status menu, visit callback, and responsive guide.
+- [x] Run the component tests and accessibility assertions until green.
 
 ### Task 3: Report every Plan and Progress warning
 
@@ -78,10 +78,10 @@
 **Interfaces:**
 - Produces `warningReportContext(warning, catalogReleaseId)` returning a `ReportIssueDialog` context with target `{ kind: "other", area: "planner-warning" }` and a complete displayed value.
 
-- [ ] Write failing tests for prefilled course/semester warning reports from both surfaces.
-- [ ] Confirm failures show the missing report action/context.
-- [ ] Implement a shared context builder and accessible report actions without coupling report to warning dismissal.
-- [ ] Run warning and planner component tests until green.
+- [x] Write failing tests for prefilled course/semester warning reports from both surfaces.
+- [x] Confirm failures show the missing report action/context.
+- [x] Implement a shared context builder and accessible report actions without coupling report to warning dismissal.
+- [x] Run warning and planner component tests until green.
 
 ### Task 4: Direct audited catalog overlay model
 
@@ -103,10 +103,10 @@
 - Extends course changes with `catalogOfferingTerms`, `catalogOfferingText`, `offered`, `offeringText`, and `offeringKnown`.
 - Produces `applyDirectCatalogOverlay`, `setCatalogOverlayActive`, and `listDirectCatalogOverlays`.
 
-- [ ] Write failing schema/composition/repository tests for offering edits, tombstones, category upsert/delete, audit events, revert/restore, and release reconciliation.
-- [ ] Confirm failures are behavioral rather than fixture errors.
-- [ ] Add the additive database migration, strict mutation schemas, overlay composition, query filtering, and transactional audit repository.
-- [ ] Run overlay/catalog/database tests until green.
+- [x] Write failing schema/composition/repository tests for offering edits, tombstones, category upsert/delete, audit events, revert/restore, and release reconciliation.
+- [x] Confirm failures are behavioral rather than fixture errors.
+- [x] Add the additive database migration, strict mutation schemas, overlay composition, query filtering, and transactional audit repository.
+- [x] Run overlay/catalog/database tests until green.
 
 ### Task 5: Admin/Maintainer authorization and maintenance API
 
@@ -125,10 +125,10 @@
 - Adds role `maintainer` and `requireMaintainerUser()` accepting admin or maintainer.
 - API GET lists editable active programs/direct overlays; POST validates and publishes a direct overlay; PATCH reverts/restores an overlay.
 
-- [ ] Write failing role and Route Handler authorization/validation tests.
-- [ ] Confirm student requests fail and maintainer/admin requests reach the repository.
-- [ ] Implement stored/allowlisted maintainer resolution and protected no-store APIs.
-- [ ] Run auth and route tests until green.
+- [x] Write failing role and Route Handler authorization/validation tests.
+- [x] Confirm student requests fail and maintainer/admin requests reach the repository.
+- [x] Implement stored/allowlisted maintainer resolution and protected no-store APIs.
+- [x] Run auth and route tests until green.
 
 ### Task 6: Visual Course and Requirement maintenance
 
@@ -145,10 +145,10 @@
 - Editors emit the strict overlay inputs from Task 4 and always require a non-empty reason.
 - Requirement tree controls cover course/all/any/choose/credits/attribute/exclusion/waiver/manualConfirmation.
 
-- [ ] Write failing tests for editing course fields/terms, deleting/restoring a course, adding/deleting categories, all-to-choose conversion, count changes, and manual-confirmation conversion.
-- [ ] Confirm failures expose missing UI interactions.
-- [ ] Implement responsive English-only editors with source-versus-effective values and human-readable change previews.
-- [ ] Run admin component tests until green.
+- [x] Write failing tests for editing course fields/terms, deleting/restoring a course, adding/deleting categories, all-to-choose conversion, count changes, and manual-confirmation conversion.
+- [x] Confirm failures expose missing UI interactions.
+- [x] Implement responsive English-only editors with source-versus-effective values and human-readable change previews.
+- [x] Run admin component tests until green.
 
 ### Task 7: Typed localization and branded header
 
@@ -169,10 +169,10 @@
 - Produces `useLocale()` with `{ locale, setLocale, t }` and stable key typing.
 - `LanguageControl` renders immediately after the logo.
 
-- [ ] Write failing tests for English default, persisted Simplified Chinese, document language, representative primary-surface translations, exclusions, and exact header order.
-- [ ] Confirm failures are caused by absent localization/logo behavior.
-- [ ] Implement typed dictionaries/provider, optimize and add the supplied logo, and replace primary UI literals while leaving exclusions untouched.
-- [ ] Run localization/header/component tests until green.
+- [x] Write failing tests for English default, persisted Simplified Chinese, document language, representative primary-surface translations, exclusions, and exact header order.
+- [x] Confirm failures are caused by absent localization/logo behavior.
+- [x] Implement typed dictionaries/provider, optimize and add the supplied logo, and replace primary UI literals while leaving exclusions untouched.
+- [x] Run localization/header/component tests until green.
 
 ### Task 8: Export, documentation, and release verification
 
@@ -190,9 +190,9 @@
 **Interfaces:**
 - Exports include `statusSource: "calculated" | "manual"` and the selected manual status for each requirement.
 
-- [ ] Write failing export tests proving manual states appear in the model, workbook, and PDF.
-- [ ] Implement export fields and concise advising labels.
-- [ ] Update setup/migration/maintainer documentation and add requirement-level acceptance evidence.
-- [ ] Run targeted tests, full unit suite, lint, build, database migration rehearsal, and responsive Playwright checks.
-- [ ] Self-review the final diff against every objective item, fix gaps via red-green cycles, and only then integrate safely.
+- [x] Write failing export tests proving manual states appear in the model, workbook, and PDF.
+- [x] Implement export fields and concise advising labels.
+- [x] Update setup/migration/maintainer documentation and add requirement-level acceptance evidence.
+- [x] Run targeted tests, full unit suite, lint, build, database migration rehearsal, and responsive Playwright checks.
+- [x] Self-review the final diff against every objective item, fix gaps via red-green cycles, and only then integrate safely.
 

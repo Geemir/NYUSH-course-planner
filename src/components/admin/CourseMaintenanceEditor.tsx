@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Loader2, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,14 +22,6 @@ export function CourseMaintenanceEditor({ record, releaseId = null, onPublish }:
   const [spring, setSpring] = useState(record.course.offered.includes("spring"));
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    setTitle(record.course.title); setDescription(record.course.description ?? "");
-    setPrerequisites(record.course.prerequisiteText ?? "");
-    setMinCredits(String(record.course.minCredits ?? record.course.credits));
-    setMaxCredits(String(record.course.maxCredits ?? record.course.credits));
-    setFall(record.course.offered.includes("fall")); setSpring(record.course.offered.includes("spring")); setReason("");
-  }, [record]);
 
   const publish = async (deleteCourse = false) => {
     setBusy(true);
@@ -71,4 +63,3 @@ export function CourseMaintenanceEditor({ record, releaseId = null, onPublish }:
     </div>
   </div>;
 }
-

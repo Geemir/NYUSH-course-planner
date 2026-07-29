@@ -64,6 +64,7 @@ new release automatically.
    | `AUTH_SECRET` | a **fresh** secret: `npx auth secret` or `openssl rand -base64 32` — do not reuse the dev one |
    | `AUTH_URL` | `https://<your-project>.vercel.app` (or your custom domain) |
    | `ADMIN_EMAILS` | comma-separated `@nyu.edu` addresses that get the admin panel |
+   | `MAINTAINER_EMAILS` | comma-separated `@nyu.edu` addresses allowed to maintain catalog overlays and review reports |
    | `DEEPSEEK_API_KEY` | only if admins will use the AI import/rules tools |
    | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | after step 4 |
 
@@ -106,10 +107,8 @@ controls in a separately reviewed change.
 3. Sign in with a listed `@nyu.edu` account → the local plan imports; edit,
    then open the site in a private window, sign in again → the edit is there
    (server sync). A non-NYU Google account must be rejected.
-4. Sign in with an `ADMIN_EMAILS` address → `/admin` is reachable; for everyone
-   else it 403s.
-5. Open the Program Profile, pick a major + minor, confirm progress rings and
-   the feasibility check respond.
+4. Sign in with an `ADMIN_EMAILS` or `MAINTAINER_EMAILS` address → `/admin` is reachable with role-appropriate tools; for everyone else it 403s.
+5. Open the Program Profile, pick a major + minor, confirm the Progress checklist updates, then manually mark and clear one requirement status.
 6. From Plan actions, download JSON, Excel, and PDF. Open all three; confirm the
    workbook has three sheets and the PDF has schedule/progress pages.
 7. As an administrator, save and publish an announcement. Verify it appears
@@ -132,11 +131,9 @@ controls in a separately reviewed change.
 - **Announcements:** use `/admin` to draft, publish, or withdraw the one global
   notice. Announcement history is retained; users dismiss each notice locally.
 
-## Announcement migration and deployment order
+## Database migration and deployment order
 
-The announcement table migration must be applied to Neon before deploying the
-application build that calls its APIs. Review `drizzle/0007_previous_absorbing_man.sql`,
-then run these commands from a trusted operator machine; never paste the real
+The announcement migration and the catalog-maintenance audit migration must be applied to Neon before deploying the application build that calls their APIs. Review `drizzle/0007_previous_absorbing_man.sql` and `drizzle/0008_lyrical_stephen_strange.sql`, then run these commands from a trusted operator machine; never paste the real
 connection string into source control or logs:
 
 ```powershell
@@ -148,8 +145,9 @@ npm.cmd run build
 Only after both commands succeed should the operator push `main` and allow the
 Vercel deployment. This repository task does not run the production migration,
 push GitHub, or deploy Vercel. After deployment, smoke-test Google sign-in,
-announcement publish/dismiss, Excel/PDF downloads, 390px mobile layout, and the
-system reduced-motion preference.
+announcement publish/dismiss, a direct catalog edit plus revert/restore, manual
+Progress states in Excel/PDF, the logo-language-navigation header order at 390px,
+and the system reduced-motion preference.
 
 ## Common failure modes
 

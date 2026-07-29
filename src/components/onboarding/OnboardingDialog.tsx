@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import {
   Dialog,
@@ -21,41 +22,38 @@ import {
   animateGuideStep,
   type GuideMotionDirection,
 } from "@/lib/guideMotion";
+import type { TranslationKey } from "@/lib/i18n/types";
 
 type GuideStep = {
-  title: string;
-  description: string;
-  detail: string;
+  title: TranslationKey;
+  description: TranslationKey;
+  detail: TranslationKey;
   icon: LucideIcon;
 };
 
 const GUIDE_STEPS: readonly GuideStep[] = [
   {
-    title: "Choose your program",
-    description: "Start with the academic context that shapes your plan.",
-    detail:
-      "Set your primary major, optional second major and minors, plus entry year. The planner keeps NYUSH degree authority separate from study-away course discovery.",
+    title: "onboarding.programTitle",
+    description: "onboarding.programDescription",
+    detail: "onboarding.programDetail",
     icon: GraduationCap,
   },
   {
-    title: "Find courses",
-    description: "Explore the Bulletin catalog with purpose.",
-    detail:
-      "Search NYU Shanghai courses and New York study-away catalogs. New York results are clearly catalog-only until availability and eligibility are confirmed.",
+    title: "onboarding.findTitle",
+    description: "onboarding.findDescription",
+    detail: "onboarding.findDetail",
     icon: Search,
   },
   {
-    title: "Build your timeline",
-    description: "Turn possibilities into a four-year sequence.",
-    detail:
-      "Drag courses into semesters, or use the assignment menu for the same planning control without dragging.",
+    title: "onboarding.timelineTitle",
+    description: "onboarding.timelineDescription",
+    detail: "onboarding.timelineDetail",
     icon: CalendarRange,
   },
   {
-    title: "Read your progress",
-    description: "Check the plan from more than one angle.",
-    detail:
-      "Compare planned and earned credits, inspect Bulletin evidence, and use Help for reports, sync status, Undo, and My reports. Guidance is not an official NYU decision.",
+    title: "onboarding.progressTitle",
+    description: "onboarding.progressDescription",
+    detail: "onboarding.progressDetail",
     icon: ChartNoAxesCombined,
   },
 ] as const;
@@ -73,6 +71,7 @@ export function OnboardingDialog({
   onComplete,
   returnFocusRef,
 }: OnboardingDialogProps) {
+  const { t } = useLocale();
   const [stepIndex, setStepIndex] = useState(0);
   const [contentElement, setContentElement] = useState<HTMLDivElement | null>(
     null,
@@ -123,11 +122,11 @@ export function OnboardingDialog({
         <div className="p-5 sm:p-6">
           <div className="mb-7 flex items-center justify-between gap-4">
             <p className="text-sm font-medium text-muted-foreground">
-              Step {stepIndex + 1} of {GUIDE_STEPS.length}
+              {t("onboarding.step", { current: stepIndex + 1, total: GUIDE_STEPS.length })}
             </p>
             <div
               className="flex gap-1.5"
-              aria-label={`Guide progress: step ${stepIndex + 1} of ${GUIDE_STEPS.length}`}
+              aria-label={t("onboarding.progress", { current: stepIndex + 1, total: GUIDE_STEPS.length })}
             >
               {GUIDE_STEPS.map((guideStep, index) => (
                 <span
@@ -147,13 +146,13 @@ export function OnboardingDialog({
               <StepIcon className="size-6" aria-hidden="true" />
             </div>
             <DialogTitle className="text-xl leading-tight font-semibold tracking-[-0.02em]">
-              {step.title}
+              {t(step.title)}
             </DialogTitle>
             <DialogDescription className="mt-2 text-base leading-6 text-foreground">
-              {step.description}
+              {t(step.description)}
             </DialogDescription>
             <p className="mt-3 max-w-[58ch] text-sm leading-6 text-muted-foreground">
-              {step.detail}
+              {t(step.detail)}
             </p>
           </div>
         </div>
@@ -165,7 +164,7 @@ export function OnboardingDialog({
             className="h-11 px-4"
             onClick={handleComplete}
           >
-            Skip guide
+            {t("onboarding.skip")}
           </Button>
           <div className="flex gap-2">
             {!isFirst && (
@@ -175,7 +174,7 @@ export function OnboardingDialog({
                 className="h-11 flex-1 px-5 sm:flex-none"
                 onClick={() => moveToStep("backward")}
               >
-                Back
+                {t("onboarding.back")}
               </Button>
             )}
             <Button
@@ -187,7 +186,7 @@ export function OnboardingDialog({
                   : () => moveToStep("forward")
               }
             >
-              {isLast ? "Done" : "Next"}
+              {isLast ? t("onboarding.done") : t("onboarding.next")}
             </Button>
           </div>
         </div>

@@ -32,7 +32,18 @@ export function CatalogMaintenance() {
     if (!response.ok) throw new Error("Catalog maintenance data is unavailable.");
     setData(await response.json() as MaintenancePayload);
   }, []);
-  useEffect(() => { void load().catch((error) => toast.error(error.message)).finally(() => setLoading(false)); }, [load]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/catalog-maintenance", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Catalog maintenance data is unavailable.");
+        return response.json() as Promise<MaintenancePayload>;
+      })
+      .then((payload) => { if (!cancelled) setData(payload); })
+      .catch((error: Error) => { if (!cancelled) toast.error(error.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const search = async () => {
     setSearching(true);
@@ -72,7 +83,7 @@ export function CatalogMaintenance() {
         <Button type="submit" disabled={searching}>{searching ? <Loader2 className="animate-spin" /> : <Search />} Search</Button>
       </form>
       {results.length > 0 && <div className="grid gap-2 sm:grid-cols-2">{results.map((record) => <button key={record.stableId} type="button" className="rounded-xl border bg-background p-3 text-left hover:border-primary/40" onClick={() => setSelected(record)}><span className="font-mono text-xs text-primary">{record.code}</span><span className="block truncate text-sm font-medium">{record.course.title}</span></button>)}</div>}
-      {selected && <CourseMaintenanceEditor record={selected} releaseId={data.releaseId} onPublish={publish} />}
+      {selected && <CourseMaintenanceEditor key={selected.stableId} record={selected} releaseId={data.releaseId} onPublish={publish} />}
     </section>
     <section className="flex flex-col gap-4"><h3 className="text-lg font-semibold">Program requirements</h3><RequirementMaintenanceEditor programs={data.programs} releaseId={data.releaseId} onPublish={publish} /></section>
     <section className="flex flex-col gap-3">
@@ -85,4 +96,3 @@ export function CatalogMaintenance() {
     </section>
   </section>;
 }
-

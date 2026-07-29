@@ -52,17 +52,20 @@ export async function renderPlanPdf(model: PlanExportModel): Promise<Uint8Array>
   doc.text("Requirement Progress", 36, 42);
   autoTable(doc, {
     startY: 56,
-    head: [["Role", "Program", "Category", "Unit", "Required", "Planned", "Complete", "Status", "Remaining gaps"]],
+    head: [["Role", "Program", "Category", "Unit", "Required", "Planned", "Complete", "Status / Source", "Remaining gaps"]],
     body: model.requirements.map((item) => [
       item.programRole, item.programName, item.categoryName, item.unitKind,
-      String(item.required), String(item.planned), String(item.completed), item.status,
+      String(item.required), String(item.planned), String(item.completed),
+      item.statusSource === "manual"
+        ? `manual / ${item.manualStatus}`
+        : item.status,
       item.gapSummary || "None",
     ]),
     tableWidth: 692,
     theme: "striped",
     headStyles: { fillColor: VIOLET, textColor: [255, 255, 255], fontStyle: "bold" },
     styles: { font: "helvetica", fontSize: 8, cellPadding: 4, overflow: "linebreak", textColor: DARK },
-    columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 110 }, 2: { cellWidth: 110 }, 3: { cellWidth: 42 }, 4: { cellWidth: 45 }, 5: { cellWidth: 45 }, 6: { cellWidth: 45 }, 7: { cellWidth: 50 }, 8: { cellWidth: 180 } },
+    columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 105 }, 2: { cellWidth: 105 }, 3: { cellWidth: 42 }, 4: { cellWidth: 45 }, 5: { cellWidth: 45 }, 6: { cellWidth: 45 }, 7: { cellWidth: 85 }, 8: { cellWidth: 155 } },
     margin: { left: 36, right: 36 },
   });
 

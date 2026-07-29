@@ -6,6 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, Check, Plus, RotateCcw, Search } from "lucide-react";
 import { useCatalog } from "@/components/CatalogProvider";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { AddCourseDialog } from "@/components/dialogs/AddCourseDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ function CatalogCard({
   onSelect(selection: CatalogCourseSelection): void;
   onMenuClosed(): void;
 }) {
+  const { t } = useLocale();
   const { course, record, isCustom } = item;
   const { placementByCustomCourse, placementByCatalogId } = usePlanDerived();
   const placeCourse = usePlannerStore((state) => state.placeCourse);
@@ -161,14 +163,14 @@ function CatalogCard({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>{placement ? "Move to" : "Add to semester"}</DropdownMenuLabel>
+              <DropdownMenuLabel>{placement ? t("catalog.move") : t("catalog.add")}</DropdownMenuLabel>
               {SEMESTER_IDS.map((semesterId) => (
                 <DropdownMenuItem key={semesterId} onClick={() => placeCourse(record ? { courseId: record.code, catalogCourseId: record.stableId, titleSnapshot: record.course.title.slice(0, 200) } : { courseId: course.id, titleSnapshot: course.title.slice(0, 200) }, semesterId)}>
                   {semesterFullLabel(semesterId, startYear)}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuGroup>
-            {placement && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => removeCourse("placementId" in placement ? String(placement.placementId) : course.id)}>Remove from plan</DropdownMenuItem></>}
+            {placement && <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onClick={() => removeCourse("placementId" in placement ? String(placement.placementId) : course.id)}>{t("catalog.remove")}</DropdownMenuItem></>}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -183,6 +185,7 @@ export function CourseCatalog({
   onSelectCourse(selection: CatalogCourseSelection): void;
   onMenuClosed(): void;
 }) {
+  const { t } = useLocale();
   const search = useCatalogSearch();
   const catalog = useCatalog();
   const { courses, customIds, programs } = useCourseData();
@@ -237,46 +240,46 @@ export function CourseCatalog({
   });
 
   return (
-    <section className="flex flex-col gap-3" aria-label="Course discovery">
+    <section className="flex flex-col gap-3" aria-label={t("workspace.courseCatalog")}>
       <div className="flex items-center justify-between gap-2">
         <AddCourseDialog />
       </div>
       <div className="relative">
         <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-        <Input value={search.query.q} onChange={(event) => search.setQuery({ q: event.target.value })} placeholder="Search by course code or title…" aria-label="Search courses" className="h-13 rounded-xl bg-card pl-10 text-[15px] shadow-xs" />
+        <Input value={search.query.q} onChange={(event) => search.setQuery({ q: event.target.value })} placeholder={t("catalog.searchPlaceholder")} aria-label={t("catalog.search")} className="h-13 rounded-xl bg-card pl-10 text-[15px] shadow-xs" />
       </div>
       <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={clearAllFilters}><RotateCcw />Clear filters</Button>
+        <Button variant="ghost" size="sm" onClick={clearAllFilters}><RotateCcw />{t("catalog.clearFilters")}</Button>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <FilterSelect label="Campus" value={search.query.campuses[0] ?? "all"} onChange={(value) => search.setQuery({ campuses: value === "all" ? [] : [value as "shanghai" | "new-york"] })} options={[{ value: "all", label: "All campuses" }, { value: "shanghai", label: "Shanghai" }, { value: "new-york", label: "New York" }]} />
-        <FilterSelect label="School" value={search.query.sourceIds[0] ?? "all"} onChange={(value) => search.setQuery({ sourceIds: value === "all" ? [] : [value] })} options={[{ value: "all", label: "All schools" }, ...catalog.bootstrap.sources.map((source) => ({ value: source.id, label: source.schoolName }))]} />
-        <FilterSelect label="Subject" value={search.query.subjects[0] ?? "all"} onChange={(value) => search.setQuery({ subjects: value === "all" ? [] : [value] })} options={[{ value: "all", label: "All subjects" }, ...catalog.bootstrap.filters.subjects.map((subject) => ({ value: subject.subject, label: subject.subject }))]} />
-        <FilterSelect label="Catalog term" value={search.query.catalogTerms[0] ?? "all"} onChange={(value) => search.setQuery({ catalogTerms: value === "all" ? [] : [value] })} options={[{ value: "all", label: "Any catalog pattern" }, ...catalog.bootstrap.filters.catalogTerms.map((term) => ({ value: term, label: term }))]} />
-        <FilterSelect label="Credits" value={search.query.minCredits === search.query.maxCredits && search.query.minCredits !== undefined ? String(search.query.minCredits) : "all"} onChange={(value) => search.setQuery(value === "all" ? { minCredits: undefined, maxCredits: undefined } : { minCredits: Number(value), maxCredits: Number(value) })} options={[{ value: "all", label: "Any credits" }, { value: "2", label: "2 credits" }, { value: "4", label: "4 credits" }]} />
-        <FilterSelect label="NYUSH fulfillment" value={search.query.fulfillsProgramId ?? "all"} onChange={(value) => search.setQuery({ fulfillsProgramId: value === "all" ? undefined : value })} options={[{ value: "all", label: "Any NYUSH mapping" }, ...programs.map((program) => ({ value: program.id, label: program.name }))]} />
-        <FilterSelect label="Local filter" value={localFilter} onChange={(value) => { setLocalFilter(value); search.setQuery({ crossListed: value === "cross" ? true : undefined }); }} options={[{ value: "all", label: "All results" }, { value: "custom", label: "My custom courses" }, { value: "cross", label: "Cross-listed" }, { value: "unplanned", label: "Not planned yet" }]} />
+        <FilterSelect label={t("catalog.campus")} value={search.query.campuses[0] ?? "all"} onChange={(value) => search.setQuery({ campuses: value === "all" ? [] : [value as "shanghai" | "new-york"] })} options={[{ value: "all", label: t("catalog.allCampuses") }, { value: "shanghai", label: "Shanghai" }, { value: "new-york", label: "New York" }]} />
+        <FilterSelect label={t("catalog.school")} value={search.query.sourceIds[0] ?? "all"} onChange={(value) => search.setQuery({ sourceIds: value === "all" ? [] : [value] })} options={[{ value: "all", label: t("catalog.allSchools") }, ...catalog.bootstrap.sources.map((source) => ({ value: source.id, label: source.schoolName }))]} />
+        <FilterSelect label={t("catalog.subject")} value={search.query.subjects[0] ?? "all"} onChange={(value) => search.setQuery({ subjects: value === "all" ? [] : [value] })} options={[{ value: "all", label: t("catalog.allSubjects") }, ...catalog.bootstrap.filters.subjects.map((subject) => ({ value: subject.subject, label: subject.subject }))]} />
+        <FilterSelect label={t("catalog.term")} value={search.query.catalogTerms[0] ?? "all"} onChange={(value) => search.setQuery({ catalogTerms: value === "all" ? [] : [value] })} options={[{ value: "all", label: t("catalog.anyPattern") }, ...catalog.bootstrap.filters.catalogTerms.map((term) => ({ value: term, label: term }))]} />
+        <FilterSelect label={t("catalog.credits")} value={search.query.minCredits === search.query.maxCredits && search.query.minCredits !== undefined ? String(search.query.minCredits) : "all"} onChange={(value) => search.setQuery(value === "all" ? { minCredits: undefined, maxCredits: undefined } : { minCredits: Number(value), maxCredits: Number(value) })} options={[{ value: "all", label: t("catalog.anyCredits") }, { value: "2", label: "2 credits" }, { value: "4", label: "4 credits" }]} />
+        <FilterSelect label={t("catalog.fulfillment")} value={search.query.fulfillsProgramId ?? "all"} onChange={(value) => search.setQuery({ fulfillsProgramId: value === "all" ? undefined : value })} options={[{ value: "all", label: t("catalog.anyMapping") }, ...programs.map((program) => ({ value: program.id, label: program.name }))]} />
+        <FilterSelect label={t("catalog.localFilter")} value={localFilter} onChange={(value) => { setLocalFilter(value); search.setQuery({ crossListed: value === "cross" ? true : undefined }); }} options={[{ value: "all", label: t("catalog.allResults") }, { value: "custom", label: t("catalog.customCourses") }, { value: "cross", label: t("catalog.crossListed") }, { value: "unplanned", label: t("catalog.notPlanned") }]} />
       </div>
 
-      {(search.isStale || catalog.status === "stale") && <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">Offline — showing cached course results.</p>}
+      {(search.isStale || catalog.status === "stale") && <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">{t("catalog.offline")}</p>}
       {sourceHealthIssue && <p role="status" className="rounded-lg border p-2 text-xs text-muted-foreground"><AlertTriangle className="mr-1 inline size-3.5" />Some Bulletin sources are stale or temporarily unavailable.</p>}
-      {search.status === "loading" && <div aria-label="Loading courses" className="space-y-2">{[0, 1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-xl bg-muted" />)}</div>}
-      {search.status === "error" && <div role="alert" className="rounded-xl border p-4 text-sm">Course search is temporarily unavailable. <Button size="sm" variant="outline" onClick={() => void search.retry()}>Retry</Button></div>}
+      {search.status === "loading" && <div role="status" aria-live="polite" aria-label={t("catalog.loading")} className="space-y-2">{[0, 1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-xl bg-muted" />)}</div>}
+      {search.status === "error" && <div role="alert" className="rounded-xl border p-4 text-sm">{t("catalog.searchError")} <Button size="sm" variant="outline" onClick={() => void search.retry()}>{t("catalog.retry")}</Button></div>}
 
       {search.status !== "loading" && (
-        <div ref={scrollParentRef} role="list" aria-label="Course catalog" className="max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+        <div ref={scrollParentRef} role="list" aria-label={t("workspace.courseCatalog")} className="max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
           {displayItems.length > 0 && <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const item = displayItems[virtualRow.index];
               return <div key={virtualRow.key} ref={rowVirtualizer.measureElement} data-index={virtualRow.index} role="listitem" className="absolute top-0 left-0 w-full pb-2" style={{ transform: `translateY(${virtualRow.start}px)` }}><CatalogCard item={item} sourceName={item.record ? sourceNames.get(item.record.sourceId) ?? item.record.sourceId : "Custom course"} onSelect={onSelectCourse} onMenuClosed={onMenuClosed} /></div>;
             })}
           </div>}
-          {(search.status === "empty" || (search.status === "ready" && displayItems.length === 0)) && <p className="py-10 text-center text-sm text-muted-foreground">No courses match these filters.</p>}
+          {(search.status === "empty" || (search.status === "ready" && displayItems.length === 0)) && <p className="py-10 text-center text-sm text-muted-foreground">{t("catalog.noResults")}</p>}
         </div>
       )}
       <div className="flex items-center justify-between gap-3">
-        <output aria-live="polite" aria-label="Course results" className="text-xs tabular-nums text-muted-foreground">{displayItems.length} courses</output>
-        {search.nextCursor && <Button variant="outline" disabled={search.status === "loading-more"} onClick={() => void search.loadMore()}>{search.status === "loading-more" ? "Loading…" : "Load more courses"}</Button>}
+        <output aria-live="polite" aria-label={t("catalog.results")} className="text-xs tabular-nums text-muted-foreground">{t("catalog.count", { count: displayItems.length })}</output>
+        {search.nextCursor && <Button variant="outline" disabled={search.status === "loading-more"} onClick={() => void search.loadMore()}>{search.status === "loading-more" ? t("common.loading") : t("catalog.loadMore")}</Button>}
       </div>
     </section>
   );

@@ -162,6 +162,13 @@ describe("PlannerHeader", () => {
     expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
   });
 
+  it("orders the NYU Violets logo, language, then navigation and account controls", () => {
+    const { container } = render(<PlannerHeader onGuide={() => undefined} onImportFile={() => undefined} />);
+    const ordered = container.querySelector("[data-header-order]");
+    expect([...ordered!.children].map((child) => child.getAttribute("data-header-part"))).toEqual(["logo", "language", "controls"]);
+    expect(screen.getByRole("img", { name: "NYU Violets" })).toBeDefined();
+  });
+
   it("passes a selected JSON file to the import handler", () => {
     const onImportFile = vi.fn();
     const { container } = render(

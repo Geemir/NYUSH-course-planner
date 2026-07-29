@@ -54,6 +54,7 @@ function exportFixture() {
     unresolvedProgramIds: [],
     customCourses: [],
     fulfillmentFacts: [],
+    requirementStatusOverrides: [{ programId: "core", categoryId: "core-math", status: "planned" }],
     dismissedWarnings: [],
     startYear: 2025,
   };
@@ -64,6 +65,7 @@ function exportFixture() {
     completedSemesters: snapshot.completedSemesters,
     activePrograms: ["core", "a", "b", "m"],
     fulfillmentFacts: [],
+    requirementStatusOverrides: snapshot.requirementStatusOverrides,
     dismissedWarningIds: [],
     coursesById,
     customIds: new Set(),
@@ -105,6 +107,9 @@ describe("buildPlanExportModel", () => {
       "minor",
     ]);
     expect(model.requirements[0]).toMatchObject({ unitKind: "courses" });
+    expect(model.requirements.find((item) => item.programId === "core" && item.categoryId === "core-math")).toMatchObject({
+      statusSource: "manual", manualStatus: "planned", status: "planned",
+    });
     expect(model.warnings.some(({ message }) => message.includes("NYU New York"))).toBe(true);
     expect(model.disclaimer).toMatch(/planning guidance/i);
     expect(JSON.parse(JSON.stringify(model))).toEqual(model);

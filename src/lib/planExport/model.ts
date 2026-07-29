@@ -43,6 +43,8 @@ export interface ExportRequirement {
   planned: number;
   completed: number;
   status: "complete" | "planned" | "missing";
+  statusSource: "calculated" | "manual";
+  manualStatus: "planned" | "completed" | null;
   gapSummary: string;
 }
 
@@ -148,11 +150,15 @@ export function buildPlanExportModel(
             : gap.label,
         ),
       ];
-      const status = category.completedUnits >= category.requiredUnits
+      const status = category.manualStatus === "completed"
         ? "complete"
-        : category.plannedUnits >= category.requiredUnits
+        : category.manualStatus === "planned"
           ? "planned"
-          : "missing";
+          : category.completedUnits >= category.requiredUnits
+            ? "complete"
+            : category.plannedUnits >= category.requiredUnits
+              ? "planned"
+              : "missing";
       return {
         programId: programProgress.programId,
         programRole,
@@ -164,6 +170,8 @@ export function buildPlanExportModel(
         planned: category.plannedUnits,
         completed: category.completedUnits,
         status,
+        statusSource: category.manualStatus ? "manual" : "calculated",
+        manualStatus: category.manualStatus,
         gapSummary: gaps.join("; "),
       };
     });

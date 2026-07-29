@@ -116,7 +116,7 @@ describe("PlannerBoard", () => {
     });
     expect(credits.textContent).toContain("2 cr");
     await user.click(credits);
-    await user.click(screen.getByRole("option", { name: "3 credits" }));
+    await user.click(await screen.findByRole("option", { name: "3 credits" }));
 
     expect(usePlannerStore.getState().placements[0].selectedCredits).toBe(3);
     const remove = within(chip).getByRole("button", { name: "Remove VAR 1" });
