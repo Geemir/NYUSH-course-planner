@@ -5,6 +5,7 @@ import { AdminCourses } from "@/components/admin/AdminCourses";
 import { AdminRules } from "@/components/admin/AdminRules";
 import { AlbertImport } from "@/components/admin/AlbertImport";
 import { AdminCorrections } from "@/components/admin/AdminCorrections";
+import { AdminAnnouncements } from "@/components/admin/AdminAnnouncements";
 import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Admin · NYUSH Course Planner" };
@@ -30,14 +31,14 @@ export default async function AdminPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
-      <header className="flex items-center justify-between gap-3">
-        <div>
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-5 sm:p-6">
+      <header className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">
             Catalog Admin
           </h1>
           <p className="text-sm text-muted-foreground">
-            Review catalog corrections and maintain planner data. Signed in as{" "}
+            Publish planner announcements, review corrections, and maintain catalog data. Signed in as{" "}
             {session.user.email}.
           </p>
         </div>
@@ -45,6 +46,7 @@ export default async function AdminPage() {
           Back to planner
         </Button>
       </header>
+      <AdminAnnouncements />
       <AdminCorrections />
       <AlbertImport />
       <AdminRules />
