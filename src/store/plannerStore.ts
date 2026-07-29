@@ -7,6 +7,7 @@ import type {
   FulfillmentFact,
   Grade,
   PlanPlacementV2,
+  PlanningSlot,
   PlanSnapshot,
   PlanSnapshotV2,
   PersistedPlanSnapshot,
@@ -23,6 +24,7 @@ import {
 
 export interface PlannerPresent {
   placements: PlanPlacementV2[];
+  planningSlots: PlanningSlot[];
   studyAway: Partial<Record<SemesterId, string>>;
   completedSemesters: SemesterId[];
   activePrograms: string[];
@@ -53,6 +55,13 @@ interface PlannerState extends PlannerPresent {
   setProgramProfile(profile: ProgramProfile): void;
   hydratePlan(snapshot: PlanSnapshotV2): void;
   replacePlanV2(snapshot: PlanSnapshotV2): void;
+  applySamplePlan(changeSet: SamplePlanChangeSet): void;
+  replacePlanningSlot(slotId: string, course: CoursePlacementInput): void;
+  updatePlanningSlot(
+    slotId: string,
+    changes: Partial<Pick<PlanningSlot, "label" | "credits" | "semesterId">>,
+  ): void;
+  removePlanningSlot(slotId: string): void;
   reconcilePrograms(validIds: readonly string[], defaultIds: readonly string[]): void;
   repointPlacements(resolved: readonly { courseId: string; catalogCourseId: string; titleSnapshot?: string }[]): void;
   addCustomCourse(course: Course): void;
@@ -73,6 +82,17 @@ export interface CoursePlacementInput {
   courseId: string;
   catalogCourseId?: string;
   titleSnapshot?: string;
+  selectedCredits?: number;
+}
+
+export type SamplePlanPlacementInput = Omit<
+  PlanPlacementV2,
+  "placementId" | "allocation"
+> & { allocation?: Allocation };
+
+export interface SamplePlanChangeSet {
+  placements: SamplePlanPlacementInput[];
+  slots: PlanningSlot[];
 }
 
 let placementSequence = 0;
@@ -97,6 +117,36 @@ function withPlacementIds(placements: readonly (PlanPlacementV2 | Omit<PlanPlace
     : { ...structuredClone(placement), placementId: newPlacementId() });
 }
 
+function mergeSamplePlacements(
+  current: readonly PlanPlacementV2[],
+  incoming: readonly SamplePlanPlacementInput[],
+): PlanPlacementV2[] {
+  const placements = current.map((placement) => structuredClone(placement));
+  for (const placement of incoming) {
+    const identity = placement.catalogCourseId ?? placement.courseId;
+    if (placementIndex(placements, identity) >= 0) continue;
+    placements.push({
+      ...structuredClone(placement),
+      placementId: newPlacementId(),
+      allocation: placement.allocation ?? "auto",
+    });
+  }
+  return placements;
+}
+
+function mergeSlotsBySourceKey(
+  current: readonly PlanningSlot[],
+  incoming: readonly PlanningSlot[],
+): PlanningSlot[] {
+  const bySourceKey = new Map(
+    current.map((slot) => [slot.sourceKey, structuredClone(slot)]),
+  );
+  incoming.forEach((slot) =>
+    bySourceKey.set(slot.sourceKey, structuredClone(slot)),
+  );
+  return [...bySourceKey.values()];
+}
+
 function profileFromIds(ids: readonly string[]): ProgramProfile {
   const coreProgramId = ids.includes("core") ? "core" : ids[0] ?? "core";
   const selected = ids.filter((id) => id !== coreProgramId);
@@ -110,6 +160,7 @@ function profileFromIds(ids: readonly string[]): ProgramProfile {
 
 const initialPresent: PlannerPresent = {
   placements: [],
+  planningSlots: [],
   studyAway: {},
   completedSemesters: [],
   activePrograms: ["core", "cs", "ima"],
@@ -130,6 +181,7 @@ const initialPresent: PlannerPresent = {
 function presentFromState(state: PlannerPresent): PlannerPresent {
   return structuredClone({
     placements: state.placements,
+    planningSlots: state.planningSlots,
     studyAway: state.studyAway,
     completedSemesters: state.completedSemesters,
     activePrograms: state.activePrograms,
@@ -214,6 +266,7 @@ export const usePlannerStore = create<PlannerState>()(
         hydratePlan: (snapshot) => set(() => {
           const present: PlannerPresent = {
             placements: structuredClone(snapshot.placements),
+            planningSlots: structuredClone(snapshot.planningSlots ?? []),
             studyAway: structuredClone(snapshot.studyAway),
             completedSemesters: [...snapshot.completedSemesters],
             activePrograms: activeProgramIds(snapshot.programProfile),
@@ -230,6 +283,7 @@ export const usePlannerStore = create<PlannerState>()(
         }),
         replacePlanV2: (snapshot) => mutate("Use server plan", () => ({
           placements: structuredClone(snapshot.placements),
+          planningSlots: structuredClone(snapshot.planningSlots ?? []),
           studyAway: structuredClone(snapshot.studyAway),
           completedSemesters: [...snapshot.completedSemesters],
           activePrograms: activeProgramIds(snapshot.programProfile),
@@ -241,6 +295,46 @@ export const usePlannerStore = create<PlannerState>()(
           dismissedWarnings: [...snapshot.dismissedWarnings],
           startYear: snapshot.startYear,
         })),
+        applySamplePlan: (changeSet) =>
+          mutate("Apply sample study plan", (present) => ({
+            ...present,
+            placements: mergeSamplePlacements(
+              present.placements,
+              changeSet.placements,
+            ),
+            planningSlots: mergeSlotsBySourceKey(
+              present.planningSlots,
+              changeSet.slots,
+            ),
+          })),
+        replacePlanningSlot: (slotId, course) =>
+          mutate("Choose course for planning slot", (present) => {
+            const slot = present.planningSlots.find((item) => item.id === slotId);
+            if (!slot) return present;
+            return {
+              ...present,
+              placements: mergeSamplePlacements(present.placements, [
+                { ...course, semesterId: slot.semesterId },
+              ]),
+              planningSlots: present.planningSlots.filter(
+                (item) => item.id !== slotId,
+              ),
+            };
+          }),
+        updatePlanningSlot: (slotId, changes) =>
+          mutate("Edit planning slot", (present) => ({
+            ...present,
+            planningSlots: present.planningSlots.map((slot) =>
+              slot.id === slotId ? { ...slot, ...changes } : slot,
+            ),
+          })),
+        removePlanningSlot: (slotId) =>
+          mutate("Remove planning slot", (present) => ({
+            ...present,
+            planningSlots: present.planningSlots.filter(
+              (slot) => slot.id !== slotId,
+            ),
+          })),
         reconcilePrograms: (validIds, defaultIds) => set((state) => {
           // Preserve the profile's role structure; only drop ids the active
           // catalog no longer contains (falling back to defaults for the two
@@ -312,6 +406,7 @@ export const usePlannerStore = create<PlannerState>()(
         setStartYear: (startYear) => mutate("Change start year", (present) => ({ ...present, startYear })),
         importPlan: (snapshot) => mutate("Import plan", () => snapshot.version === 2 ? ({
           placements: withPlacementIds(snapshot.placements),
+          planningSlots: structuredClone(snapshot.planningSlots ?? []),
           studyAway: snapshot.studyAway,
           completedSemesters: snapshot.completedSemesters,
           activePrograms: activeProgramIds(snapshot.programProfile),
@@ -324,6 +419,7 @@ export const usePlannerStore = create<PlannerState>()(
           startYear: snapshot.startYear,
         }) : ({
           placements: withPlacementIds(snapshot.placements),
+          planningSlots: [],
           studyAway: snapshot.studyAway,
           completedSemesters: snapshot.completedSemesters,
           activePrograms: snapshot.activePrograms,
@@ -355,6 +451,7 @@ export const usePlannerStore = create<PlannerState>()(
           merged.programProfile = profileFromIds(merged.activePrograms);
         }
         merged.placements = withPlacementIds(merged.placements);
+        merged.planningSlots = structuredClone(merged.planningSlots ?? []);
         const history = createHistory(presentFromState(merged));
         return { ...merged, ...historyFields(history) };
       },
@@ -390,6 +487,7 @@ export function snapshotV2FromState(
     version: 2,
     catalogReleaseId,
     placements: structuredClone(state.placements),
+    planningSlots: structuredClone(state.planningSlots),
     studyAway: structuredClone(state.studyAway),
     completedSemesters: [...state.completedSemesters],
     programProfile: structuredClone(state.programProfile),

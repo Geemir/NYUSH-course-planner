@@ -602,7 +602,7 @@ export interface PlanSnapshotV2 {
   version: 2;
   catalogReleaseId: string | null;
   placements: PlanPlacementV2[];
-  planningSlots?: PlanningSlot[];
+  planningSlots: PlanningSlot[];
   studyAway: Partial<Record<SemesterId, string>>;
   completedSemesters: SemesterId[];
   programProfile: import("@/lib/programProfile").ProgramProfile;
