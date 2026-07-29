@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from "vitest";
 import {
+  downloadPlanJson,
   exportPlan,
   parsePlan,
   parsePlanDocument,
@@ -107,5 +109,26 @@ describe("parsePlan", () => {
 
   it("rejects unknown document versions", () => {
     expect(() => parsePlanDocument(JSON.stringify({ version: 3 }))).toThrow();
+  });
+
+  it("names JSON backups by entry year", () => {
+    const createObjectURL = URL.createObjectURL = vi.fn(() => "blob:plan");
+    const revokeObjectURL = URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const v2 = {
+      version: 2 as const,
+      catalogReleaseId: null,
+      placements: [], studyAway: {}, completedSemesters: [],
+      programProfile: { coreProgramId: "core", primaryMajorId: "cs", secondMajorId: null, minorIds: [] },
+      unresolvedProgramIds: [], customCourses: [], fulfillmentFacts: [], dismissedWarnings: [], startYear: 2027,
+    };
+
+    downloadPlanJson(v2, 2027);
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+    expect((click.mock.instances[0] as HTMLAnchorElement).download).toBe("nyush-degree-plan-2027.json");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:plan");
+    click.mockRestore();
   });
 });

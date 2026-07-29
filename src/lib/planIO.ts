@@ -91,7 +91,10 @@ export function exportPlan(snapshot: PlanSnapshotV2): string {
   return JSON.stringify(PlanSnapshotV2Schema.parse(snapshot), null, 2);
 }
 
-export function downloadPlan(snapshot: PersistedPlanSnapshot) {
+export function downloadPlanJson(
+  snapshot: PersistedPlanSnapshot,
+  startYear: number = snapshot.startYear,
+) {
   const body = snapshot.version === 2
     ? exportPlan(snapshot)
     : JSON.stringify(PlanSnapshotV1Schema.parse(snapshot), null, 2);
@@ -99,7 +102,10 @@ export function downloadPlan(snapshot: PersistedPlanSnapshot) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "nyush-plan.json";
+  anchor.download = `nyush-degree-plan-${startYear}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
+
+/** @deprecated Use downloadPlanJson for explicit format naming. */
+export const downloadPlan = downloadPlanJson;
