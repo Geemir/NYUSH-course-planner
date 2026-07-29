@@ -7,6 +7,7 @@ import { render, screen, waitFor } from "@/test/render";
 const context = {
   target: { kind: "course" as const, stableId: "stern:TEST-UA 1" },
   catalogReleaseId: "release-1", sourceId: "stern", sourceSnapshotId: "snapshot-1",
+  tableId: "course-list", sourceIndex: 7,
   sourceUrl: "https://bulletins.nyu.edu/course", displayedValue: "TEST-UA 1 — Seminar", label: "TEST-UA 1 · Seminar",
 };
 
@@ -30,7 +31,7 @@ describe("ReportIssueDialog", () => {
 
     await screen.findByRole("heading", { name: "Report submitted" });
     const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
-    expect(body).toMatchObject({ target: context.target, catalogReleaseId: "release-1", context: { sourceSnapshotId: "snapshot-1" } });
+    expect(body).toMatchObject({ target: context.target, catalogReleaseId: "release-1", context: { sourceSnapshotId: "snapshot-1", tableId: "course-list", sourceIndex: 7 } });
   });
 
   it("shows local validation and rate-limit states", async () => {

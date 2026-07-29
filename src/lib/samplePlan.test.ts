@@ -27,6 +27,7 @@ function record(sourceId: string, code: string): CatalogCourseRecord {
       credits: 4,
       department: code.split(" ")[0],
       prereqs: [],
+      sourceReferenceIds: [],
       offered: [],
       offeringKnown: false,
       sites: [sourceId === "nyu-shanghai" ? "shanghai" : "newyork"],

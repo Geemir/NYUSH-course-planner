@@ -17,6 +17,8 @@ export interface ReportIssueContext {
   schoolName?: string;
   sourceUrl?: string;
   displayedValue?: string;
+  tableId?: string;
+  sourceIndex?: number;
   label: string;
 }
 
@@ -61,6 +63,8 @@ export function ReportIssueDialog({ open, onOpenChange, context, onSubmitted }: 
         schoolName: context.schoolName,
         sourceUrl: context.sourceUrl,
         displayedValue: context.displayedValue,
+        tableId: context.tableId,
+        sourceIndex: context.sourceIndex,
       },
       title: title.trim(), description: description.trim(),
       suggestedCorrection: suggestion.trim() || undefined,

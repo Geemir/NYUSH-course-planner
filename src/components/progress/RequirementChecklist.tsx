@@ -1,41 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Circle,
-  ExternalLink,
-  GraduationCap,
-  ShieldCheck,
-  Check,
-  ListChecks,
-} from "lucide-react";
-import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
+import { CheckCircle2, Circle, ShieldCheck } from "lucide-react";
+import { useCatalog } from "@/components/CatalogProvider";
+import { ReportIssueDialog, type ReportIssueContext } from "@/components/corrections/ReportIssueDialog";
 import { useLocale } from "@/components/i18n/LocaleProvider";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { BulletinRequirements, type BulletinReportContext } from "@/components/progress/BulletinRequirements";
+import { SampleStudyPlan } from "@/components/progress/SampleStudyPlan";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
 import type { ClientPlannerProgram } from "@/lib/catalogClient";
-import type {
-  CategoryProgress,
-  FulfillmentFact,
-  RequirementGap,
-  RequirementNode,
-} from "@/lib/types";
-import { semesterTermName } from "@/lib/types";
+import type { CategoryProgress, FulfillmentFact, RequirementNode } from "@/lib/types";
 import { usePlannerStore } from "@/store/plannerStore";
 
 type EvidenceRequirement = {
@@ -43,371 +20,100 @@ type EvidenceRequirement = {
   kind: "waiver" | "manualConfirmation";
   requirementId: string;
   label: string;
-  sourceText: string;
 };
 
-function unitsLabel(category: CategoryProgress): string {
-  const suffix = category.unitKind === "credits" ? " cr" : "";
-  return `${category.completedUnits} earned · ${category.plannedUnits} planned / ${category.requiredUnits}${suffix}`;
-}
-
-function evidenceRequirements(
-  program: ClientPlannerProgram,
-  categoryId: string,
-): EvidenceRequirement[] {
-  const category = program.categories.find((item) => item.id === categoryId);
-  if (!category || !("requirement" in category)) return [];
-  const rows = "requirementRows" in program ? program.requirementRows : [];
-  const evidence: EvidenceRequirement[] = [];
-
-  const visit = (node: RequirementNode, path: number[]) => {
-    const sourceText =
-      rows.find(
-        (row) =>
-          row.categoryId === categoryId &&
-          row.nodePath.length === path.length &&
-          row.nodePath.every((part, index) => part === path[index]),
-      )?.sourceText;
-
-    if (node.kind === "waiver") {
-      evidence.push({
-        factId: `waiver:${program.id}:${categoryId}:${path.join("-") || "root"}`,
-        kind: "waiver",
-        requirementId: node.waiverId,
-        label: node.label,
-        sourceText: sourceText ?? node.label,
-      });
-      return;
-    }
-    if (node.kind === "manualConfirmation") {
-      evidence.push({
-        factId: `manual:${program.id}:${categoryId}:${path.join("-") || "root"}`,
-        kind: "manualConfirmation",
-        requirementId: node.sourceText,
-        label: node.label,
-        sourceText: sourceText ?? node.sourceText,
-      });
-      return;
-    }
-    if (node.kind === "exclusion") {
-      visit(node.child, [...path, 0]);
-      return;
-    }
-    if (
-      node.kind === "all" ||
-      node.kind === "any" ||
-      node.kind === "choose" ||
-      node.kind === "credits"
-    ) {
-      node.children.forEach((child, index) => visit(child, [...path, index]));
-    }
-  };
-
-  visit(category.requirement, []);
-  return evidence;
-}
-
-function EvidenceRow({ item }: { item: EvidenceRequirement }) {
-  const { t } = useLocale();
-  const facts = usePlannerStore((state) => state.fulfillmentFacts);
-  const recordFact = usePlannerStore((state) => state.recordFulfillmentFact);
-  const removeFact = usePlannerStore((state) => state.removeFulfillmentFact);
-  const fact = facts.find(
-    (candidate) =>
-      candidate.kind === item.kind &&
-      candidate.requirementId === item.requirementId,
-  );
-  const isManual = item.kind === "manualConfirmation";
-  const label = isManual ? t("progress.needsConfirmation") : "Waiver available";
-
-  const addFact = () => {
-    const next: FulfillmentFact = {
-      id: item.factId,
-      kind: item.kind,
-      requirementId: item.requirementId,
-      label: item.label,
+function verifiedEvidence(program: ClientPlannerProgram): Map<string, EvidenceRequirement[]> {
+  if (!("interpretations" in program)) return new Map();
+  const result = new Map<string, EvidenceRequirement[]>();
+  for (const interpretation of program.interpretations) {
+    if (interpretation.status !== "verified" || !interpretation.requirement) continue;
+    const evidence: EvidenceRequirement[] = [];
+    const visit = (node: RequirementNode, path: number[]) => {
+      if (node.kind === "waiver") {
+        evidence.push({ factId: `waiver:${program.id}:${interpretation.id}:${path.join("-") || "root"}`, kind: "waiver", requirementId: node.waiverId, label: node.label });
+        return;
+      }
+      if (node.kind === "manualConfirmation") {
+        evidence.push({ factId: `manual:${program.id}:${interpretation.id}:${path.join("-") || "root"}`, kind: "manualConfirmation", requirementId: node.sourceText, label: node.label });
+        return;
+      }
+      if (node.kind === "exclusion") return visit(node.child, [...path, 0]);
+      if ("children" in node) node.children.forEach((child, index) => visit(child, [...path, index]));
     };
-    recordFact(next);
-  };
+    visit(interpretation.requirement, []);
+    if (evidence.length) result.set(interpretation.id, evidence);
+  }
+  return result;
+}
 
+function EvidenceControl({ item }: { item: EvidenceRequirement }) {
+  const facts = usePlannerStore((state) => state.fulfillmentFacts);
+  const add = usePlannerStore((state) => state.recordFulfillmentFact);
+  const remove = usePlannerStore((state) => state.removeFulfillmentFact);
+  const fact = facts.find((candidate) => candidate.kind === item.kind && candidate.requirementId === item.requirementId);
+  const record = () => {
+    const next: FulfillmentFact = { id: item.factId, kind: item.kind, requirementId: item.requirementId, label: item.label };
+    add(next);
+  };
   return (
-    <li
-      data-testid={isManual ? "manual-requirement" : "waiver-requirement"}
-      className="flex flex-col gap-2 rounded-lg bg-muted/45 p-3"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <ShieldCheck
-            className={
-              fact
-                ? "size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
-                : "size-4 shrink-0 text-muted-foreground"
-            }
-          />
-          <div className="min-w-0">
-            <p className="text-xs font-semibold">{item.label}</p>
-            {/* Planner status — compact, sans, and status-colored. */}
-            <p
-              className={`text-[11px] font-semibold ${
-                fact
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-amber-600 dark:text-amber-400"
-              }`}
-            >
-              {fact ? t("progress.fulfilledManually") : label}
-            </p>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant={fact ? "ghost" : "outline"}
-          size="sm"
-          className="min-h-9"
-          onClick={() => (fact ? removeFact(fact.id) : addFact())}
-        >
-          {isManual
-            ? fact ? t("progress.removeManual") : t("progress.markFulfilled")
-            : fact ? "Remove waiver" : "Record waiver"}
-        </Button>
-      </div>
-      {/* Verbatim Bulletin text — distinct serif/italic quote, not planner UI. */}
-      <figure className="max-w-[65ch] rounded-lg bg-primary/5 px-3 py-2.5">
-        <figcaption className="text-[11px] font-medium text-muted-foreground">
-          From the NYU Bulletin
-        </figcaption>
-        <blockquote className="mt-0.5 font-serif text-[13px] italic leading-relaxed text-foreground/80">
-          {item.sourceText}
-        </blockquote>
-      </figure>
+    <li className="flex flex-wrap items-center justify-between gap-3 py-2">
+      <span className="flex items-center gap-2 text-sm">
+        <ShieldCheck aria-hidden="true" className={fact ? "size-4 text-emerald-600" : "size-4 text-muted-foreground"} />
+        {item.label}
+      </span>
+      <Button type="button" size="sm" variant={fact ? "ghost" : "outline"} onClick={() => fact ? remove(fact.id) : record()}>
+        {fact ? "Remove evidence" : item.kind === "waiver" ? "Record waiver" : "Confirm with evidence"}
+      </Button>
     </li>
   );
 }
 
-function MissingCourseList({ courseIds }: { courseIds: string[] }) {
-  const { coursesById } = usePlanDerived();
-  const [expanded, setExpanded] = useState(false);
-  const LIMIT = 6;
-  if (courseIds.length === 0) return null;
-  const shown = expanded ? courseIds : courseIds.slice(0, LIMIT);
-  return (
-    <>
-      {shown.map((courseId) => (
-        <li
-          key={courseId}
-          className="flex items-center gap-1.5 text-sm text-destructive/80"
-        >
-          <Circle className="size-3.5 shrink-0" />
-          <span className="font-mono text-xs">{courseId}</span>
-          <span className="truncate text-xs" title={coursesById.get(courseId)?.title ?? undefined}>
-            {coursesById.get(courseId)?.title ?? "Course title unavailable"}
-          </span>
-          <span className="ml-auto shrink-0 text-[11px]">not planned</span>
-        </li>
-      ))}
-      {courseIds.length > LIMIT && (
-        <li className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            {expanded ? "Show fewer" : `Show all ${courseIds.length} listed as required`}
-          </button>
-          {!expanded && (
-            <span className="text-[11px] text-muted-foreground">
-              — that&apos;s a lot; this may be a &ldquo;choose some&rdquo; requirement
-              mis-read as &ldquo;take all&rdquo; (see the note above).
-            </span>
-          )}
-        </li>
-      )}
-    </>
-  );
+function units(category: CategoryProgress): string {
+  const suffix = category.unitKind === "credits" ? " cr" : "";
+  return `${category.completedUnits} earned · ${category.plannedUnits} planned / ${category.requiredUnits}${suffix}`;
 }
 
-function CategoryRow({
-  category,
-  program,
-}: {
-  category: CategoryProgress;
-  program: ClientPlannerProgram;
-}) {
-  const { t } = useLocale();
-  const [reporting, setReporting] = useState(false);
-  const { placementByCourse, coursesById } = usePlanDerived();
-  const completedSemesters = usePlannerStore((state) => state.completedSemesters);
-  const startYear = usePlannerStore((state) => state.startYear);
-  const overrides = usePlannerStore((state) => state.requirementStatusOverrides);
-  const setRequirementStatus = usePlannerStore((state) => state.setRequirementStatus);
-  const storedOverride = overrides.find((item) => item.programId === program.id && item.categoryId === category.categoryId);
-  const manualStatus = storedOverride?.status ?? category.manualStatus ?? null;
-  const done = manualStatus !== null || category.plannedUnits >= category.requiredUnits;
-  const evidence = evidenceRequirements(program, category.categoryId);
-  const programCategory = program.categories.find(
-    (item) => item.id === category.categoryId,
-  );
-  const sourceUrl =
-    programCategory && "sourceUrl" in programCategory
-      ? programCategory.sourceUrl
-      : undefined;
-
+function PlannerInterpretation({ program, progress }: { program: ClientPlannerProgram; progress: { categories: CategoryProgress[] } }) {
+  const evidenceByCategory = verifiedEvidence(program);
   return (
-    <section
-      className="flex flex-col gap-2.5 py-3"
-      data-testid={`requirement-category-${program.id}-${category.categoryId}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h4 className="flex items-center gap-1.5 text-sm font-medium">
-            {category.isCapstone && <GraduationCap className="size-4" />}
-            {category.name}
-          </h4>
-          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-            {unitsLabel(category)}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <Badge variant={done ? "default" : "secondary"} className="text-xs">
-            {manualStatus === "completed"
-              ? t("progress.fulfilledManually")
-              : manualStatus === "planned"
-                ? t("progress.plannedManually")
-                : done ? t("progress.planned") : t("progress.inProgress")}
-          </Badge>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label={manualStatus ? t("progress.changeStatus") : t("progress.setStatusLabel")}
-                />
-              }
-            >
-              <ListChecks aria-hidden="true" />
-              {manualStatus ? t("progress.change") : t("progress.setStatus")}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, "planned")}>
-                {manualStatus === "planned" && <Check aria-hidden="true" />}
-                {t("progress.markPlanned")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, "completed")}>
-                {manualStatus === "completed" && <Check aria-hidden="true" />}
-                {t("progress.markFulfilled")}
-              </DropdownMenuItem>
-              {manualStatus && (
-                <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, null)}>
-                  {t("progress.useCalculated")}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      <ul className="flex flex-col gap-1.5">
-        {category.matchedCourseIds.map((courseId) => {
-          const placement = placementByCourse.get(courseId);
-          const isDone =
-            placement !== undefined &&
-            completedSemesters.includes(placement.semesterId);
+    <details className="mt-6 rounded-xl bg-muted/35 p-4 ring-1 ring-border">
+      <summary className="cursor-pointer text-sm font-semibold">Planner interpretation · Beta</summary>
+      <p className="mt-2 max-w-[65ch] text-sm text-muted-foreground">
+        Calculated from verified requirements only. Use the Bulletin rows above as the source of truth.
+      </p>
+      <div className="mt-3 divide-y">
+        {progress.categories.map((category) => {
+          const done = category.plannedUnits >= category.requiredUnits;
+          const evidence = evidenceByCategory.get(category.categoryId) ?? [];
           return (
-            <li
-              key={courseId}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground"
-            >
-              {isDone ? (
-                <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500" />
-              ) : (
-                <Circle className="size-3.5 shrink-0" />
-              )}
-              <span className="font-mono text-xs">{courseId}</span>
-              <span className="truncate text-xs" title={coursesById.get(courseId)?.title ?? undefined}>
-                {coursesById.get(courseId)?.title ?? t("progress.courseUnavailable")}
-              </span>
-              {placement && (
-                <span className="ml-auto shrink-0 text-[11px]">
-                  {semesterTermName(placement.semesterId, startYear)}
-                </span>
-              )}
-            </li>
+            <section key={category.categoryId} className="py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="flex items-center gap-2 text-sm font-medium">
+                    {done ? <CheckCircle2 aria-hidden="true" className="size-4 text-emerald-600" /> : <Circle aria-hidden="true" className="size-4 text-muted-foreground" />}
+                    {category.name}
+                  </h4>
+                  <p className="mt-1 text-xs tabular-nums text-muted-foreground">{units(category)}</p>
+                </div>
+                <Badge variant={done ? "default" : "secondary"}>{done ? "Planned" : "In progress"}</Badge>
+              </div>
+              {evidence.length > 0 && <ul className="mt-2 divide-y">{evidence.map((item) => <EvidenceControl key={item.factId} item={item} />)}</ul>}
+            </section>
           );
         })}
-        <MissingCourseList courseIds={category.missingCourseIds} />
-        {category.gaps
-          .filter((gap): gap is Extract<RequirementGap, { kind: "ambiguous" }> => gap.kind === "ambiguous")
-          .map((gap, index) => (
-            <li
-              key={`${gap.label}:${index}`}
-              className="rounded-lg border border-primary/25 bg-primary/5 p-2.5"
-            >
-              <p className="text-xs font-semibold text-primary">
-                Your choice — {gap.label.toLowerCase()}
-              </p>
-              {gap.candidateCourseIds.length > 0 && (
-                <>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Any of these count; you don&apos;t need them all:
-                  </p>
-                  <p className="mt-1 flex flex-wrap gap-1">
-                    {gap.candidateCourseIds.slice(0, 6).map((courseId) => (
-                      <span key={courseId} className="rounded bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-                        {courseId}
-                      </span>
-                    ))}
-                    {gap.candidateCourseIds.length > 6 && (
-                      <span className="px-1 text-[11px] text-muted-foreground">
-                        +{gap.candidateCourseIds.length - 6} more in the catalog
-                      </span>
-                    )}
-                  </p>
-                </>
-              )}
-            </li>
-          ))}
-        {(evidence.length > 4 ? evidence.slice(0, 3) : evidence).map((item) => (
-          <EvidenceRow key={item.factId} item={item} />
-        ))}
-        {evidence.length > 4 && (
-          <li>
-            <details className="group">
-              <summary className="cursor-pointer list-none rounded-lg bg-muted/45 p-2.5 text-xs font-medium text-muted-foreground hover:bg-muted">
-                <span className="group-open:hidden">Show {evidence.length - 3} more Bulletin rows needing review…</span>
-                <span className="hidden group-open:inline">Hide extra Bulletin rows</span>
-              </summary>
-              <ul className="mt-1.5 flex flex-col gap-1.5">
-                {evidence.slice(3).map((item) => (
-                  <EvidenceRow key={item.factId} item={item} />
-                ))}
-              </ul>
-            </details>
-          </li>
-        )}
-      </ul>
-
-      {sourceUrl && (
-        <div className="flex flex-wrap items-center gap-2">
-          <a href={sourceUrl} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary">{t("progress.viewBulletin")}<ExternalLink className="size-3" /></a>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setReporting(true)}><AlertCircle />{t("progress.reportRequirement")}</Button>
-        </div>
-      )}
-      {sourceUrl && <ReportIssueDialog open={reporting} onOpenChange={setReporting} context={{
-        target: { kind: "requirement", programId: program.id, requirementId: category.categoryId },
-        catalogReleaseId: null, sourceUrl,
-        sourceSnapshotId: "provenance" in program ? program.provenance.snapshotId : undefined,
-        displayedValue: `${program.name}: ${category.name} — ${unitsLabel(category)}`,
-        label: `${program.name} · ${category.name}`,
-      }} />}
-    </section>
+      </div>
+    </details>
   );
 }
 
 export function RequirementChecklist() {
   const { t } = useLocale();
+  const { bootstrap } = useCatalog();
   const { activeProgramObjs, progressByProgram } = usePlanDerived();
+  const placements = usePlannerStore((state) => state.placements);
+  const completedSemesters = usePlannerStore((state) => state.completedSemesters);
   const profile = usePlannerStore((state) => state.programProfile);
+  const [reportContext, setReportContext] = useState<ReportIssueContext | null>(null);
 
   const roleLabel = (programId: string) => {
     if (programId === profile.coreProgramId) return t("progress.core");
@@ -416,54 +122,69 @@ export function RequirementChecklist() {
     return t("progress.minor");
   };
 
+  const reportRow = (program: ClientPlannerProgram, row: BulletinReportContext) => {
+    if (!("bulletinDisplay" in program) || !program.bulletinDisplay) return;
+    setReportContext({
+      target: { kind: "requirement", programId: program.id, requirementId: `${row.tableId}:${row.sourceIndex}` },
+      catalogReleaseId: bootstrap.release.id,
+      sourceSnapshotId: "provenance" in program ? program.provenance.snapshotId : undefined,
+      sourceUrl: program.bulletinDisplay.sourceUrl,
+      displayedValue: row.displayedValue,
+      tableId: row.tableId,
+      sourceIndex: row.sourceIndex,
+      label: `${program.name} · ${row.displayedValue}`,
+    });
+  };
+
   return (
     <>
-      <div
-        role="note"
-        className="mb-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-foreground"
-      >
+      <div role="note" className="mb-4 rounded-xl bg-primary/7 p-4 text-sm leading-6 text-foreground ring-1 ring-primary/20">
         {t("progress.bulletinNote")}
       </div>
       <Accordion>
         {activeProgramObjs.map((program) => {
-        const progress = progressByProgram.get(program.id);
-        if (!progress) return null;
-        return (
-          <AccordionItem key={program.id} value={program.id}>
-            <AccordionTrigger className="text-sm">
-              <span className="flex items-center gap-2">
-                <span
-                  className="inline-block size-2.5 rounded-full"
-                  style={{ backgroundColor: program.color }}
-                />
-                {program.name}
-                <Badge variant="outline" className="text-[10px]">{roleLabel(program.id)}</Badge>
-                <span className="text-xs font-normal tabular-nums text-muted-foreground">
-                  {Math.round(progress.plannedFraction * 100)}%
+          const progress = progressByProgram.get(program.id);
+          if (!progress) return null;
+          const display = "bulletinDisplay" in program ? program.bulletinDisplay : undefined;
+          const samplePlan = "samplePlan" in program ? program.samplePlan : undefined;
+          const authoritative = progress.authoritativePlannedFraction;
+          return (
+            <AccordionItem key={program.id} value={program.id}>
+              <AccordionTrigger className="text-sm">
+                <span className="flex flex-wrap items-center gap-2 text-left">
+                  <span className="inline-block size-2.5 rounded-full" style={{ backgroundColor: program.color }} />
+                  {program.name}
+                  <Badge variant="outline" className="text-[10px]">{roleLabel(program.id)}</Badge>
+                  {authoritative !== null ? (
+                    <span className="text-xs font-normal tabular-nums text-muted-foreground">{Math.round(authoritative * 100)}%</span>
+                  ) : (
+                    <span className="text-xs font-normal text-muted-foreground">{progress.verifiedCategoryCount} of {progress.totalInterpretationCount} requirements verified</span>
+                  )}
                 </span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <p className="pb-2 text-xs text-muted-foreground">
-                {"auditAuthority" in program && program.auditAuthority === "reviewed-nyush-overlay"
-                  ? "Source: Reviewed planner overlay — confirm advisor-dependent combinations."
-                  : "Source: NYU Shanghai Bulletin requirements."}
-              </p>
-              {"reviewedNotes" in program && program.reviewedNotes?.length ? <div className="mb-3 space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs"><p className="font-semibold text-primary">Maintainer-reviewed notes</p>{program.reviewedNotes.map((item) => <p key={item.overlayId}>{item.note}</p>)}</div> : null}
-              <div className="flex flex-col divide-y">
-                {progress.categories.map((category) => (
-                  <CategoryRow
-                    key={category.categoryId}
-                    category={category}
-                    program={program}
+              </AccordionTrigger>
+              <AccordionContent>
+                {display ? (
+                  <BulletinRequirements
+                    programId={program.id}
+                    programName={program.name}
+                    catalogReleaseId={bootstrap.release.id}
+                    sourceSnapshotId={"provenance" in program ? program.provenance.snapshotId : undefined}
+                    display={display}
+                    placements={placements}
+                    completedSemesters={completedSemesters}
+                    onReport={(row) => reportRow(program, row)}
                   />
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        );
-      })}
+                ) : (
+                  <p className="rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">The source-faithful Bulletin view is unavailable for this legacy program.</p>
+                )}
+                <PlannerInterpretation program={program} progress={progress} />
+                {samplePlan && <SampleStudyPlan programId={program.id} catalogReleaseId={bootstrap.release.id} samplePlan={samplePlan} />}
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
       </Accordion>
+      {reportContext && <ReportIssueDialog open onOpenChange={(open) => !open && setReportContext(null)} context={reportContext} />}
     </>
   );
 }

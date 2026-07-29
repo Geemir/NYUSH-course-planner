@@ -31,6 +31,8 @@ export const CorrectionContextSchema = z.object({
   schoolName: z.string().max(160).optional(),
   sourceUrl: HttpsUrlSchema.optional(),
   displayedValue: z.string().max(4000).optional(),
+  tableId: z.string().min(1).max(300).optional(),
+  sourceIndex: z.number().int().nonnegative().optional(),
 }).strict();
 
 export const CreateCorrectionRequestSchema = z.object({
