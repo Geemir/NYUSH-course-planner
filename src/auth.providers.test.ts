@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Google from "next-auth/providers/google";
-import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 
 async function loadAuthModule() {
   vi.resetModules();
@@ -24,49 +23,26 @@ describe("auth providers", () => {
     vi.clearAllMocks();
   });
 
-  it("omits the console email provider in production", async () => {
+  it("registers Google only when configured", async () => {
     const { buildProviders } = await loadAuthModule();
 
     expect(
       buildProviders({
-        NODE_ENV: "production",
-        AUTH_MICROSOFT_ENTRA_ID_ID: "entra-client",
         AUTH_GOOGLE_ID: "google-client",
       }),
-    ).not.toContainEqual(expect.objectContaining({ id: "nyu-email" }));
+    ).toEqual([Google]);
   });
 
-  it("keeps configured production OAuth providers", async () => {
+  it("registers no fallback providers", async () => {
     const { buildProviders } = await loadAuthModule();
 
+    expect(buildProviders({})).toEqual([]);
     expect(
       buildProviders({
-        NODE_ENV: "production",
         AUTH_MICROSOFT_ENTRA_ID_ID: "entra-client",
-        AUTH_GOOGLE_ID: "google-client",
-      }),
-    ).toEqual([MicrosoftEntraID, Google]);
-  });
-
-  it("includes the console email provider outside production", async () => {
-    const { buildProviders } = await loadAuthModule();
-
-    expect(buildProviders({ NODE_ENV: "development" })).toContainEqual(
-      expect.objectContaining({ id: "nyu-email" }),
-    );
-    expect(buildProviders({ NODE_ENV: "test" })).toContainEqual(
-      expect.objectContaining({ id: "nyu-email" }),
-    );
-  });
-
-  it("ignores E2E-like environment variables when building providers", async () => {
-    const { buildProviders } = await loadAuthModule();
-    const providers = buildProviders({
-      NODE_ENV: "production",
-      E2E_AUTH_BYPASS: "true",
-    } as Parameters<typeof buildProviders>[0]);
-
-    expect(providers).toEqual([]);
+        NODE_ENV: "development",
+      } as Parameters<typeof buildProviders>[0]),
+    ).toEqual([]);
   });
 
   it("accepts only NYU email identities", async () => {

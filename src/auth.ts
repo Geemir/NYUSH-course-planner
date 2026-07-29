@@ -1,7 +1,6 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Google from "next-auth/providers/google";
-import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
@@ -9,8 +8,6 @@ import { accounts, sessions, users, verificationTokens } from "@/db/schema";
 const NYU_DOMAIN = "@nyu.edu";
 
 export interface AuthProviderEnv {
-  NODE_ENV?: string;
-  AUTH_MICROSOFT_ENTRA_ID_ID?: string;
   AUTH_GOOGLE_ID?: string;
 }
 
@@ -36,46 +33,9 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean),
 );
 
-/**
- * Dev/local sign-in: a passwordless magic-link provider whose "email" is just
- * logged to the server console (no SMTP needed). In production, set the
- * Microsoft Entra or Google env vars and those OAuth providers activate.
- * All three use database sessions via the Drizzle adapter, so the prod path
- * is exercised the same way locally.
- */
-const devMagicLink: Provider = {
-  id: "nyu-email",
-  type: "email",
-  name: "NYU Email (dev link)",
-  from: "no-reply@nyush-planner.local",
-  maxAge: 10 * 60,
-  options: {},
-  async sendVerificationRequest({
-    identifier,
-    url,
-  }: {
-    identifier: string;
-    url: string;
-  }) {
-    console.log(
-      `\n[auth] NYU sign-in link for ${identifier}:\n${url}\n(dev only — paste this URL to finish signing in)\n`,
-    );
-  },
-} as Provider;
-
 /** Builds providers from one explicit environment snapshot for safe testing. */
 export function buildProviders(env: AuthProviderEnv): Provider[] {
-  const providers: Provider[] = [];
-  if (env.AUTH_MICROSOFT_ENTRA_ID_ID) {
-    providers.push(MicrosoftEntraID);
-  }
-  if (env.AUTH_GOOGLE_ID) {
-    providers.push(Google);
-  }
-  if (env.NODE_ENV !== "production") {
-    providers.push(devMagicLink);
-  }
-  return providers;
+  return env.AUTH_GOOGLE_ID ? [Google] : [];
 }
 
 export const authConfig: NextAuthConfig = {
@@ -87,7 +47,7 @@ export const authConfig: NextAuthConfig = {
   }),
   session: { strategy: "database" },
   pages: { signIn: "/signin" },
-  providers: buildProviders(process.env),
+  providers: buildProviders({ AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID }),
   callbacks: {
     /** Hard gate: only @nyu.edu identities may sign in. */
     signIn({ user, profile }) {
