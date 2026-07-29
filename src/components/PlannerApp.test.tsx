@@ -4,6 +4,7 @@ import type { ReactNode, RefObject } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlannerApp } from "@/components/PlannerApp";
 import { ONBOARDING_KEY } from "@/lib/onboarding";
+import { PROGRESS_GUIDE_KEY } from "@/lib/progressGuide";
 import { renderWithProviders, screen, waitFor } from "@/test/render";
 
 vi.mock("@dnd-kit/core", () => ({
@@ -61,14 +62,17 @@ vi.mock("@/components/layout/PlannerWorkspace", () => ({
     catalog,
     timeline,
     progress,
+    onProgressVisit,
   }: {
     catalog: ReactNode;
     timeline: ReactNode;
     progress: ReactNode;
+    onProgressVisit?: () => void;
   }) => (
     <main data-testid="workspace">
       {catalog}
       {timeline}
+      <button type="button" onClick={onProgressVisit}>Open Progress</button>
       {progress}
     </main>
   ),
@@ -88,9 +92,6 @@ vi.mock("@/components/planner/PlannerBoard", () => ({
 }));
 vi.mock("@/components/dialogs/CourseDetailDialog", () => ({
   CourseDetailDialog: () => null,
-}));
-vi.mock("@/components/progress/FeasibilityDialog", () => ({
-  FeasibilityDialog: () => null,
 }));
 vi.mock("@/components/progress/ProgressRings", () => ({
   ProgressRings: () => null,
@@ -140,5 +141,20 @@ describe("PlannerApp composition", () => {
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Guide" })).toBeDefined();
     expect(screen.getAllByTestId(/^semester-/)).toHaveLength(8);
+    expect(screen.queryByRole("button", { name: "Check feasibility" })).toBeNull();
+  });
+
+  it("opens the Progress guide on the first actual visit and remembers completion", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<PlannerApp />);
+    await user.click(await screen.findByRole("button", { name: "Skip guide" }));
+    await user.click(screen.getByRole("button", { name: "Open Progress" }));
+
+    expect(await screen.findByRole("heading", { name: "Understand your degree progress" })).toBeDefined();
+    await user.click(screen.getByRole("button", { name: "Got it" }));
+    expect(window.localStorage.getItem(PROGRESS_GUIDE_KEY)).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Open Progress" }));
+    expect(screen.queryByRole("heading", { name: "Understand your degree progress" })).toBeNull();
   });
 });

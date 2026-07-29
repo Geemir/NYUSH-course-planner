@@ -8,6 +8,7 @@ import {
 
 export function useOnboarding() {
   const [open, setOpen] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -15,6 +16,8 @@ export function useOnboarding() {
         setOpen(readOnboardingState(window.localStorage).shouldOpen);
       } catch {
         setOpen(true);
+      } finally {
+        setReady(true);
       }
     }, 0);
 
@@ -33,5 +36,5 @@ export function useOnboarding() {
 
   const restart = useCallback(() => setOpen(true), []);
 
-  return { open, setOpen, complete, restart };
+  return { open, ready, setOpen, complete, restart };
 }

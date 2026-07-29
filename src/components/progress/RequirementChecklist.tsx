@@ -8,6 +8,8 @@ import {
   ExternalLink,
   GraduationCap,
   ShieldCheck,
+  Check,
+  ListChecks,
 } from "lucide-react";
 import { ReportIssueDialog } from "@/components/corrections/ReportIssueDialog";
 import {
@@ -18,6 +20,12 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { usePlanDerived } from "@/hooks/usePlanDerived";
 import type { ClientPlannerProgram } from "@/lib/catalogClient";
 import type {
@@ -108,8 +116,7 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
       candidate.requirementId === item.requirementId,
   );
   const isManual = item.kind === "manualConfirmation";
-  const label = isManual ? "Confirmation required" : "Waiver available";
-  const action = isManual ? "confirmation" : "waiver";
+  const label = isManual ? "Needs confirmation" : "Waiver available";
 
   const addFact = () => {
     const next: FulfillmentFact = {
@@ -145,7 +152,7 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
                   : "text-amber-600 dark:text-amber-400"
               }`}
             >
-              {fact ? "Recorded as fulfilled" : label}
+              {fact ? "Fulfilled manually" : label}
             </p>
           </div>
         </div>
@@ -156,7 +163,9 @@ function EvidenceRow({ item }: { item: EvidenceRequirement }) {
           className="min-h-9"
           onClick={() => (fact ? removeFact(fact.id) : addFact())}
         >
-          {fact ? `Remove ${action}` : `Record ${action}`}
+          {isManual
+            ? fact ? "Remove manual mark" : "Mark as fulfilled"
+            : fact ? "Remove waiver" : "Record waiver"}
         </Button>
       </div>
       {/* Verbatim Bulletin text — distinct serif/italic quote, not planner UI. */}
@@ -187,7 +196,9 @@ function MissingCourseList({ courseIds }: { courseIds: string[] }) {
         >
           <Circle className="size-3.5 shrink-0" />
           <span className="font-mono text-xs">{courseId}</span>
-          <span className="truncate text-xs">{coursesById.get(courseId)?.title}</span>
+          <span className="truncate text-xs" title={coursesById.get(courseId)?.title ?? undefined}>
+            {coursesById.get(courseId)?.title ?? "Course title unavailable"}
+          </span>
           <span className="ml-auto shrink-0 text-[11px]">not planned</span>
         </li>
       ))}
@@ -223,7 +234,11 @@ function CategoryRow({
   const { placementByCourse, coursesById } = usePlanDerived();
   const completedSemesters = usePlannerStore((state) => state.completedSemesters);
   const startYear = usePlannerStore((state) => state.startYear);
-  const done = category.plannedUnits >= category.requiredUnits;
+  const overrides = usePlannerStore((state) => state.requirementStatusOverrides);
+  const setRequirementStatus = usePlannerStore((state) => state.setRequirementStatus);
+  const storedOverride = overrides.find((item) => item.programId === program.id && item.categoryId === category.categoryId);
+  const manualStatus = storedOverride?.status ?? category.manualStatus ?? null;
+  const done = manualStatus !== null || category.plannedUnits >= category.requiredUnits;
   const evidence = evidenceRequirements(program, category.categoryId);
   const programCategory = program.categories.find(
     (item) => item.id === category.categoryId,
@@ -234,7 +249,10 @@ function CategoryRow({
       : undefined;
 
   return (
-    <section className="flex flex-col gap-2.5 py-3">
+    <section
+      className="flex flex-col gap-2.5 py-3"
+      data-testid={`requirement-category-${program.id}-${category.categoryId}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h4 className="flex items-center gap-1.5 text-sm font-medium">
@@ -245,9 +263,45 @@ function CategoryRow({
             {unitsLabel(category)}
           </p>
         </div>
-        <Badge variant={done ? "default" : "secondary"} className="text-xs">
-          {done ? "Planned" : "In progress"}
-        </Badge>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <Badge variant={done ? "default" : "secondary"} className="text-xs">
+            {manualStatus === "completed"
+              ? "Fulfilled manually"
+              : manualStatus === "planned"
+                ? "Planned manually"
+                : done ? "Planned" : "In progress"}
+          </Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={manualStatus ? "Change requirement status" : "Set requirement status"}
+                />
+              }
+            >
+              <ListChecks aria-hidden="true" />
+              {manualStatus ? "Change" : "Set status"}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, "planned")}>
+                {manualStatus === "planned" && <Check aria-hidden="true" />}
+                Mark as planned
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, "completed")}>
+                {manualStatus === "completed" && <Check aria-hidden="true" />}
+                Mark as fulfilled
+              </DropdownMenuItem>
+              {manualStatus && (
+                <DropdownMenuItem onClick={() => setRequirementStatus(program.id, category.categoryId, null)}>
+                  Use calculated status
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <ul className="flex flex-col gap-1.5">
@@ -267,8 +321,8 @@ function CategoryRow({
                 <Circle className="size-3.5 shrink-0" />
               )}
               <span className="font-mono text-xs">{courseId}</span>
-              <span className="truncate text-xs">
-                {coursesById.get(courseId)?.title}
+              <span className="truncate text-xs" title={coursesById.get(courseId)?.title ?? undefined}>
+                {coursesById.get(courseId)?.title ?? "Course title unavailable"}
               </span>
               {placement && (
                 <span className="ml-auto shrink-0 text-[11px]">
@@ -362,29 +416,9 @@ export function RequirementChecklist() {
     <>
       <div
         role="note"
-        className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100"
+        className="mb-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-foreground"
       >
-        <p className="font-semibold">
-          These requirements are auto-extracted — please verify them yourself.
-        </p>
-        <p className="mt-1">
-          We use an LLM to read the NYU Bulletin, and it has a{" "}
-          <strong>high chance of getting requirements wrong</strong> — a
-          &ldquo;choose 2 of these&rdquo; can be mis-read as &ldquo;take all of
-          these,&rdquo; and the Bulletin itself changes over time. That&rsquo;s
-          why you can attach your own <em>confirmation records</em> to each
-          requirement. Treat this page as a planning{" "}
-          <strong>visualization, not an official audit</strong>: always check the{" "}
-          <a
-            className="underline"
-            href="https://bulletins.nyu.edu/undergraduate/shanghai/#programstext"
-            target="_blank"
-            rel="noreferrer"
-          >
-            latest NYU Shanghai Bulletin
-          </a>{" "}
-          and your advisor before relying on it.
-        </p>
+        Requirements are based on the NYU Bulletin. Verify important decisions with each linked source.
       </div>
       <Accordion>
         {activeProgramObjs.map((program) => {

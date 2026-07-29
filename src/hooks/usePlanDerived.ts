@@ -1,12 +1,8 @@
 "use client";
 
-import { useContext, useMemo } from "react";
+import { useContext } from "react";
 import { PlanDerivedContext } from "@/components/planner/PlanDerivedProvider";
-import {
-  deriveFeasibility,
-  type PlanDerivedValue,
-} from "@/lib/derivePlan";
-import type { FeasibilityReport } from "@/lib/feasibility";
+import type { PlanDerivedValue } from "@/lib/derivePlan";
 
 function usePlanDerivedContext() {
   const value = useContext(PlanDerivedContext);
@@ -18,12 +14,4 @@ function usePlanDerivedContext() {
 
 export function usePlanDerived(): PlanDerivedValue {
   return usePlanDerivedContext().derived;
-}
-
-export function useFeasibility(): FeasibilityReport {
-  const { input, derived } = usePlanDerivedContext();
-  return useMemo(
-    () => deriveFeasibility(input, derived),
-    [derived, input],
-  );
 }

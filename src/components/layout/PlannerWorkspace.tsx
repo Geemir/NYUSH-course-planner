@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useSyncExternalStore,
   type ReactElement,
   type ReactNode,
@@ -98,13 +99,19 @@ export function PlannerWorkspace({
   catalog,
   timeline,
   progress,
+  onProgressVisit,
 }: {
   catalog: ReactNode;
   timeline: ReactNode;
   progress: ReactNode;
+  onProgressVisit?: () => void;
 }) {
   const showCatalogRail = useMediaQuery(LG_QUERY);
   const showProgressRail = useMediaQuery(TWO_XL_QUERY);
+
+  useEffect(() => {
+    if (showProgressRail) onProgressVisit?.();
+  }, [onProgressVisit, showProgressRail]);
 
   return (
     <>
@@ -151,10 +158,10 @@ export function PlannerWorkspace({
           {!showProgressRail && (
             <WorkspaceSheet
               label="Degree Progress"
-              description="Review requirements, feasibility guidance, and planning warnings."
+              description="Review requirements, remaining work, and planning warnings."
               side="right"
               trigger={
-                <Button variant="outline" className="h-11 px-4">
+                <Button variant="outline" className="h-11 px-4" onClick={onProgressVisit}>
                   <ChartNoAxesColumnIncreasing aria-hidden="true" />
                   Progress
                 </Button>

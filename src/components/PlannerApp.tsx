@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -26,15 +26,17 @@ import { PlannerWorkspace } from "@/components/layout/PlannerWorkspace";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { PlannerBoard } from "@/components/planner/PlannerBoard";
 import { PlanDerivedProvider } from "@/components/planner/PlanDerivedProvider";
-import { FeasibilityDialog } from "@/components/progress/FeasibilityDialog";
+import { ProgressGuide } from "@/components/progress/ProgressGuide";
 import { ProgressRings } from "@/components/progress/ProgressRings";
 import { RequirementChecklist } from "@/components/progress/RequirementChecklist";
 import { SpecialRulesPanel } from "@/components/progress/SpecialRulesPanel";
 import { WarningCenter } from "@/components/progress/WarningCenter";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCourseData } from "@/hooks/useCourseData";
 import { useOnboarding } from "@/hooks/useOnboarding";
+import { useProgressGuide } from "@/hooks/useProgressGuide";
 import { parsePlanDocument } from "@/lib/planIO";
 import { SEMESTER_IDS, SemesterId, type PlanPlacementV2 } from "@/lib/types";
 import { usePlannerStore, type CoursePlacementInput } from "@/store/plannerStore";
@@ -68,6 +70,7 @@ export function PlannerApp() {
   >(null);
   const [dragCourseId, setDragCourseId] = useState<string | null>(null);
   const onboarding = useOnboarding();
+  const progressGuide = useProgressGuide();
   const guideButtonRef = useRef<HTMLButtonElement>(null);
   const justDragged = useRef(false);
   // When a catalog dropdown closes, the browser's trailing click event can
@@ -79,6 +82,9 @@ export function PlannerApp() {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
+  const handleProgressVisit = useCallback(() => {
+    if (onboarding.ready && !onboarding.open) progressGuide.visit();
+  }, [onboarding.open, onboarding.ready, progressGuide.visit]);
 
   if (!mounted) {
     return (
@@ -163,6 +169,7 @@ export function PlannerApp() {
               onDragEnd={handleDragEnd}
             >
               <PlannerWorkspace
+                onProgressVisit={handleProgressVisit}
                 catalog={
                   <CourseCatalog
                     onSelectCourse={handleSelectCatalogCourse}
@@ -174,8 +181,11 @@ export function PlannerApp() {
                 }
                 progress={
                   <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold">Degree progress</h3>
+                      <Button type="button" variant="ghost" size="sm" onClick={progressGuide.restart}>How it works</Button>
+                    </div>
                     <ProgressRings />
-                    <FeasibilityDialog />
                     <Separator />
                     <RequirementChecklist />
                     <Separator />
@@ -198,6 +208,11 @@ export function PlannerApp() {
               onOpenChange={onboarding.setOpen}
               onComplete={onboarding.complete}
               returnFocusRef={guideButtonRef}
+            />
+            <ProgressGuide
+              open={progressGuide.open}
+              onOpenChange={progressGuide.setOpen}
+              onComplete={progressGuide.complete}
             />
             <CourseDetailDialog
               stableId={detailSelection?.kind === "bulletin" ? detailSelection.stableId : null}

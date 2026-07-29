@@ -16,7 +16,7 @@ const UI_FILES = [
   "src/components/progress/RequirementChecklist.tsx",
   "src/components/progress/SpecialRulesPanel.tsx",
   "src/components/progress/WarningCenter.tsx",
-  "src/components/progress/FeasibilityDialog.tsx",
+  "src/components/progress/ProgressGuide.tsx",
 ] as const;
 
 function source(path: string): string {
