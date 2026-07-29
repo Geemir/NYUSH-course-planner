@@ -402,6 +402,31 @@ export const notification = pgTable("notification", {
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 }, (item) => [index("notification_user_unread").on(item.userId, item.readAt, item.createdAt)]);
 
+// ---------------------------------------------------------------------------
+// Global planner announcements. Drafts and archived notices remain auditable;
+// a partial unique index guarantees that publication has one global winner.
+// ---------------------------------------------------------------------------
+
+export const announcements = pgTable("announcement", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  tone: text("tone", { enum: ["info", "warning", "critical"] }).notNull().default("info"),
+  linkUrl: text("linkUrl"),
+  linkLabel: text("linkLabel"),
+  status: text("status", { enum: ["draft", "published", "archived"] }).notNull().default("draft"),
+  publishedAt: timestamp("publishedAt", { mode: "date" }),
+  expiresAt: timestamp("expiresAt", { mode: "date" }),
+  createdBy: text("createdBy").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+}, (announcement) => [
+  uniqueIndex("announcement_one_published")
+    .on(announcement.status)
+    .where(sql`${announcement.status} = 'published'`),
+  index("announcement_created_at").on(announcement.createdAt),
+]);
+
 export type UserRow = typeof users.$inferSelect;
 export type PlanRow = typeof plans.$inferSelect;
 export type CourseRow = typeof courses.$inferSelect;
@@ -409,3 +434,4 @@ export type RuleRow = typeof rules.$inferSelect;
 export type CatalogSnapshotRow = typeof catalogSnapshot.$inferSelect;
 export type CorrectionRequestRow = typeof correctionRequest.$inferSelect;
 export type CatalogOverlayRow = typeof catalogOverlay.$inferSelect;
+export type AnnouncementRow = typeof announcements.$inferSelect;

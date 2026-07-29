@@ -48,8 +48,8 @@ async function main(): Promise<void> {
   // losing a whole 43-statement transaction over a flaky remote link.
   for (const program of present) {
     await withDbRetry(
-      () =>
-        db
+      async () => {
+        await db
           .update(schema.catalogProgram)
           .set({ data: program })
           .where(
@@ -57,7 +57,8 @@ async function main(): Promise<void> {
               eq(schema.catalogProgram.snapshotId, snapshotId),
               eq(schema.catalogProgram.programId, program.id),
             ),
-          ),
+          );
+      },
       { label: `update ${program.id}` },
     );
   }
