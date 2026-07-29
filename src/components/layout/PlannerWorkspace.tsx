@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sheet";
 
 const LG_QUERY = "(min-width: 1024px)";
-const TWO_XL_QUERY = "(min-width: 1536px)";
+const PROGRESS_RAIL_QUERY = "(min-width: 1792px)";
 
 function useMediaQuery(query: string) {
   const subscribe = useCallback(
@@ -72,6 +72,7 @@ function WorkspaceSheet({
   children,
   open,
   onOpenChange,
+  contentClassName,
 }: {
   label: string;
   description: string;
@@ -80,11 +81,12 @@ function WorkspaceSheet({
   children: ReactNode;
   open?: boolean;
   onOpenChange?(open: boolean): void;
+  contentClassName?: string;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger render={trigger} />
-      <SheetContent side={side}>
+      <SheetContent side={side} className={contentClassName}>
         <SheetHeader>
           <SheetTitle>{label}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
@@ -117,7 +119,7 @@ export function PlannerWorkspace({
 }) {
   const { t } = useLocale();
   const showCatalogRail = useMediaQuery(LG_QUERY);
-  const showProgressRail = useMediaQuery(TWO_XL_QUERY);
+  const showProgressRail = useMediaQuery(PROGRESS_RAIL_QUERY);
 
   useEffect(() => {
     if (showProgressRail) onProgressVisit?.();
@@ -125,7 +127,7 @@ export function PlannerWorkspace({
 
   return (
     <>
-      <main className="grid min-w-0 flex-1 gap-6 p-4 sm:p-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(620px,1fr)] 2xl:grid-cols-[340px_minmax(620px,1fr)_360px]">
+      <main className="grid min-w-0 flex-1 gap-6 p-4 sm:p-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(620px,1fr)] min-[1792px]:grid-cols-[340px_minmax(620px,1fr)_minmax(600px,680px)]">
         {showCatalogRail && (
           <WorkspaceRail label={t("workspace.courseCatalog")}>{catalog}</WorkspaceRail>
         )}
@@ -172,6 +174,7 @@ export function PlannerWorkspace({
               label={t("progress.title")}
               description={t("workspace.progressDescription")}
               side="right"
+              contentClassName="sm:w-[min(88vw,52rem)] sm:max-w-[52rem] lg:w-[min(72vw,60rem)] lg:max-w-[60rem]"
               trigger={
                 <Button variant="outline" className="h-11 px-4" onClick={onProgressVisit}>
                   <ChartNoAxesColumnIncreasing aria-hidden="true" />

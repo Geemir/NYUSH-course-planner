@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { PlannerWorkspace } from "@/components/layout/PlannerWorkspace";
 import { render, screen } from "@/test/render";
 
-function setViewport({ lg = false, twoXl = false } = {}) {
+function setViewport({ lg = false, progressRail = false } = {}) {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: (query: string): MediaQueryList => ({
-      matches: query.includes("1536") ? twoXl : lg,
+      matches: query.includes("1792") ? progressRail : lg,
       media: query,
       onchange: null,
       addEventListener: () => undefined,
@@ -55,9 +55,10 @@ describe("PlannerWorkspace", () => {
 
     const progress = screen.getByRole("button", { name: "Progress" });
     await user.click(progress);
-    expect(
-      screen.getByRole("dialog", { name: "Degree Progress" }),
-    ).toBeDefined();
+    const progressDialog = screen.getByRole("dialog", { name: "Degree Progress" });
+    expect(progressDialog).toBeDefined();
+    expect(progressDialog.className).toContain("sm:max-w-[52rem]");
+    expect(progressDialog.className).toContain("lg:max-w-[60rem]");
     expect(
       screen.getByRole("complementary", { name: "Degree Progress" }),
     ).toBeDefined();
@@ -67,7 +68,7 @@ describe("PlannerWorkspace", () => {
   });
 
   it("shows all three named landmarks as desktop rails", () => {
-    setViewport({ lg: true, twoXl: true });
+    setViewport({ lg: true, progressRail: true });
     renderWorkspace();
 
     expect(
@@ -85,7 +86,7 @@ describe("PlannerWorkspace", () => {
   });
 
   it("keeps the catalog rail and moves progress into a sheet at lg", () => {
-    setViewport({ lg: true, twoXl: false });
+    setViewport({ lg: true, progressRail: false });
     renderWorkspace();
 
     expect(
