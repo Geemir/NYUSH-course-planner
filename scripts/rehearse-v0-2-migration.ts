@@ -4,7 +4,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { eq, sql } from "drizzle-orm";
 import * as schema from "../src/db/schema";
 
-export interface MigrationRehearsalResult { ok: boolean; migrationCount: number; userCount: number; sessionCount: number; planCount: number; revision: number; snapshotVersion: number; correctionTablesPresent: boolean; announcementTablePresent: boolean; maintenanceAuditTablePresent: boolean; aboutTablePresent: boolean }
+export interface MigrationRehearsalResult { ok: boolean; migrationCount: number; userCount: number; sessionCount: number; planCount: number; revision: number; snapshotVersion: number; correctionTablesPresent: boolean; announcementTablePresent: boolean; maintenanceAuditTablePresent: boolean; aboutTablePresent: boolean; translationTablePresent: boolean }
 
 export function assertDisposableMigrationTarget(input: { allowed: boolean; target: string; productionTarget?: string }) {
   if (!input.allowed) throw new Error("Set ALLOW_DESTRUCTIVE_MIGRATION_REHEARSAL=true for an explicitly disposable target.");
@@ -20,7 +20,7 @@ export async function runMigrationRehearsal(): Promise<MigrationRehearsalResult>
   await database.insert(schema.users).values({ id: "migration-user", email: "migration@nyu.edu" });
   await database.insert(schema.sessions).values({ sessionToken: "migration-session", userId: "migration-user", expires: new Date("2099-01-01") });
   await database.insert(schema.plans).values({ id: "migration-plan", userId: "migration-user", snapshot: legacySnapshot as never });
-  const [userRows, sessionRows, planRows, journal, correctionTables, announcementTable, maintenanceAuditTable, aboutTable, plan] = await Promise.all([
+  const [userRows, sessionRows, planRows, journal, correctionTables, announcementTable, maintenanceAuditTable, aboutTable, translationTable, plan] = await Promise.all([
     database.select({ count: sql<number>`count(*)::int` }).from(schema.users),
     database.select({ count: sql<number>`count(*)::int` }).from(schema.sessions),
     database.select({ count: sql<number>`count(*)::int` }).from(schema.plans),
@@ -29,6 +29,7 @@ export async function runMigrationRehearsal(): Promise<MigrationRehearsalResult>
     database.execute(sql`select count(*)::int as count from information_schema.tables where table_schema = 'public' and table_name = 'announcement'`),
     database.execute(sql`select count(*)::int as count from information_schema.tables where table_schema = 'public' and table_name = 'catalogOverlayEvent'`),
     database.execute(sql`select count(*)::int as count from information_schema.tables where table_schema = 'public' and table_name = 'siteAbout'`),
+    database.execute(sql`select count(*)::int as count from information_schema.tables where table_schema = 'public' and table_name = 'translationCache'`),
     database.select().from(schema.plans).where(eq(schema.plans.id, "migration-plan")).limit(1),
   ]);
   const [users] = userRows;
@@ -38,7 +39,8 @@ export async function runMigrationRehearsal(): Promise<MigrationRehearsalResult>
   const announcementTablePresent = Number((announcementTable.rows[0] as { count: number }).count) === 1;
   const maintenanceAuditTablePresent = Number((maintenanceAuditTable.rows[0] as { count: number }).count) === 1;
   const aboutTablePresent = Number((aboutTable.rows[0] as { count: number }).count) === 1;
-  const result = { ok: users.count === 1 && sessions.count === 1 && plans.count === 1 && plan[0].revision === 1 && correctionTablesPresent && announcementTablePresent && maintenanceAuditTablePresent && aboutTablePresent, migrationCount: Number((journal.rows[0] as { count: number }).count), userCount: users.count, sessionCount: sessions.count, planCount: plans.count, revision: plan[0].revision, snapshotVersion: (plan[0].snapshot as { version: number }).version, correctionTablesPresent, announcementTablePresent, maintenanceAuditTablePresent, aboutTablePresent };
+  const translationTablePresent = Number((translationTable.rows[0] as { count: number }).count) === 1;
+  const result = { ok: users.count === 1 && sessions.count === 1 && plans.count === 1 && plan[0].revision === 1 && correctionTablesPresent && announcementTablePresent && maintenanceAuditTablePresent && aboutTablePresent && translationTablePresent, migrationCount: Number((journal.rows[0] as { count: number }).count), userCount: users.count, sessionCount: sessions.count, planCount: plans.count, revision: plan[0].revision, snapshotVersion: (plan[0].snapshot as { version: number }).version, correctionTablesPresent, announcementTablePresent, maintenanceAuditTablePresent, aboutTablePresent, translationTablePresent };
   await client.close();
   return result;
 }

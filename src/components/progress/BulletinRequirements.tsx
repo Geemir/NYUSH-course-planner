@@ -1,6 +1,9 @@
 "use client";
 
-import { CheckCircle2, Circle, ExternalLink, Flag } from "lucide-react";
+import { useMemo } from "react";
+import { CheckCircle2, Circle, ExternalLink, Flag, Languages } from "lucide-react";
+import { useLocale } from "@/components/i18n/LocaleProvider";
+import { useBulletinTranslation } from "@/hooks/useBulletinTranslation";
 import { Button } from "@/components/ui/button";
 import type {
   BulletinDisplayRow,
@@ -48,15 +51,22 @@ function SourceRow({
   placements,
   completedSemesters,
   onReport,
+  translate,
 }: {
   row: BulletinDisplayRow;
   tableId: string;
   placements: readonly PlanPlacementV2[];
   completedSemesters: readonly SemesterId[];
   onReport?: BulletinRequirementsProps["onReport"];
+  translate?: (text: string) => string;
 }) {
   const status = rowStatus(row, placements, completedSemesters);
-  const label = rowLabel(row);
+  // Course rows carry codes and official titles, which stay in English; only
+  // the prose rows (headings, directives, notes) are worth translating.
+  const label =
+    translate && row.role !== "course"
+      ? rowLabel({ ...row, text: translate(row.text) })
+      : rowLabel(row);
   const structural = row.role === "heading" || row.role === "directive";
   return (
     <tr
@@ -125,6 +135,30 @@ export function BulletinRequirements({
   completedSemesters,
   onReport,
 }: BulletinRequirementsProps) {
+  const { locale, t } = useLocale();
+  // Only the prose is offered for translation; course rows keep their codes.
+  const translatable = useMemo(() => {
+    const texts: string[] = [];
+    for (const section of display.sections) {
+      if (section.heading) texts.push(section.heading);
+      for (const block of section.blocks) {
+        if (block.kind === "heading") texts.push(block.text);
+        else if (block.kind === "prose") texts.push(...block.paragraphs);
+        else {
+          if (block.caption) texts.push(block.caption);
+          for (const trail of block.headingTrail) texts.push(trail.text);
+          for (const row of block.rows) {
+            if (row.role !== "course") texts.push(row.text);
+          }
+        }
+      }
+    }
+    return texts;
+  }, [display]);
+  const translation = useBulletinTranslation(translatable, "zhCN");
+  const offered = locale === "zhCN";
+  const tr = offered && translation.enabled ? translation.translate : (text: string) => text;
+
   return (
     <section className="space-y-5" aria-labelledby="bulletin-requirements-heading">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -137,27 +171,53 @@ export function BulletinRequirements({
             describe the courses beneath them; they are not separate requirements.
           </p>
         </div>
-        <a
-          href={display.sourceUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-        >
-          Open official Bulletin <ExternalLink aria-hidden="true" className="size-4" />
-        </a>
+        <div className="flex flex-wrap items-center gap-3">
+          {offered && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-9"
+              aria-pressed={translation.enabled}
+              onClick={() => translation.setEnabled(!translation.enabled)}
+            >
+              <Languages aria-hidden="true" />
+              {translation.enabled ? t("bulletin.showOriginal") : t("bulletin.showTranslated")}
+            </Button>
+          )}
+          <a
+            href={display.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          >
+            Open official Bulletin <ExternalLink aria-hidden="true" className="size-4" />
+          </a>
+        </div>
       </div>
+
+      {offered && translation.enabled && (
+        <p
+          role="note"
+          className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs leading-relaxed text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100"
+        >
+          {translation.status === "loading"
+            ? t("bulletin.translating")
+            : t("bulletin.machineNotice")}
+        </p>
+      )}
 
       {display.sections.map((section) => (
         <section key={section.id} className="space-y-4">
-          {section.heading && <h4 className="text-sm font-semibold">{section.heading}</h4>}
+          {section.heading && <h4 className="text-sm font-semibold">{tr(section.heading)}</h4>}
           {section.blocks.map((block, blockIndex) => {
             if (block.kind === "heading") {
-              return <h5 key={`${block.text}:${blockIndex}`} className="text-sm font-semibold">{block.text}</h5>;
+              return <h5 key={`${block.text}:${blockIndex}`} className="text-sm font-semibold">{tr(block.text)}</h5>;
             }
             if (block.kind === "prose") {
               return (
                 <div key={`prose:${blockIndex}`} className="max-w-[70ch] space-y-2 text-sm leading-6 text-muted-foreground">
-                  {block.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                  {block.paragraphs.map((paragraph) => <p key={paragraph}>{tr(paragraph)}</p>)}
                 </div>
               );
             }
@@ -165,9 +225,9 @@ export function BulletinRequirements({
               <div key={block.id} className="overflow-x-auto rounded-xl bg-card ring-1 ring-border">
                 <table className="w-full min-w-[36rem] border-collapse">
                   <caption className="px-3 py-3 text-left text-sm font-semibold">
-                    {block.headingTrail.at(-1)?.text ?? block.caption ?? "Course List"}
+                    {tr(block.headingTrail.at(-1)?.text ?? block.caption ?? "Course List")}
                     {block.caption && block.headingTrail.at(-1)?.text !== block.caption && (
-                      <span className="ml-2 font-normal text-muted-foreground">{block.caption}</span>
+                      <span className="ml-2 font-normal text-muted-foreground">{tr(block.caption)}</span>
                     )}
                   </caption>
                   <thead>
@@ -179,7 +239,7 @@ export function BulletinRequirements({
                   </thead>
                   <tbody className="divide-y">
                     {block.rows.map((row) => (
-                      <SourceRow key={row.sourceIndex} row={row} tableId={block.id} placements={placements} completedSemesters={completedSemesters} onReport={onReport} />
+                      <SourceRow key={row.sourceIndex} row={row} tableId={block.id} placements={placements} completedSemesters={completedSemesters} onReport={onReport} translate={tr} />
                     ))}
                   </tbody>
                 </table>

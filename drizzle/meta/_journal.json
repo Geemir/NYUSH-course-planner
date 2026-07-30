@@ -71,6 +71,13 @@
       "when": 1785389745184,
       "tag": "0009_simple_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785423530135,
+      "tag": "0010_lying_leech",
+      "breakpoints": true
     }
   ]
 }

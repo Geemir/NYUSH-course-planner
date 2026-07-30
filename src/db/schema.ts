@@ -453,6 +453,24 @@ export const siteAbout = pgTable("siteAbout", {
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 });
 
+// ---------------------------------------------------------------------------
+// Machine-translation cache. Keyed by sha256(locale + normalised source), so a
+// Bulletin string is only ever sent to the translation provider once, and a
+// catalog refresh that leaves prose unchanged reuses every existing entry.
+// ---------------------------------------------------------------------------
+
+export const translationCache = pgTable(
+  "translationCache",
+  {
+    id: text("id").primaryKey(),
+    locale: text("locale").notNull(),
+    sourceText: text("sourceText").notNull(),
+    translatedText: text("translatedText").notNull(),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (entry) => [index("translation_cache_locale").on(entry.locale)],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type PlanRow = typeof plans.$inferSelect;
 export type CourseRow = typeof courses.$inferSelect;
