@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, Search } from "lucide-react";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,16 +32,18 @@ function eligible(program: CatalogProgram, role: CatalogProgramProfileRole) {
 }
 
 function ProgramSource({ program }: { program: CatalogProgram }) {
+  const { t } = useLocale();
   if (program.auditAuthority !== "reviewed-nyush-overlay") return null;
-  return <Badge variant="outline">Reviewed planner overlay</Badge>;
+  return <Badge variant="outline">{t("profile.overlayBadge")}</Badge>;
 }
 
 function RequirementPreview({ program }: { program?: CatalogProgram }) {
+  const { t } = useLocale();
   if (!program) return null;
   return (
     <div className="mt-2 text-xs leading-5 text-muted-foreground">
       <div className="flex flex-wrap items-center gap-2">
-        <span>{program.categories.length} requirement group{program.categories.length === 1 ? "" : "s"}</span>
+        <span>{t("profile.requirementGroups", { count: program.categories.length })}</span>
         <ProgramSource program={program} />
       </div>
       {program.categories.length > 0 && (
@@ -55,7 +58,7 @@ function RoleSelect({
   value,
   options,
   allowNone = false,
-  placeholder = "Select a program…",
+  placeholder,
   onChange,
 }: {
   label: string;
@@ -65,6 +68,9 @@ function RoleSelect({
   placeholder?: string;
   onChange(value: string | null): void;
 }) {
+  const { t } = useLocale();
+  const noneLabel = t("profile.none");
+  const placeholderLabel = placeholder ?? t("profile.selectPlaceholder");
   const selected = options.find((program) => program.id === value);
   // Never let the native select silently display its first option when the
   // stored value isn't in the list — show an explicit placeholder instead.
@@ -81,8 +87,8 @@ function RoleSelect({
           onChange={(event) => onChange(event.target.value || null)}
         >
           {allowNone
-            ? <option value="">None</option>
-            : <option value="" disabled>{placeholder}</option>}
+            ? <option value="">{noneLabel}</option>
+            : <option value="" disabled>{placeholderLabel}</option>}
           {options.map((program) => <option key={program.id} value={program.id}>{program.name}</option>)}
         </select>
       </label>
@@ -109,6 +115,7 @@ function ProgramProfileSheetEditor({
   profile,
   onSave,
 }: ProgramProfileSheetProps) {
+  const { t } = useLocale();
   const [draft, setDraft] = useState(() => sanitizeDraft(profile, programs));
   const [query, setQuery] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
@@ -144,7 +151,7 @@ function ProgramProfileSheetEditor({
   const afterGroups = programs.filter((program) => [draft.coreProgramId, draft.primaryMajorId, draft.secondMajorId, ...draft.minorIds].includes(program.id)).reduce((sum, program) => sum + program.categories.length, 0);
 
   const requestOpenChange = (next: boolean) => {
-    if (!next && dirty && !window.confirm("Discard unsaved Program Profile changes?")) return;
+    if (!next && dirty && !window.confirm(t("profile.discard"))) return;
     onOpenChange(next);
   };
 
@@ -152,37 +159,37 @@ function ProgramProfileSheetEditor({
     <Sheet open={open} onOpenChange={requestOpenChange}>
       <SheetContent className="overflow-y-auto sm:max-w-xl">
         <SheetHeader>
-          <SheetTitle>Program Profile</SheetTitle>
-          <SheetDescription>Choose the NYUSH programs whose requirements you want to plan. This is planning guidance, not an official degree audit.</SheetDescription>
+          <SheetTitle>{t("profile.title")}</SheetTitle>
+          <SheetDescription>{t("profile.description")}</SheetDescription>
         </SheetHeader>
 
         <div>
           <label className="relative block">
             <Search className="pointer-events-none absolute top-3.5 left-3 size-4 text-muted-foreground" aria-hidden="true" />
-            <Input className="h-11 pl-9" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Type to filter the lists below…" aria-label="Filter programs" />
+            <Input className="h-11 pl-9" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("profile.filterPlaceholder")} aria-label={t("profile.filterLabel")} />
           </label>
           <p className="mt-1.5 text-xs text-muted-foreground" aria-live="polite">
             {searching
-              ? `${filtered.length} of ${programs.length} programs match — pick from the dropdowns and minors below.`
-              : "Filters the Core, major, and minor lists below. Your current selections always stay visible."}
+              ? t("profile.filterHintActive", { matched: filtered.length, total: programs.length })
+              : t("profile.filterHintIdle")}
           </p>
         </div>
 
         <div className="space-y-6">
           <section aria-labelledby="core-program-heading">
-            <h3 id="core-program-heading" className="text-sm font-semibold">Core Curriculum</h3>
-            <p className="mb-2 text-xs text-muted-foreground">Always active for NYU Shanghai students.</p>
-            <RoleSelect label="NYUSH Core" value={draft.coreProgramId} options={cores} onChange={(coreProgramId) => coreProgramId && setDraft((current) => ({ ...current, coreProgramId }))} />
+            <h3 id="core-program-heading" className="text-sm font-semibold">{t("profile.coreHeading")}</h3>
+            <p className="mb-2 text-xs text-muted-foreground">{t("profile.coreNote")}</p>
+            <RoleSelect label={t("profile.coreLabel")} value={draft.coreProgramId} options={cores} onChange={(coreProgramId) => coreProgramId && setDraft((current) => ({ ...current, coreProgramId }))} />
           </section>
 
           <section className="space-y-5" aria-labelledby="majors-heading">
-            <h3 id="majors-heading" className="text-sm font-semibold">Majors</h3>
-            <RoleSelect label="Primary major" value={draft.primaryMajorId} options={primaryMajors} placeholder="Select your major…" onChange={(primaryMajorId) => primaryMajorId && setDraft((current) => ({ ...current, primaryMajorId, secondMajorId: current.secondMajorId === primaryMajorId ? null : current.secondMajorId }))} />
-            <RoleSelect label="Second major (optional)" value={draft.secondMajorId} options={secondMajors} allowNone onChange={(secondMajorId) => setDraft((current) => ({ ...current, secondMajorId }))} />
+            <h3 id="majors-heading" className="text-sm font-semibold">{t("profile.majorsHeading")}</h3>
+            <RoleSelect label={t("profile.primaryMajor")} value={draft.primaryMajorId} options={primaryMajors} placeholder={t("profile.primaryMajorPlaceholder")} onChange={(primaryMajorId) => primaryMajorId && setDraft((current) => ({ ...current, primaryMajorId, secondMajorId: current.secondMajorId === primaryMajorId ? null : current.secondMajorId }))} />
+            <RoleSelect label={t("profile.secondMajor")} value={draft.secondMajorId} options={secondMajors} allowNone onChange={(secondMajorId) => setDraft((current) => ({ ...current, secondMajorId }))} />
           </section>
 
           <section aria-labelledby="minors-heading">
-            <h3 id="minors-heading" className="text-sm font-semibold">Minors</h3>
+            <h3 id="minors-heading" className="text-sm font-semibold">{t("profile.minorsHeading")}</h3>
             <div className="mt-2 divide-y rounded-lg border">
               {minors.map((program) => {
                 const checked = draft.minorIds.includes(program.id);
@@ -192,20 +199,20 @@ function ProgramProfileSheetEditor({
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">{program.name}</span>
                       <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        {program.categories.length} requirement groups <ProgramSource program={program} />
+                        {t("profile.requirementGroups", { count: program.categories.length })} <ProgramSource program={program} />
                       </span>
                     </span>
                   </label>
                 );
               })}
-              {minors.length === 0 && <p className="p-3 text-sm text-muted-foreground">No eligible minors match this search.</p>}
+              {minors.length === 0 && <p className="p-3 text-sm text-muted-foreground">{t("profile.noMinors")}</p>}
             </div>
           </section>
         </div>
 
         <div className="rounded-lg bg-muted p-3 text-sm">
-          <p className="font-medium">Requirement impact</p>
-          <p className="mt-1 text-muted-foreground">Tracked requirement groups: {beforeGroups} → {afterGroups}</p>
+          <p className="font-medium">{t("profile.impactHeading")}</p>
+          <p className="mt-1 text-muted-foreground">{t("profile.impactBody", { before: beforeGroups, after: afterGroups })}</p>
         </div>
 
         {validation.issues.length > 0 && (
@@ -213,9 +220,9 @@ function ProgramProfileSheetEditor({
             {validation.issues.map((issue) => (
               <p key={`${issue.field}:${issue.programId}`}>
                 {issue.code === "unresolved" && issue.field === "primaryMajor"
-                  ? "Select your primary major from the list above to start planning."
+                  ? t("profile.needPrimary")
                   : issue.code === "unresolved" && issue.field === "core"
-                    ? "Select the NYUSH Core program from the list above."
+                    ? t("profile.needCore")
                     : issue.message}
               </p>
             ))}
@@ -226,15 +233,15 @@ function ProgramProfileSheetEditor({
           <label className="flex gap-3 rounded-lg border p-3 text-sm">
             <Checkbox checked={acknowledged} onCheckedChange={(value) => setAcknowledged(Boolean(value))} />
             <span>
-              <span className="flex items-center gap-2 font-medium"><AlertTriangle className="size-4" aria-hidden="true" />Advisor review may be needed</span>
-              <span className="mt-1 block text-muted-foreground">I understand that double-major and reviewed-overlay combinations may require advisor confirmation.</span>
+              <span className="flex items-center gap-2 font-medium"><AlertTriangle className="size-4" aria-hidden="true" />{t("profile.advisorHeading")}</span>
+              <span className="mt-1 block text-muted-foreground">{t("profile.advisorBody")}</span>
             </span>
           </label>
         )}
 
         <div className="sticky bottom-0 -mx-5 mt-auto flex justify-end gap-2 border-t bg-[var(--surface-raised)] px-5 pt-4 pb-1">
-          <Button variant="outline" onClick={() => requestOpenChange(false)}>Cancel</Button>
-          <Button disabled={!dirty || !canSave} onClick={() => { onSave(validation.normalized); onOpenChange(false); }}>Save Program Profile</Button>
+          <Button variant="outline" onClick={() => requestOpenChange(false)}>{t("profile.cancel")}</Button>
+          <Button disabled={!dirty || !canSave} onClick={() => { onSave(validation.normalized); onOpenChange(false); }}>{t("profile.save")}</Button>
         </div>
       </SheetContent>
     </Sheet>
