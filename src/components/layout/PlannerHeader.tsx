@@ -156,7 +156,9 @@ export function PlannerHeader({
           {t("header.credits", { planned: progress.credits.planned, goal: progress.credits.goal })}
         </Badge>
 
-        <div className="hidden min-w-0 flex-1 items-center gap-2 lg:flex">
+        {/* The profile drives every requirement on the page, so it stays visible
+            at all widths; only the entry-year select collapses on small screens. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <ProgramProfileSummary profile={programProfile} programs={catalogPrograms} onClick={() => setProfileOpen(true)} />
           <Select
             value={String(startYear)}
@@ -164,7 +166,7 @@ export function PlannerHeader({
           >
             <SelectTrigger
               aria-label={t("header.entryYear")}
-              className="h-11 w-52 min-w-24 shrink text-sm [&>span]:truncate"
+              className="hidden h-11 w-52 min-w-24 shrink text-sm lg:flex [&>span]:truncate"
             >
               <SelectValue>
                 {(value: string) =>
@@ -193,17 +195,6 @@ export function PlannerHeader({
           >
             <BookOpen aria-hidden="true" />
             <span className="hidden sm:inline">{t("header.guide")}</span><span className="sr-only sm:hidden">{t("header.guide")}</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="hidden h-11 px-3 lg:inline-flex"
-            aria-label={t("header.about")}
-            nativeButton={false}
-            render={<a href="/about" />}
-          >
-            <Info aria-hidden="true" />
-            <span className="hidden xl:inline">{t("header.about")}</span>
           </Button>
 
           <DropdownMenu>

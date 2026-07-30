@@ -24,8 +24,10 @@ import { CourseDetailDialog } from "@/components/dialogs/CourseDetailDialog";
 import { InspirationStrip } from "@/components/inspiration/InspirationStrip";
 import { PlannerHeader } from "@/components/layout/PlannerHeader";
 import { PlannerWorkspace } from "@/components/layout/PlannerWorkspace";
+import { FloatingAboutButton } from "@/components/layout/FloatingAboutButton";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { PlannerBoard } from "@/components/planner/PlannerBoard";
+import { PlanQuickStart } from "@/components/planner/PlanQuickStart";
 import type { PlanningSlotSelection } from "@/components/planner/PlanningSlotCard";
 import { PlanDerivedProvider } from "@/components/planner/PlanDerivedProvider";
 import { ProgressGuide } from "@/components/progress/ProgressGuide";
@@ -192,10 +194,13 @@ export function PlannerApp() {
                   />
                 }
                 timeline={
-                  <PlannerBoard onSelectCourse={handleSelectPlannedCourse} onChooseSlot={(selection) => {
-                    setSlotSelection(selection);
-                    setCatalogOpen(true);
-                  }} />
+                  <>
+                    <PlanQuickStart />
+                    <PlannerBoard onSelectCourse={handleSelectPlannedCourse} onChooseSlot={(selection) => {
+                      setSlotSelection(selection);
+                      setCatalogOpen(true);
+                    }} />
+                  </>
                 }
                 progress={
                   <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
@@ -220,6 +225,7 @@ export function PlannerApp() {
                 {dragCourseId && <DragPreview courseId={dragCourseId} />}
               </DragOverlay>
             </DndContext>
+            <FloatingAboutButton />
 
             <OnboardingDialog
               open={onboarding.open}

@@ -21,6 +21,8 @@ vi.mock("@/components/CatalogProvider", () => ({
 }));
 
 vi.mock("@/components/PlanSync", () => ({ PlanSync: () => null }));
+// Exercised by its own tests; it needs the real catalog/derived providers.
+vi.mock("@/components/planner/PlanQuickStart", () => ({ PlanQuickStart: () => null }));
 vi.mock("@/components/planner/PlanDerivedProvider", () => ({
   PlanDerivedProvider: ({ children }: { children: ReactNode }) =>
     children,
