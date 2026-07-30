@@ -5,6 +5,14 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /*
+   * Named breakpoint for the workspace's progress rail (1792px = 112rem).
+   * It must be a named breakpoint, not an arbitrary `min-[1792px]:` variant:
+   * Tailwind emits arbitrary min-width variants BEFORE the named ones, so
+   * `xl:grid-cols-…` (1280px) would override a wider `min-[1792px]:grid-cols-…`
+   * at equal specificity and the third column would never get space.
+   */
+  --breakpoint-3xl: 112rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;

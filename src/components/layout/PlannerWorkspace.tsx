@@ -9,6 +9,10 @@ import {
 } from "react";
 import { BookOpen, ChartNoAxesColumnIncreasing } from "lucide-react";
 import { WorkspaceTools } from "@/components/layout/WorkspaceTools";
+import {
+  PROGRESS_RAIL_GRID_CLASS,
+  PROGRESS_RAIL_QUERY,
+} from "@/components/layout/workspaceBreakpoints";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +25,6 @@ import {
 } from "@/components/ui/sheet";
 
 const LG_QUERY = "(min-width: 1024px)";
-const PROGRESS_RAIL_QUERY = "(min-width: 1792px)";
 
 function useMediaQuery(query: string) {
   const subscribe = useCallback(
@@ -127,7 +130,9 @@ export function PlannerWorkspace({
 
   return (
     <>
-      <main className="grid min-w-0 flex-1 gap-6 p-4 sm:p-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(620px,1fr)] min-[1792px]:grid-cols-[340px_minmax(620px,1fr)_minmax(600px,680px)]">
+      <main
+        className={`grid min-w-0 flex-1 gap-6 p-4 sm:p-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(620px,1fr)] ${PROGRESS_RAIL_GRID_CLASS}`}
+      >
         {showCatalogRail && (
           <WorkspaceRail label={t("workspace.courseCatalog")}>{catalog}</WorkspaceRail>
         )}

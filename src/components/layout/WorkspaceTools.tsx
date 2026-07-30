@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { WORKSPACE_TOOLS_HIDDEN_CLASS } from "@/components/layout/workspaceBreakpoints";
 import { cn } from "@/lib/utils";
 
 export function WorkspaceTools({
@@ -12,7 +13,12 @@ export function WorkspaceTools({
 }) {
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-[var(--z-sticky)] flex justify-center px-4 2xl:hidden"
+      className={cn(
+        "pointer-events-none fixed inset-x-0 z-[var(--z-sticky)] flex justify-center px-4",
+        // Must match the progress rail's breakpoint, or a width band exists
+        // where neither the rail nor this toolbar is shown.
+        WORKSPACE_TOOLS_HIDDEN_CLASS,
+      )}
       style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
     >
       <div
