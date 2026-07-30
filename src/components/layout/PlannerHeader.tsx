@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   AlertCircle,
   BookOpen,
+  Check,
   CircleHelp,
   FileJson,
   FileSpreadsheet,
@@ -235,6 +236,25 @@ export function PlannerHeader({
                   <GraduationCap aria-hidden="true" />
                   {t("header.editProfile")}
                 </DropdownMenuItem>
+                {/* The entry-year select lives in the header only from lg up, so
+                    without these the class year is unreachable on a phone. */}
+                <div className="lg:hidden">
+                  <DropdownMenuLabel>{t("header.entryYear")}</DropdownMenuLabel>
+                  {START_YEARS.map((year) => (
+                    <DropdownMenuItem
+                      key={year}
+                      className="min-h-11"
+                      onClick={() => setStartYear(year)}
+                    >
+                      {year === startYear ? (
+                        <Check aria-hidden="true" />
+                      ) : (
+                        <span className="size-4" aria-hidden="true" />
+                      )}
+                      {t("header.entered", { year, classYear: year + 4 })}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
                 <DropdownMenuItem className="min-h-11 sm:hidden" onClick={() => setReportOpen(true)}>
                   <AlertCircle aria-hidden="true" />
                   {t("header.report")}
