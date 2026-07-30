@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
+import type { AboutContent } from "@/lib/about/types";
 import type { SnapshotValidationReport } from "@/lib/bulletin/validateSnapshot";
 import type {
   CatalogProgram,
@@ -438,6 +439,19 @@ export const announcements = pgTable("announcement", {
     .where(sql`${announcement.status} = 'published'`),
   index("announcement_created_at").on(announcement.createdAt),
 ]);
+
+// ---------------------------------------------------------------------------
+// Editable "About this site" page. A single row (id = 'site') holds validated
+// structured content, so administrators can revise credits, contacts, and the
+// donation QR without a redeploy.
+// ---------------------------------------------------------------------------
+
+export const siteAbout = pgTable("siteAbout", {
+  id: text("id").primaryKey().default("site"),
+  content: jsonb("content").$type<AboutContent>().notNull(),
+  updatedBy: text("updatedBy").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
 
 export type UserRow = typeof users.$inferSelect;
 export type PlanRow = typeof plans.$inferSelect;

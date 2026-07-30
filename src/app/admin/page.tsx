@@ -5,6 +5,7 @@ import { AdminCourses } from "@/components/admin/AdminCourses";
 import { AdminRules } from "@/components/admin/AdminRules";
 import { AlbertImport } from "@/components/admin/AlbertImport";
 import { AdminCorrections } from "@/components/admin/AdminCorrections";
+import { AdminAbout } from "@/components/admin/AdminAbout";
 import { AdminAnnouncements } from "@/components/admin/AdminAnnouncements";
 import { CatalogMaintenance } from "@/components/admin/CatalogMaintenance";
 import { BulletinCertificationStatus } from "@/components/admin/BulletinCertificationStatus";
@@ -51,6 +52,7 @@ export default async function AdminPage() {
       <CatalogMaintenance />
       {session.user.role === "admin" && <>
         <AdminAnnouncements />
+        <AdminAbout />
         <AdminCorrections />
         <AlbertImport />
         <AdminRules />

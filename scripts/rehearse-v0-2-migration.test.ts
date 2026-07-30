@@ -10,6 +10,6 @@ describe("v0.2 migration rehearsal", () => {
 
   it("applies every migration and preserves legacy rows with revision defaults", async () => {
     const result = await runMigrationRehearsal();
-    expect(result).toMatchObject({ ok: true, migrationCount: 9, userCount: 1, sessionCount: 1, planCount: 1, revision: 1, snapshotVersion: 1, correctionTablesPresent: true, announcementTablePresent: true, maintenanceAuditTablePresent: true });
+    expect(result).toMatchObject({ ok: true, migrationCount: 10, userCount: 1, sessionCount: 1, planCount: 1, revision: 1, snapshotVersion: 1, correctionTablesPresent: true, announcementTablePresent: true, maintenanceAuditTablePresent: true, aboutTablePresent: true });
   });
 });

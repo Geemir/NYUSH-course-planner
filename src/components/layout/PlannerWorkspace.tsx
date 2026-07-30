@@ -7,7 +7,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { BookOpen, ChartNoAxesColumnIncreasing } from "lucide-react";
+import { BookOpen, ChartNoAxesColumnIncreasing, Search } from "lucide-react";
 import { WorkspaceTools } from "@/components/layout/WorkspaceTools";
 import {
   PROGRESS_RAIL_GRID_CLASS,
@@ -164,7 +164,12 @@ export function PlannerWorkspace({
               side="left"
               trigger={
                 <Button variant="outline" className="h-11 px-4">
-                  <BookOpen aria-hidden="true" />
+                  {/* Book + magnifier together signal "browse and search the
+                      course list", not just "open a list". */}
+                  <span className="flex shrink-0 items-center gap-0.5">
+                    <BookOpen aria-hidden="true" />
+                    <Search aria-hidden="true" className="size-3.5" />
+                  </span>
                   {t("workspace.courses")}
                 </Button>
               }

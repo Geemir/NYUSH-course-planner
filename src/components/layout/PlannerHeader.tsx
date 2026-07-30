@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   FileText,
   GraduationCap,
+  Info,
   LogIn,
   LogOut,
   Menu,
@@ -194,6 +195,17 @@ export function PlannerHeader({
             <span className="hidden sm:inline">{t("header.guide")}</span><span className="sr-only sm:hidden">{t("header.guide")}</span>
           </Button>
 
+          <Button
+            variant="ghost"
+            className="hidden h-11 px-3 lg:inline-flex"
+            aria-label={t("header.about")}
+            nativeButton={false}
+            render={<a href="/about" />}
+          >
+            <Info aria-hidden="true" />
+            <span className="hidden xl:inline">{t("header.about")}</span>
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="ghost" className="hidden h-11 px-3 sm:inline-flex" aria-label={t("header.help")} />}>
               <CircleHelp aria-hidden="true" /><span className="hidden xl:inline">{t("header.help")}</span>
@@ -203,6 +215,7 @@ export function PlannerHeader({
                 <DropdownMenuLabel>{t("header.support")}</DropdownMenuLabel>
                 <DropdownMenuItem className="min-h-11" onClick={() => setReportOpen(true)}><AlertCircle aria-hidden="true" />{t("header.report")}</DropdownMenuItem>
                 <DropdownMenuItem className="min-h-11" onClick={() => setReportsOpen(true)}><BookOpen aria-hidden="true" />{t("header.reports")}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" render={<a href="/about" />}><Info aria-hidden="true" />{t("header.about")}</DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -238,6 +251,10 @@ export function PlannerHeader({
                 <DropdownMenuItem className="min-h-11 sm:hidden" onClick={() => setReportsOpen(true)}>
                   <BookOpen aria-hidden="true" />
                   {t("header.reports")}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11 lg:hidden" render={<a href="/about" />}>
+                  <Info aria-hidden="true" />
+                  {t("header.about")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="min-h-11 sm:hidden"
