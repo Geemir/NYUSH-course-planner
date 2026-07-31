@@ -271,8 +271,15 @@ export function CourseCatalog({
       </div>
       <div className="relative">
         <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-        <Input value={search.query.q} onChange={(event) => search.setQuery({ q: event.target.value })} placeholder={t("catalog.searchPlaceholder")} aria-label={t("catalog.search")} className="h-13 rounded-xl bg-card pl-10 text-[15px] shadow-xs" />
+        <Input value={search.query.q} onChange={(event) => search.setQuery({ q: event.target.value })} placeholder={t("catalog.searchPlaceholder")} aria-label={t("catalog.search")} className="h-13 rounded-xl bg-card pl-10 text-[15px] shadow-xs" aria-describedby="catalog-search-hint" />
       </div>
+      {/* Shown only before the first query: it teaches the three ways to search
+          without nagging someone who already knows. */}
+      {search.query.q.trim() === "" && (
+        <p id="catalog-search-hint" className="-mt-1 px-1 text-xs leading-relaxed text-muted-foreground">
+          {t("catalog.searchHint")}
+        </p>
+      )}
       <div className="flex justify-end">
         <Button variant="ghost" size="sm" onClick={clearAllFilters}><RotateCcw />{t("catalog.clearFilters")}</Button>
       </div>

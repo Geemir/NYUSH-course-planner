@@ -61,11 +61,16 @@ export async function POST(request: Request) {
   const { locale, texts } = parsed.data;
 
   const keyed = texts.map((text) => ({ text, key: translationKey(text, locale) }));
+  // Keyed by the source text, not the cache hash: the hash is an internal
+  // storage detail, and echoing the text keeps the client free of hashing.
   const translations: Record<string, string> = {};
 
   try {
     const cachedRows = await readTranslations(db, keyed.map((item) => item.key));
-    for (const [key, value] of cachedRows) translations[key] = value;
+    for (const item of keyed) {
+      const cached = cachedRows.get(item.key);
+      if (cached) translations[item.text] = cached;
+    }
 
     const missing = keyed.filter((item) => !cachedRows.has(item.key));
     if (missing.length > 0) {
@@ -84,7 +89,7 @@ export async function POST(request: Request) {
           }))
           .filter((entry) => entry.translatedText.length > 0);
         await writeTranslations(db, locale, fresh);
-        for (const entry of fresh) translations[entry.id] = entry.translatedText;
+        for (const entry of fresh) translations[entry.sourceText] = entry.translatedText;
       }
     }
   } catch {

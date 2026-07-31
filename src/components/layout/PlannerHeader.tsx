@@ -150,11 +150,20 @@ export function PlannerHeader({
         aria-label={t("header.controls")}
         className="flex min-w-0 flex-1 items-center gap-2"
       >
+        {/* Always visible: on most screens the progress panel is behind a
+            button, so this chip is the only at-a-glance signal of how the plan
+            is tracking. Compact on phones, full label from `sm` up. */}
         <Badge
           variant="secondary"
-          className="hidden h-8 shrink-0 px-3 text-sm tabular-nums md:inline-flex"
+          className="h-8 shrink-0 px-2 text-sm tabular-nums sm:px-3"
+          title={t("header.credits", { planned: progress.credits.planned, goal: progress.credits.goal })}
         >
-          {t("header.credits", { planned: progress.credits.planned, goal: progress.credits.goal })}
+          <span className="hidden sm:inline">
+            {t("header.credits", { planned: progress.credits.planned, goal: progress.credits.goal })}
+          </span>
+          <span className="sm:hidden">
+            {progress.credits.planned}/{progress.credits.goal}
+          </span>
         </Badge>
 
         {/* The profile drives every requirement on the page, so it stays visible
